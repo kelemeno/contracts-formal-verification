@@ -1,0 +1,6 @@
+[submodule "era-contracts"]
+	path = era-contracts
+	url = https://github.com/matter-labs/era-contracts.git
+[submodule "Clear"]
+	path = Clear
+	url = https://github.com/NethermindEth/Clear.git
