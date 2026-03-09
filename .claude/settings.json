@@ -5,7 +5,9 @@
       "Bash(solc-select*)",
       "Bash(/Users/kalmanlajko/.elan/bin/lake *)",
       "Bash(/Users/kalmanlajko/.local/bin/stack *)",
-      "Bash(/Users/kalmanlajko/programming/zksync/contracts-formal-verification/scripts/*)",
+      "Bash(/Users/kalmanlajko/programming/zksync/contracts-formal-verification/scripts/lake-build.sh *)",
+      "Bash(/Users/kalmanlajko/programming/zksync/contracts-formal-verification/scripts/compile-yul.sh *)",
+      "Bash(/Users/kalmanlajko/programming/zksync/contracts-formal-verification/scripts/generate-vc.sh *)",
       "Bash(cat /tmp/lake-*.log*)",
       "Bash(tail *lake-*.log*)"
     ]

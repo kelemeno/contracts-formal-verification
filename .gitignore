@@ -1,3 +1,5 @@
 yul/
 .lake/
 build/
+# Generated verification conditions are regenerated from Yul.
+generated/
