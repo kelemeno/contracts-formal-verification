@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1Nullifier.L1Nullifier.require_helper_error_Unauthorized_address
+import generated.L1Nullifier.L1Nullifier.fun_encodeBridgeBurnData
+import generated.L1Nullifier.L1Nullifier.fun_encodeNTVAssetId
+import generated.L1Nullifier.L1Nullifier.allocate_memory_17659
+import generated.L1Nullifier.L1Nullifier.write_to_memory_address
+import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
+import generated.L1Nullifier.L1Nullifier.modifier_whenNotPaused_17695
+import generated.L1Nullifier.L1Nullifier.cleanup_address
+import generated.L1Nullifier.L1Nullifier.Common.if_4904059282733468388
+import generated.L1Nullifier.L1Nullifier.Common.if_7069222774777857031
+import generated.L1Nullifier.L1Nullifier.revert_forward
+import generated.L1Nullifier.L1Nullifier.Common.if_3845449680979841486
+import generated.L1Nullifier.L1Nullifier.finalize_allocation
+import generated.L1Nullifier.L1Nullifier.abi_decode
+
+import generated.L1Nullifier.L1Nullifier.modifier_onlyLegacyBridge_gen
+
+
+namespace generated.L1Nullifier.L1Nullifier
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
+
+def A_modifier_onlyLegacyBridge  (var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma modifier_onlyLegacyBridge_abs_of_concrete {s₀ s₉ : State} { var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length} :
+  Spec (modifier_onlyLegacyBridge_concrete_of_code.1  var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length) s₀ s₉ →
+  Spec (A_modifier_onlyLegacyBridge  var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length) s₀ s₉ := by
+  unfold modifier_onlyLegacyBridge_concrete_of_code A_modifier_onlyLegacyBridge
+  sorry
+
+end
+
+end generated.L1Nullifier.L1Nullifier
