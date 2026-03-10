@@ -13,12 +13,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
 
-def A_if_7261898839895920526 (s₀ s₉ : State) : Prop := sorry
+def A_if_7261898839895920526 (s₀ s₉ : State) : Prop := True
 
 lemma if_7261898839895920526_abs_of_concrete {s₀ s₉ : State} :
   Spec if_7261898839895920526_concrete_of_code s₀ s₉ →
   Spec A_if_7261898839895920526 s₀ s₉ := by
-  sorry
+  unfold A_if_7261898839895920526
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

@@ -319,10 +319,95 @@ Work:
    - message lemma from `fun_getDepositCalldata`
    - encoding lemma from `fun_encodeBridgeBurnData`
 3. Introduce one shared semantic amount symbol and prove both sides equal it.
+4. Build this proof bottom-up.
+   - First make the helper `_user` files build on their own.
+   - Then prove the small encoding/control-flow/custody lemmas as leaf targets.
+   - Only after those are stable, assemble the bridge-level composition theorem.
+   - Do not mock or shortcut the large bridge proof by starting from the top-level statement and patching dependencies downward.
 
 Why this matters:
 
 - this is the first place the final invariant actually becomes visible
+- the proof development order should follow the dependency order, even though this workflow note is not itself on the manual-review path
+
+## Manual Review List
+
+This section lists only the major statements that should be reviewed by a human.
+Helper lemmas, parser repairs, allocation lemmas, and control-flow plumbing should not be
+on the manual-review critical path unless they change one of these statements.
+
+### What should be reviewed
+
+1. `A_fun_transferFundsToNTV_inner`
+   in `specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean`
+   - This is the custody-side statement.
+   - It is where we assert that successful bridging locks exactly the requested amount.
+   - Review question:
+     - does this really capture "locked balances are preserved" for the actual NTV custody path?
+
+2. `A_fun_getDepositCalldata`
+   in `specs/L1AssetRouter/L1AssetRouter/fun_getDepositCalldata_user.lean`
+   - This is the outbound message statement.
+   - It should say that the in-flight cross-chain calldata represents the same amount.
+   - Review question:
+     - does this actually mention the amount encoded into the message, rather than just pointer plumbing?
+
+3. `A_fun_bridgehubDepositNonBaseTokenAsset`
+   in `specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean`
+   - This is the real contract-entrypoint statement for the L1 non-base-token bridge path.
+   - This is the most important spec to review.
+   - Review questions:
+     - is this the right contract function?
+     - is it the right bridge path?
+     - does it explicitly connect custody movement and outbound message contents?
+
+4. `BridgedAmountPreserved`
+   in `specs/L1AssetRouter/L1AssetRouter/bridged_amount_preserved_user.lean`
+   - This is the invariant-shaped statement.
+   - It is the clearest place to review the intended theorem wording:
+     - balances locked in custody
+     - plus balances represented in-flight
+     - preserve total value
+   - Review question:
+     - is this the right invariant statement, or does it still talk too much about low-level state variables like `expr_9` and `expr_6`?
+
+5. `bridgehubDepositNonBaseTokenAsset_preserves_bridged_amount`
+   in `specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean`
+   - This should be the theorem that ties the actual bridge entrypoint to the invariant.
+   - Review question:
+     - does this theorem really derive the invariant from the contract path, or is it only a wrapper around lower-level assumptions?
+
+### Current important caveat
+
+Right now, the major invariant statement exists, but it is not yet fully connected to the
+actual contract proof.
+
+Concretely:
+
+- `BridgedAmountPreserved` exists in
+  `specs/L1AssetRouter/L1AssetRouter/bridged_amount_preserved_user.lean`
+- `bridgehubDepositNonBaseTokenAsset_preserves_bridged_amount` also exists in
+  `specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean`
+- but `A_fun_bridgehubDepositNonBaseTokenAsset` and
+  `fun_bridgehubDepositNonBaseTokenAsset_abs_of_concrete` are still `sorry`
+
+So the current state is:
+
+- the invariant has been stated
+- the intended top-level theorem has been named
+- but the proof is not yet tied end-to-end to the real bridge entrypoint
+
+### Review rule
+
+If you only review one thing, review this chain:
+
+1. `A_fun_transferFundsToNTV_inner`
+2. `A_fun_getDepositCalldata`
+3. `A_fun_bridgehubDepositNonBaseTokenAsset`
+4. `BridgedAmountPreserved`
+5. `bridgehubDepositNonBaseTokenAsset_preserves_bridged_amount`
+
+That is the full theorem-level spine. Everything else is implementation detail.
 
 ## Proof Design Rules
 

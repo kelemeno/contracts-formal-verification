@@ -151,5 +151,7 @@ writeAggregate(
 );
 NODE
 
+# Sandbox is cleaned up automatically by the EXIT trap
+
 echo "Generated verification conditions at: $DEST"
 echo "Files: $(find "$DEST" -name '*.lean' | wc -l | tr -d ' ') Lean files"

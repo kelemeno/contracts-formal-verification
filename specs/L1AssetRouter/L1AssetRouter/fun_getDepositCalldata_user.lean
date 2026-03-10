@@ -26,7 +26,8 @@ def A_fun_getDepositCalldata
 lemma fun_getDepositCalldata_abs_of_concrete {s₀ s₉ : State} {var_1083_mpos var_sender var_assetId var_assetData_mpos} :
   Spec (fun_getDepositCalldata_concrete_of_code.1 var_1083_mpos var_sender var_assetId var_assetData_mpos) s₀ s₉ →
   Spec (A_fun_getDepositCalldata var_1083_mpos var_sender var_assetId var_assetData_mpos) s₀ s₉ := by
-  simpa [A_fun_getDepositCalldata]
+  intro h
+  simpa [A_fun_getDepositCalldata] using h
 
 end
 

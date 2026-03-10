@@ -27,7 +27,7 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
 def A_if_5678193105413593853 (s₀ s₉ : State) : Prop :=
   (s₀["var_weCanTransfer"]!! = 0 → s₉ = s₀) ∧
   (s₀["var_weCanTransfer"]!! ≠ 0 → isLeave s₉ →
-    s₀["expr_9"]!! - s₀["expr_6"]!! = s₀["var_amount"]!!)
+    (s₀["expr_9"]!!) - (s₀["expr_6"]!!) = (s₀["var_amount"]!!))
 
 lemma if_5678193105413593853_abs_of_concrete {s₀ s₉ : State} :
   Spec if_5678193105413593853_concrete_of_code s₀ s₉ →
