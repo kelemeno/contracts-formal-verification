@@ -481,6 +481,201 @@ That is the shortest path to making the final theorem reachable.
 
 ---
 
+## Accurate Bridge Call Chain (from era-contracts source)
+
+This section documents the actual contract call chain derived from reading the
+era-contracts Solidity source. The extension section below uses this as the basis
+for the full system-level invariant.
+
+### L1 → L2 deposit (non-base token)
+
+The user-facing entry point is on the Bridgehub, not L1AssetRouter directly.
+
+```
+User
+  → Bridgehub.requestL2TransactionTwoBridges(request)
+      where request.secondBridgeAddress = L1AssetRouter
+      ↓
+    Bridgehub calls L1AssetRouter.bridgehubDeposit(chainId, originalCaller, value, data)
+      ↓
+      AssetRouterBase._burn(chainId, assetId, originalCaller, transferData, ...)
+        ↓
+        NativeTokenVault.bridgeBurn(chainId, l2MsgValue, assetId, originalCaller, data)
+          ↓
+          _bridgeBurnNativeToken(...)
+            → _depositFunds(originalCaller, ERC20(token), amount)
+                balanceBefore = token.balanceOf(NTV)
+                token.safeTransferFrom(originalCaller, NTV, amount)
+                balanceAfter  = token.balanceOf(NTV)
+                assert balanceAfter - balanceBefore == amount
+            → _handleChainBalanceIncrease(chainId, assetId, amount)
+            → returns bridgeMintData = DataEncoding.encodeBridgeMintData(
+                  originalCaller, receiver, token, amount, erc20Metadata)
+        ↓
+      L1AssetRouter.getDepositCalldata(sender, assetId, bridgeMintData)
+        → returns abi.encodeCall(L2AssetRouter.finalizeDeposit,
+                                 (L1_CHAIN_ID, assetId, bridgeMintData))
+      ↓
+      returns L2TransactionRequestTwoBridgesInner {
+        l2Contract: L2_ASSET_ROUTER_ADDR,
+        l2Calldata: finalizeDeposit calldata above,
+        txDataHash: keccak256(encodingVersion || assetId || transferData)
+      }
+    ↓
+  Bridgehub._sendRequest(chainId, ...)
+    → IZKChain(zkChain).bridgehubRequestL2Transaction(request)
+        enqueues L2 transaction in the chain's Mailbox
+        returns canonicalTxHash
+  ↓
+  Bridgehub calls L1AssetRouter.bridgehubConfirmL2Transaction(
+      chainId, txDataHash, canonicalTxHash)
+    → records depositHappened[chainId][txDataHash] = canonicalTxHash
+```
+
+**What is in-flight after this completes:**
+- Tokens are locked inside `NativeTokenVault` on L1
+- A pending L2 transaction targeting `L2AssetRouter.finalizeDeposit` is in the Mailbox
+- The L2 calldata encodes `amount` via `bridgeMintData`
+
+### L2 deposit finalization (L2 side)
+
+When the ZK chain processes the enqueued L2 transaction:
+
+```
+L2 Bootloader executes the enqueued tx:
+  → L2AssetRouter.finalizeDeposit(L1_CHAIN_ID, assetId, transferData)
+      ↓
+      AssetRouterBase._finalizeDeposit(chainId, assetId, transferData, L2_NTV_ADDR)
+        ↓
+        NativeTokenVault.bridgeMint(chainId, assetId, transferData)
+          ↓
+          if token is native to L1 (originChainId == L1):
+            _bridgeMintNativeToken(chainId, assetId, data)
+              (receiver, amount) = DataEncoding.decodeBridgeMintData(data)
+              _handleChainBalanceDecrease(chainId, assetId, amount)
+              _withdrawFunds(assetId, receiver, token, amount)
+                → token.transfer(receiver, amount)   [L2 token]
+          else (bridged token):
+            _bridgeMintBridgedToken(chainId, assetId, data)
+              (receiver, amount) = DataEncoding.decodeBridgeMintData(data)
+              _handleChainBalanceDecrease(chainId, assetId, amount)
+              IBridgedStandardToken(token).bridgeMint(receiver, amount)
+```
+
+**What changes:**
+- The in-flight L1→L2 message is consumed (L2 tx executed)
+- `amount` tokens are minted or transferred to `receiver` on L2
+- `amount` is decoded from the same `bridgeMintData` that was encoded on L1
+
+The amount identity that must be proved:
+`amount_locked_in_NTV_on_L1 == amount_minted_to_receiver_on_L2`
+where both are the `amount` field from `DataEncoding.encodeBridgeMintData` /
+`DataEncoding.decodeBridgeMintData`.
+
+### L2 → L1 withdrawal
+
+The user calls `L2AssetRouter.withdraw` to initiate a withdrawal back to L1.
+
+```
+User
+  → L2AssetRouter.withdraw(assetId, assetData)
+      → _withdrawSender(assetId, assetData, msg.sender, alwaysNewFormat=true)
+          ↓
+          AssetRouterBase._burn(L1_CHAIN_ID, assetId, originalCaller, transferData, ...)
+            ↓
+            NativeTokenVault.bridgeBurn(...)   [L2 NTV]
+              ↓
+              if native token on L2:
+                _bridgeBurnNativeToken(...)
+                  → _depositFunds(...)  burns/locks L2 tokens
+                  → returns bridgeMintData encoding amount
+              else (bridged token):
+                _bridgeBurnBridgedToken(...)
+                  → IBridgedStandardToken(token).bridgeBurn(originalCaller, amount)
+                  → returns bridgeMintData encoding amount
+          ↓
+          message = _getAssetRouterWithdrawMessage(assetId, bridgeMintData)
+            = abi.encodePacked(
+                finalizeDeposit.selector,   // 4 bytes
+                block.chainid,              // L2 chain ID
+                assetId,                    // 32 bytes
+                bridgeMintData              // encodes amount
+              )
+          ↓
+          txHash = L2ContractHelper.sendMessageToL1(message)
+            → emits L2→L1 log; message becomes part of L2 batch state
+```
+
+**What is in-flight after this completes:**
+- `amount` tokens are burned/locked on L2
+- An L2→L1 message is emitted containing `amount` in `bridgeMintData`
+- The message settles as part of the next committed L2 batch on L1
+
+### L1 withdrawal finalization
+
+After the L2 batch containing the withdrawal is committed and proved on L1:
+
+```
+Anyone
+  → L1Nullifier.finalizeWithdrawal(
+        chainId, l2BatchNumber, l2MessageIndex, l2TxNumberInBatch,
+        message, merkleProof)
+      ↓
+      verifyWithdrawal(chainId, l2BatchNumber, l2MessageIndex,
+                       l2TxNumberInBatch, message, merkleProof)
+        → validates Merkle proof against committed L2 batch root
+        → confirms message is in the L2 output
+      ↓
+      assert !s_isWithdrawalFinalized[chainId][batchNumber][msgIndex]
+      s_isWithdrawalFinalized[chainId][batchNumber][msgIndex] = true
+      ↓
+      parseL2WithdrawalMessage(chainId, message)
+        → extracts (assetId, transferData)   [transferData encodes amount]
+      ↓
+      IL1AssetRouter(assetRouter).finalizeDeposit(chainId, assetId, transferData)
+        ↓
+        AssetRouterBase._finalizeDeposit(chainId, assetId, transferData, NTV_addr)
+          ↓
+          NativeTokenVault.bridgeMint(chainId, assetId, transferData)   [L1 NTV]
+            ↓
+            _bridgeMintNativeToken(...)
+              (receiver, amount) = DataEncoding.decodeBridgeMintData(transferData)
+              _handleChainBalanceDecrease(chainId, assetId, amount)
+              _withdrawFunds(assetId, receiver, token, amount)
+                → token.transfer(receiver, amount)   [releases L1 tokens from NTV]
+```
+
+**What changes:**
+- The L2→L1 message is nullified (can never be replayed)
+- `amount` tokens are released from `NativeTokenVault` on L1 to `receiver`
+- `amount` is the same value that was burned on L2
+
+### Key structural observations
+
+**NativeTokenVault is a shared base contract.** `L1NativeTokenVault` and
+`L2NativeTokenVault` both inherit from `NativeTokenVault`. The abstract function
+`_withdrawFunds` has different implementations on each side:
+- L1: calls `token.safeTransfer(to, amount)` (releases ERC-20 from custody)
+- L2: calls the L2 token contract's transfer or `bridgeMint`
+
+The `DataEncoding.encodeBridgeMintData` / `decodeBridgeMintData` pair is the
+common message format used on all four legs. The `amount` field is always at
+the same position in the encoded bytes. Proving encode/decode round-trips for
+this format is the single most important shared lemma across all four paths.
+
+**The in-flight representation is not a single mapping.** It is:
+- For L1→L2: the canonical tx in the Mailbox (identified by `canonicalTxHash`)
+  and `depositHappened[chainId][txDataHash] = canonicalTxHash` in L1AssetRouter
+- For L2→L1: the L2→L1 message log in the committed L2 batch, with
+  `s_isWithdrawalFinalized[chainId][batch][index]` as the consumed flag
+
+**The verified function in the existing proofs** (`fun_bridgehubDepositNonBaseTokenAsset`)
+corresponds to `L1AssetRouter.bridgehubDeposit` in the Solidity source. The Yul
+compiler generates internal function names; the Lean spec targets the full
+deposit orchestration in L1AssetRouter that is triggered by the Bridgehub.
+
+---
+
 ## Extension: Full System-Level Balance Conservation
 
 ### The expanded goal
@@ -520,37 +715,47 @@ This is what Milestones A through E prove. This path is in progress.
 
 #### Path 2: L2 deposit finalization
 
-Contract: `L2NativeTokenVault.bridgeMint` (or equivalent L2AssetRouter entry point)
+Entry point: `L2AssetRouter.finalizeDeposit(chainId, assetId, transferData)`
+Delegates to: `NativeTokenVault.bridgeMint` → `_bridgeMintNativeToken` or `_bridgeMintBridgedToken`
 
 Effect on the invariant:
 
-- `inflight_L1_to_L2` decreases by `amount` (message consumed)
-- `L2_balance` increases by `amount` (tokens minted to recipient)
+- `inflight_L1_to_L2` decreases by `amount` (L2 tx executed, Mailbox entry consumed)
+- `L2_balance` increases by `amount` (tokens minted or transferred to recipient on L2)
 - net change: zero
+
+The `amount` is decoded from `transferData` via `DataEncoding.decodeBridgeMintData`.
+This is the same bytes blob produced by `NativeTokenVault.bridgeBurn` on L1.
 
 This path is not yet in scope for formal verification. No Yul compilation or VC
 generation has been done for L2 contracts.
 
 #### Path 3: L2 withdrawal initiation
 
-Contract: `L2NativeTokenVault.bridgeBurn` or L2AssetRouter `withdraw`
+Entry point: `L2AssetRouter.withdraw(assetId, assetData)`
+Delegates to: `NativeTokenVault.bridgeBurn` (L2 side) → `L2ContractHelper.sendMessageToL1`
 
 Effect on the invariant:
 
-- `L2_balance` decreases by `amount` (tokens burned from sender)
-- `inflight_L2_to_L1` increases by `amount` (L2→L1 log emitted)
+- `L2_balance` decreases by `amount` (tokens burned or locked on L2)
+- `inflight_L2_to_L1` increases by `amount` (L2→L1 log emitted encoding `amount`)
 - net change: zero
+
+The emitted L2→L1 message encodes:
+`finalizeDeposit.selector || chainId || assetId || bridgeMintData`
+where `bridgeMintData` contains `amount` via `DataEncoding.encodeBridgeMintData`.
 
 This path is not yet in scope for formal verification.
 
 #### Path 4: L1 withdrawal finalization
 
-Contract: `L1Nullifier.finalizeWithdrawal`
+Entry point: `L1Nullifier.finalizeWithdrawal(chainId, batch, msgIndex, txNum, message, proof)`
+Then calls: `L1AssetRouter.finalizeDeposit` → `NativeTokenVault.bridgeMint` (L1 side) → token release
 
 Effect on the invariant:
 
-- `inflight_L2_to_L1` decreases by `amount` (nullifier set, message consumed)
-- `L1_custody` increases by `amount` (tokens released to recipient)
+- `inflight_L2_to_L1` decreases by `amount` (nullifier set, message can never replay)
+- `L1_custody` increases by `amount` (tokens released from NTV to recipient)
 - net change: zero
 
 This path has proof scaffolding in place:
@@ -568,15 +773,22 @@ abstractly.
 
 For `inflight_L1_to_L2`:
 
-- a deposit creates a cross-chain message whose calldata encodes `amount`
-- the amount is what `fun_getDepositCalldata` returns (Milestone C)
-- the in-flight quantity is the multiset of amounts in all un-finalized deposit messages
+- a deposit enqueues an L2 tx in the chain's Mailbox
+- the tx calldata is `L2AssetRouter.finalizeDeposit(chainId, assetId, bridgeMintData)`
+- `amount` is embedded in `bridgeMintData` via `DataEncoding.encodeBridgeMintData`
+- on-chain it is tracked by `depositHappened[chainId][txDataHash] = canonicalTxHash`
+  in `L1AssetRouter`
+- abstractly: the multiset of `amount` values in all Mailbox entries not yet finalized
 
 For `inflight_L2_to_L1`:
 
-- a withdrawal emits an L2-to-L1 log encoding `amount`
-- the amount is what `fun_parseL2WithdrawalMessage` extracts
-- the in-flight quantity is the multiset of amounts in all un-nullified withdrawal proofs
+- a withdrawal emits an L2→L1 log via `L2ContractHelper.sendMessageToL1`
+- the message encodes `finalizeDeposit.selector || chainId || assetId || bridgeMintData`
+- `amount` is embedded in `bridgeMintData` via `DataEncoding.encodeBridgeMintData`
+- on-chain: the message is consumed once by setting
+  `s_isWithdrawalFinalized[chainId][batch][index] = true` in `L1Nullifier`
+- abstractly: the multiset of `amount` values in all committed-but-not-yet-finalized
+  withdrawal messages
 
 At the system level, the invariant does not require tracking the full message structure.
 It only requires tracking the `amount` field embedded in each message. The encoding
@@ -615,18 +827,29 @@ Goal:
   - the extracted amount equals the amount in the L2 log
   - L1 custody increases by that amount
 
+The full call chain for this path is:
+`L1Nullifier.finalizeWithdrawal`
+  → `L1Nullifier.verifyWithdrawal` (Merkle proof check)
+  → `L1Nullifier.parseL2WithdrawalMessage` (extract assetId + transferData)
+  → `L1AssetRouter.finalizeDeposit` (dispatch to asset handler)
+  → `NativeTokenVault.bridgeMint` on L1 → `_bridgeMintNativeToken`
+  → `_withdrawFunds` → `token.safeTransfer(receiver, amount)`
+
 Required sub-lemmas:
 
-- `A_fun_parseL2WithdrawalMessage`: extract the exact amount from the encoded message
-- `A_fun_verifyWithdrawal`: prove message validity does not modify the amount
-- `A_fun_safeTransfer`: prove the ERC-20 transfer moves exactly the extracted amount
-- `A_fun_finalizeWithdrawal`: compose into the full finalization statement
+- `A_fun_parseL2WithdrawalMessage`: extract the exact `amount` from `bridgeMintData`
+  in the L2→L1 message (uses `DataEncoding.decodeBridgeMintData`)
+- `A_fun_verifyWithdrawal`: prove Merkle proof check does not alter `amount`
+- `A_fun_finalizeDeposit` (L1 side): prove dispatch to NTV preserves `amount`
+- `A_fun_bridgeMint` (L1 NTV): prove `amount` tokens are released to `receiver`
+- `A_fun_finalizeWithdrawal`: compose all the above
 
 Acceptance criteria:
 
 - `fun_finalizeWithdrawal_user` proves an amount equality of the form:
   `extracted_amount = L1_custody_after - L1_custody_before`
-- the nullifier key is set in the output state (double-spend prevention)
+- the nullifier `s_isWithdrawalFinalized[chainId][batch][index]` is set in the
+  output state (double-spend prevention)
 - theorem builds with no `sorry`
 
 Dependencies from current roadmap:
@@ -640,44 +863,56 @@ Goal:
 
 - bring L2 contracts into the Clear verification pipeline
 
+The L2 contracts live in `era-contracts/l1-contracts/contracts/bridge/` (the repo
+uses a single contracts tree). The two L2-side entry points to verify are:
+- `L2AssetRouter.finalizeDeposit` (deposit finalization)
+- `L2AssetRouter.withdraw` / `_withdrawSender` (withdrawal initiation)
+- `NativeTokenVault.bridgeMint` (shared base, L2 instantiation)
+- `NativeTokenVault.bridgeBurn` (shared base, L2 instantiation)
+
 Work:
 
-1. Identify the correct L2 contract entry points:
-   - `L2NativeTokenVault` in `era-contracts/l2-contracts/`
-   - specifically `bridgeMint` (deposit finalization) and `bridgeBurn` (withdrawal init)
-2. Compile L2 contracts to Yul using `solc`
-3. Run the VC generator to produce `_gen.lean` and `_user.lean` stubs
-4. Confirm the generated files build as identity stubs before writing proofs
+1. Compile `L2AssetRouter.sol` and `L2NativeTokenVault.sol` to Yul using `solc`
+2. Run the VC generator to produce `_gen.lean` and `_user.lean` stubs
+3. Confirm the generated files build as identity stubs before writing proofs
 
 This is infrastructure work, not proof work. No Lean proofs are written at this stage.
 
 Acceptance criteria:
 
-- `generated/L2NativeTokenVault/` directory exists with VC files
-- `specs/L2NativeTokenVault/` stubs build as identity abstractions
+- `generated/L2AssetRouter/` and `generated/L2NativeTokenVault/` directories exist with VC files
+- `specs/L2AssetRouter/` and `specs/L2NativeTokenVault/` stubs build as identity abstractions
 - `lakefile.lean` includes the new modules
 
 #### Milestone H: L2 deposit finalization and withdrawal initiation proofs
 
 Goal:
 
-- prove `L2NativeTokenVault.bridgeMint` and `L2NativeTokenVault.bridgeBurn`
+- prove amount preservation through `L2AssetRouter.finalizeDeposit` and
+  `L2AssetRouter.withdraw`
 
-For `bridgeMint`:
+For deposit finalization (`L2AssetRouter.finalizeDeposit → NTV.bridgeMint`):
 
-- the function mints exactly the amount encoded in the incoming deposit calldata
-- the calldata amount matches what `fun_getDepositCalldata` encoded on L1 (link to Milestone C)
+- `DataEncoding.decodeBridgeMintData` extracts the exact `amount` that was encoded
+  by `DataEncoding.encodeBridgeMintData` on L1 (shared encoding, round-trip lemma)
+- the token transfer to `receiver` moves exactly `amount` tokens
+- the amount identity links to what `fun_getDepositCalldata` encoded (Milestone C)
 
-For `bridgeBurn`:
+For withdrawal initiation (`L2AssetRouter.withdraw → NTV.bridgeBurn → sendMessageToL1`):
 
-- the function burns exactly `var_amount` from the caller
-- the emitted L2-to-L1 log encodes exactly `var_amount`
+- `NTV.bridgeBurn` burns/locks exactly `amount` tokens from the caller on L2
+- `_getAssetRouterWithdrawMessage` encodes `amount` into the L2→L1 message via
+  `DataEncoding.encodeBridgeMintData`
+- the emitted message is what `L1Nullifier.parseL2WithdrawalMessage` will later decode
 
 Acceptance criteria:
 
-- `A_fun_bridgeMint`: proves `L2_balance_after = L2_balance_before + amount`
-- `A_fun_bridgeBurn`: proves `L2_balance_after = L2_balance_before - amount` and the
-  emitted log encodes `amount`
+- `A_fun_finalizeDeposit` (L2): proves `L2_balance_after = L2_balance_before + amount`
+  where `amount` is decoded from `transferData` by `decodeBridgeMintData`
+- `A_fun_withdraw` (L2): proves `L2_balance_after = L2_balance_before - amount` and
+  the emitted L2→L1 message encodes `amount` via `encodeBridgeMintData`
+- the encode/decode round-trip lemma for `DataEncoding` is proved once and shared
+  across all four paths
 
 #### Milestone I: global conservation theorem
 
