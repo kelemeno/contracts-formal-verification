@@ -1,7 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import generated.L1AssetRouter.L1AssetRouter.Common.if_1569893669706455524
-import generated.L1AssetRouter.L1AssetRouter.Common.if_6869751612906544217
+import generated.L1AssetRouter.L1AssetRouter.Common.if_5401906472475017904
 import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
 
 import generated.L1AssetRouter.L1AssetRouter.fun_ensureTokenRegisteredWithNTV_gen
