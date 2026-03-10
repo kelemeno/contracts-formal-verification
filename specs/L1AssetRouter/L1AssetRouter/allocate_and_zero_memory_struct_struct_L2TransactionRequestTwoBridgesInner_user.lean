@@ -11,13 +11,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L1AssetRouter L1AssetRouter
 
-def A_allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner (memPtr : Identifier)  (s₀ s₉ : State) : Prop := sorry
+def A_allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner (memPtr : Identifier)  (s₀ s₉ : State) : Prop :=
+  allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner_concrete_of_code.1 memPtr s₀ s₉
 
 lemma allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner_abs_of_concrete {s₀ s₉ : State} {memPtr } :
   Spec (allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner_concrete_of_code.1 memPtr ) s₀ s₉ →
   Spec (A_allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner memPtr ) s₀ s₉ := by
-  unfold allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner_concrete_of_code A_allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
-  sorry
+  intro h
+  simpa [A_allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner] using h
 
 end
 
