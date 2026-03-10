@@ -8,15 +8,11 @@ package «contracts-formal-verification» {
   leanOptions := #[⟨`autoImplicit, false⟩]
 }
 
--- Auto-generated verification conditions from Yul
-lean_lib «generated» {
-  roots := #[`generated]
-}
-
-lean_lib «specs» {
-  roots := #[`specs]
-}
-
 @[default_target]
-lean_lib «Main» {
+lean_lib «specs» {
+  globs := #[
+    .andSubmodules `specs.DiamondProxy,
+    .andSubmodules `specs.L1AssetRouter,
+    .andSubmodules `specs.L1Nullifier
+  ]
 }
