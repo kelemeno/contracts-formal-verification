@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# UTF-8 locale is required: the Lean files contain unicode (𝔽, ⟦, emoji, etc.)
+# and the Haskell VC generator reads them, so it needs a UTF-8 aware locale.
+export LANG="${LANG:-C.UTF-8}"
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLEAR_DIR="$ROOT_DIR/Clear"
@@ -49,7 +54,7 @@ rm -rf "$CLEAR_SPECS_CONTRACT"
 if [ -d "$ROOT_SPECS_CONTRACT" ]; then
     mkdir -p "$CLEAR_SPECS_DIR"
     cp -R "$ROOT_SPECS_CONTRACT" "$CLEAR_SPECS_CONTRACT"
-    find "$CLEAR_SPECS_CONTRACT" -name '*.lean' -exec sed -i '' 's/generated\./Generated\./g' {} +
+    find "$CLEAR_SPECS_CONTRACT" -name '*.lean' -exec sed -i 's/generated\./Generated\./g' {} +
 fi
 
 # Strip solc 0.8.28 annotations that Clear's parser can't handle
@@ -95,7 +100,7 @@ rm -rf "$DEST"
 cp -R "$SRC" "$DEST"
 
 # Rename module references from Generated to generated (Clear outputs uppercase)
-find "$DEST" -name '*.lean' -exec sed -i '' 's/Generated\./generated./g' {} +
+find "$DEST" -name '*.lean' -exec sed -i 's/Generated\./generated./g' {} +
 
 # Copy user proofs into specs/ and translate imports/namespaces back to the root
 # repo's lowercase generated.* modules.
@@ -103,7 +108,7 @@ if [ -d "$SPECS_SRC" ]; then
     mkdir -p "$ROOT_SPECS_DIR"
     rm -rf "$SPECS_DEST"
     cp -R "$SPECS_SRC" "$SPECS_DEST"
-    find "$SPECS_DEST" -name '*.lean' -exec sed -i '' 's/Generated\./generated./g' {} +
+    find "$SPECS_DEST" -name '*.lean' -exec sed -i 's/Generated\./generated./g' {} +
 fi
 
 # Rebuild simple aggregate modules so `Main.lean` can import both generated and specs.
