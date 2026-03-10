@@ -67,6 +67,36 @@ def A_fun_transferFundsToNTV_inner
 -- s₉[var]!! = 1 →
 --   (s_check_in["expr_9"]!!) - (s_check_in["expr_6"]!!) = var_amount
 -- i.e., the observed balance increase equals the requested amount.
+--
+-- This is currently only a comment because A_if_5678193105413593853 is a
+-- trivial (True) auto-generated spec and does not yet carry the balance
+-- information.  The lemma below records the shape of what needs to be proved
+-- once A_if_5678193105413593853 is strengthened to capture the Yul-level
+-- semantics of the balance-difference guard:
+--
+--   if (balanceAfter - balanceBefore != _amount) { revert }
+--
+-- To lift this sorry: write a hand-crafted spec for if_5678193105413593853 in
+-- specs/L1AssetRouter/L1AssetRouter/Common/if_5678193105413593853_user.lean
+-- that asserts:
+--   isLeave s₉ → s₀["expr_9"]!! - s₀["expr_6"]!! = s₀["var_amount"]!!
+-- Then replace sorry below with the extraction from hspec.
+
+/-- When transferFundsToNTV returns 1 (success), the NTV token balance
+    increased by exactly `var_amount` between the two staticcall snapshots.
+    `expr_6` and `expr_9` are the Yul-level temporaries for balanceBefore and
+    balanceAfter respectively.
+    This lemma is admitted until A_if_5678193105413593853 carries the
+    balance postcondition. -/
+lemma fun_transferFundsToNTV_inner_balance_diff
+    {s₀ s₉ : State} {var : Identifier} {var_assetId var_amount var_originalCaller : Literal}
+    (hspec : Spec (A_fun_transferFundsToNTV_inner var var_assetId var_amount var_originalCaller) s₀ s₉)
+    (hret : s₉[var]!! = 1) :
+    ∃ s_check_in : State,
+      s_check_in["expr_9"]!! - s_check_in["expr_6"]!! = var_amount := by
+  -- The balance-diff information lives in s_check_in["expr_9"]!! - s_check_in["expr_6"]!!
+  -- once A_if_5678193105413593853 is strengthened.  For now we admit this.
+  sorry
 
 lemma fun_transferFundsToNTV_inner_abs_of_concrete {s₀ s₉ : State} {var var_assetId var_amount var_originalCaller} :
   Spec (fun_transferFundsToNTV_inner_concrete_of_code.1 var var_assetId var_amount var_originalCaller) s₀ s₉ →

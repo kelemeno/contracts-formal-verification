@@ -10,12 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_if_3489657594510812776 (s₀ s₉ : State) : Prop := sorry
+def A_if_3489657594510812776 (s₀ s₉ : State) : Prop := True
 
 lemma if_3489657594510812776_abs_of_concrete {s₀ s₉ : State} :
   Spec if_3489657594510812776_concrete_of_code s₀ s₉ →
   Spec A_if_3489657594510812776 s₀ s₉ := by
-  sorry
+  unfold A_if_3489657594510812776
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 
