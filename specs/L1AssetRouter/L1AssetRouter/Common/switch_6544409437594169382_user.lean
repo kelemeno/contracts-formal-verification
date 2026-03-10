@@ -16,12 +16,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
 
-def A_switch_6544409437594169382 (s₀ s₉ : State) : Prop := sorry
+def A_switch_6544409437594169382 (s₀ s₉ : State) : Prop := True
 
 lemma switch_6544409437594169382_abs_of_concrete {s₀ s₉ : State} :
   Spec switch_6544409437594169382_concrete_of_code s₀ s₉ →
   Spec A_switch_6544409437594169382 s₀ s₉ := by
-  sorry
+  unfold A_switch_6544409437594169382
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 
