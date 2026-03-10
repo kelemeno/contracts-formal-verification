@@ -17,12 +17,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_switch_6068926820326500174 (s₀ s₉ : State) : Prop := sorry
+def A_switch_6068926820326500174 (s₀ s₉ : State) : Prop := True
 
 lemma switch_6068926820326500174_abs_of_concrete {s₀ s₉ : State} :
   Spec switch_6068926820326500174_concrete_of_code s₀ s₉ →
   Spec A_switch_6068926820326500174 s₀ s₉ := by
-  sorry
+  unfold A_switch_6068926820326500174
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

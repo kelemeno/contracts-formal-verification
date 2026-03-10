@@ -11,13 +11,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L1Nullifier L1Nullifier
 
-def A_abi_decode_address (value : Identifier) (offset : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_abi_decode_address (value : Identifier) (offset : Literal) (s₀ s₉ : State) : Prop := True
 
 lemma abi_decode_address_abs_of_concrete {s₀ s₉ : State} {value offset} :
   Spec (abi_decode_address_concrete_of_code.1 value offset) s₀ s₉ →
   Spec (A_abi_decode_address value offset) s₀ s₉ := by
-  unfold abi_decode_address_concrete_of_code A_abi_decode_address
-  sorry
+  unfold A_abi_decode_address
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

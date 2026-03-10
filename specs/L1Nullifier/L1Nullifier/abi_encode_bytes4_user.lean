@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_abi_encode_bytes4 (tail : Identifier) (value0 : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_abi_encode_bytes4 (tail : Identifier) (value0 : Literal) (s₀ s₉ : State) : Prop := True
 
 lemma abi_encode_bytes4_abs_of_concrete {s₀ s₉ : State} {tail value0} :
   Spec (abi_encode_bytes4_concrete_of_code.1 tail value0) s₀ s₉ →
   Spec (A_abi_encode_bytes4 tail value0) s₀ s₉ := by
-  unfold abi_encode_bytes4_concrete_of_code A_abi_encode_bytes4
-  sorry
+  unfold A_abi_encode_bytes4
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

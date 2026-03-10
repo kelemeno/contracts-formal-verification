@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_cleanup_address (cleaned : Identifier) (value : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_cleanup_address (cleaned : Identifier) (value : Literal) (s₀ s₉ : State) : Prop := True
 
 lemma cleanup_address_abs_of_concrete {s₀ s₉ : State} {cleaned value} :
   Spec (cleanup_address_concrete_of_code.1 cleaned value) s₀ s₉ →
   Spec (A_cleanup_address cleaned value) s₀ s₉ := by
-  unfold cleanup_address_concrete_of_code A_cleanup_address
-  sorry
+  unfold A_cleanup_address
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

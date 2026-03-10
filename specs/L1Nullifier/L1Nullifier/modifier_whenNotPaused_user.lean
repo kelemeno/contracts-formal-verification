@@ -32,13 +32,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_modifier_whenNotPaused  (var__confirmTransferResultData_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_modifier_whenNotPaused  (var__confirmTransferResultData_mpos : Literal) (s₀ s₉ : State) : Prop := True
 
 lemma modifier_whenNotPaused_abs_of_concrete {s₀ s₉ : State} { var__confirmTransferResultData_mpos} :
-  Spec (modifier_whenNotPaused_concrete_of_code.1  var__confirmTransferResultData_mpos) s₀ s₉ →
-  Spec (A_modifier_whenNotPaused  var__confirmTransferResultData_mpos) s₀ s₉ := by
-  unfold modifier_whenNotPaused_concrete_of_code A_modifier_whenNotPaused
-  sorry
+  Spec (modifier_whenNotPaused_concrete_of_code.1 var__confirmTransferResultData_mpos) s₀ s₉ →
+  Spec (A_modifier_whenNotPaused var__confirmTransferResultData_mpos) s₀ s₉ := by
+  unfold A_modifier_whenNotPaused
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 

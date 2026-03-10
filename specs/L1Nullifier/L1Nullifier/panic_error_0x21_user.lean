@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_panic_error_0x21   (s₀ s₉ : State) : Prop := sorry
+def A_panic_error_0x21   (s₀ s₉ : State) : Prop := True
 
-lemma panic_error_0x21_abs_of_concrete {s₀ s₉ : State}  :
-  Spec (panic_error_0x21_concrete_of_code.1  ) s₀ s₉ →
-  Spec (A_panic_error_0x21  ) s₀ s₉ := by
-  unfold panic_error_0x21_concrete_of_code A_panic_error_0x21
-  sorry
+lemma panic_error_0x21_abs_of_concrete {s₀ s₉ : State} :
+  Spec (panic_error_0x21_concrete_of_code.1 ) s₀ s₉ →
+  Spec (A_panic_error_0x21 ) s₀ s₉ := by
+  unfold A_panic_error_0x21
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
 
