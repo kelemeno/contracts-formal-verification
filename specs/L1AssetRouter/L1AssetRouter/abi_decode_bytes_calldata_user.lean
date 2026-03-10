@@ -20,7 +20,6 @@ lemma abi_decode_bytes_calldata_abs_of_concrete {s₀ s₉ : State} {arrayPos le
   Spec (abi_decode_bytes_calldata_concrete_of_code.1 arrayPos length offset end_clear_sanitised_hrafn) s₀ s₉ →
   Spec (A_abi_decode_bytes_calldata arrayPos length offset end_clear_sanitised_hrafn) s₀ s₉ := by
   unfold abi_decode_bytes_calldata_concrete_of_code A_abi_decode_bytes_calldata
-  unfold A_abi_decode_bytes_calldata
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

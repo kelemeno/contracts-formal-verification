@@ -26,7 +26,6 @@ lemma fun_bridgehubDeposit_inner_abs_of_concrete {s₀ s₉ : State} {var_reques
   Spec (fun_bridgehubDeposit_inner_concrete_of_code.1 var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length) s₀ s₉ →
   Spec (A_fun_bridgehubDeposit_inner var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length) s₀ s₉ := by
   unfold fun_bridgehubDeposit_inner_concrete_of_code A_fun_bridgehubDeposit_inner
-  unfold A_fun_bridgehubDeposit_inner
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

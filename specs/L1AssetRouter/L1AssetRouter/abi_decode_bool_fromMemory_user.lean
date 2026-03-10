@@ -19,7 +19,6 @@ lemma abi_decode_bool_fromMemory_abs_of_concrete {s₀ s₉ : State} {value0 hea
   Spec (abi_decode_bool_fromMemory_concrete_of_code.1 value0 headStart dataEnd) s₀ s₉ →
   Spec (A_abi_decode_bool_fromMemory value0 headStart dataEnd) s₀ s₉ := by
   unfold abi_decode_bool_fromMemory_concrete_of_code A_abi_decode_bool_fromMemory
-  unfold A_abi_decode_bool_fromMemory
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

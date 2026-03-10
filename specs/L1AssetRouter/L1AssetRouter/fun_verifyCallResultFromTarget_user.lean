@@ -18,7 +18,6 @@ lemma fun_verifyCallResultFromTarget_abs_of_concrete {s₀ s₉ : State} {var_mp
   Spec (fun_verifyCallResultFromTarget_concrete_of_code.1 var_mpos var_target var_success var_returndata_mpos var_errorMessage_mpos) s₀ s₉ →
   Spec (A_fun_verifyCallResultFromTarget var_mpos var_target var_success var_returndata_mpos var_errorMessage_mpos) s₀ s₉ := by
   unfold fun_verifyCallResultFromTarget_concrete_of_code A_fun_verifyCallResultFromTarget
-  unfold A_fun_verifyCallResultFromTarget
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

@@ -16,7 +16,6 @@ lemma abi_encode_uint256_bytes32_bytes32_abs_of_concrete {s₀ s₉ : State} {ta
   Spec (abi_encode_uint256_bytes32_bytes32_concrete_of_code.1 tail headStart value0 value1 value2) s₀ s₉ →
   Spec (A_abi_encode_uint256_bytes32_bytes32 tail headStart value0 value1 value2) s₀ s₉ := by
   unfold abi_encode_uint256_bytes32_bytes32_concrete_of_code A_abi_encode_uint256_bytes32_bytes32
-  unfold A_abi_encode_uint256_bytes32_bytes32
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

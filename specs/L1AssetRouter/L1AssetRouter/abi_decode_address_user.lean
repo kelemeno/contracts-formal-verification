@@ -18,7 +18,6 @@ lemma abi_decode_address_abs_of_concrete {s₀ s₉ : State} {value } :
   Spec (abi_decode_address_concrete_of_code.1 value ) s₀ s₉ →
   Spec (A_abi_decode_address value ) s₀ s₉ := by
   unfold abi_decode_address_concrete_of_code A_abi_decode_address
-  unfold A_abi_decode_address
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

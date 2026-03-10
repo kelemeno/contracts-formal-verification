@@ -16,7 +16,6 @@ lemma fun_setAssetHandler_abs_of_concrete {s₀ s₉ : State} { var_assetId var_
   Spec (fun_setAssetHandler_concrete_of_code.1  var_assetId var_assetHandlerAddress) s₀ s₉ →
   Spec (A_fun_setAssetHandler  var_assetId var_assetHandlerAddress) s₀ s₉ := by
   unfold fun_setAssetHandler_concrete_of_code A_fun_setAssetHandler
-  unfold A_fun_setAssetHandler
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end

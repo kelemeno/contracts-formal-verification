@@ -17,7 +17,6 @@ lemma abi_encode_uint256_bytes32_bytes_calldata_abs_of_concrete {s₀ s₉ : Sta
   Spec (abi_encode_uint256_bytes32_bytes_calldata_concrete_of_code.1 tail headStart value0 value1 value2 value3) s₀ s₉ →
   Spec (A_abi_encode_uint256_bytes32_bytes_calldata tail headStart value0 value1 value2 value3) s₀ s₉ := by
   unfold abi_encode_uint256_bytes32_bytes_calldata_concrete_of_code A_abi_encode_uint256_bytes32_bytes_calldata
-  unfold A_abi_encode_uint256_bytes32_bytes_calldata
   rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
 
 end
