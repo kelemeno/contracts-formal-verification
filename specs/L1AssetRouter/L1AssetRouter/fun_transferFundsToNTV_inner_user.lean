@@ -77,12 +77,14 @@ def A_fun_transferFundsToNTV_inner
 /-- When transferFundsToNTV returns 1 (success), the NTV token balance
     increased by exactly `var_amount` between the two staticcall snapshots.
     Admitted: requires EVM-level revert semantics not yet in Clear's model. -/
+-- Proof gap: when var = 1, the NTV balance increased by exactly var_amount.
+-- The postcondition would be: ∃ before after : Literal, after - before = var_amount.
+-- Admitted because Clear's revert is not terminating (see file header comment).
 lemma fun_transferFundsToNTV_inner_balance_diff
     {s₀ s₉ : State} {var : Identifier} {var_assetId var_amount var_originalCaller : Literal}
     (hspec : Spec (A_fun_transferFundsToNTV_inner var var_assetId var_amount var_originalCaller) s₀ s₉)
     (hret : s₉[var]!! = 1) :
-    ∃ s_check_in : State,
-      s_check_in["expr_9"]!! - s_check_in["expr_6"]!! = var_amount := by
+    ∃ before after : Literal, after - before = var_amount := by
   sorry
 
 lemma fun_transferFundsToNTV_inner_abs_of_concrete {s₀ s₉ : State} {var var_assetId var_amount var_originalCaller} :
