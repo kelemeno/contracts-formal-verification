@@ -478,3 +478,295 @@ If resuming work right now, do this:
 3. extract the `diff = var_amount` theorem from `fun_transferFundsToNTV_inner_user`
 
 That is the shortest path to making the final theorem reachable.
+
+---
+
+## Extension: Full System-Level Balance Conservation
+
+### The expanded goal
+
+The current roadmap proves one quarter of a larger theorem. The deposit path shows:
+
+```
+L1_custody_before = L1_custody_after + inflight_L1_to_L2_amount
+```
+
+The full system-level invariant the project should eventually reach is:
+
+```
+L1_custody + inflight_L1_to_L2 + L2_balance + inflight_L2_to_L1 = total_supply
+```
+
+where each term is a sum over all tokens and all pending messages, and `total_supply`
+is a constant representing the total amount of a given token that has ever been
+deposited into the bridge system.
+
+This requires proving four contract paths and composing them into one global
+conservation theorem.
+
+### The four contract paths
+
+#### Path 1: L1 deposit initiation (current focus)
+
+Contract: `L1AssetRouter.bridgehubDepositNonBaseTokenAsset`
+
+Effect on the invariant:
+
+- `L1_custody` decreases by `amount`
+- `inflight_L1_to_L2` increases by `amount`
+- net change: zero
+
+This is what Milestones A through E prove. This path is in progress.
+
+#### Path 2: L2 deposit finalization
+
+Contract: `L2NativeTokenVault.bridgeMint` (or equivalent L2AssetRouter entry point)
+
+Effect on the invariant:
+
+- `inflight_L1_to_L2` decreases by `amount` (message consumed)
+- `L2_balance` increases by `amount` (tokens minted to recipient)
+- net change: zero
+
+This path is not yet in scope for formal verification. No Yul compilation or VC
+generation has been done for L2 contracts.
+
+#### Path 3: L2 withdrawal initiation
+
+Contract: `L2NativeTokenVault.bridgeBurn` or L2AssetRouter `withdraw`
+
+Effect on the invariant:
+
+- `L2_balance` decreases by `amount` (tokens burned from sender)
+- `inflight_L2_to_L1` increases by `amount` (L2→L1 log emitted)
+- net change: zero
+
+This path is not yet in scope for formal verification.
+
+#### Path 4: L1 withdrawal finalization
+
+Contract: `L1Nullifier.finalizeWithdrawal`
+
+Effect on the invariant:
+
+- `inflight_L2_to_L1` decreases by `amount` (nullifier set, message consumed)
+- `L1_custody` increases by `amount` (tokens released to recipient)
+- net change: zero
+
+This path has proof scaffolding in place:
+- `specs/L1Nullifier/L1Nullifier/fun_finalizeWithdrawal_user.lean`
+- `specs/L1Nullifier/L1Nullifier/fun_verifyWithdrawal_user.lean`
+- `specs/L1Nullifier/L1Nullifier/fun_parseL2WithdrawalMessage_user.lean`
+
+However the abstract specs are all `sorry`. The skeleton is ready for proof work.
+
+### Modeling the in-flight state
+
+The in-flight components are not stored in a single contract variable but are implicit
+in pending messages and nullifier sets. At the proof level they must be modeled
+abstractly.
+
+For `inflight_L1_to_L2`:
+
+- a deposit creates a cross-chain message whose calldata encodes `amount`
+- the amount is what `fun_getDepositCalldata` returns (Milestone C)
+- the in-flight quantity is the multiset of amounts in all un-finalized deposit messages
+
+For `inflight_L2_to_L1`:
+
+- a withdrawal emits an L2-to-L1 log encoding `amount`
+- the amount is what `fun_parseL2WithdrawalMessage` extracts
+- the in-flight quantity is the multiset of amounts in all un-nullified withdrawal proofs
+
+At the system level, the invariant does not require tracking the full message structure.
+It only requires tracking the `amount` field embedded in each message. The encoding
+lemmas (Milestones A and C) exist precisely to expose that field.
+
+### Suggested abstract invariant shape
+
+```lean
+def TotalBridgeSupplyPreserved
+    (total_supply : Literal)
+    (l1_custody : Literal)
+    (inflight_l1_to_l2 : Multiset Literal)
+    (l2_balance : Literal)
+    (inflight_l2_to_l1 : Multiset Literal) : Prop :=
+  l1_custody + inflight_l1_to_l2.sum + l2_balance + inflight_l2_to_l1.sum = total_supply
+```
+
+Each of the four contract paths is then a lemma that:
+
+- takes `TotalBridgeSupplyPreserved` as a precondition
+- applies the relevant contract function
+- concludes `TotalBridgeSupplyPreserved` still holds on the updated state
+
+The `total_supply` term is a ghost quantity: it does not appear in any contract
+storage, but it is provably constant because each path moves `amount` from one term
+to another without changing the sum.
+
+### New milestones
+
+#### Milestone F: L1 withdrawal finalization proof
+
+Goal:
+
+- prove that `fun_finalizeWithdrawal` in L1Nullifier implies:
+  - the withdrawal message is nullified (consumed exactly once)
+  - the extracted amount equals the amount in the L2 log
+  - L1 custody increases by that amount
+
+Required sub-lemmas:
+
+- `A_fun_parseL2WithdrawalMessage`: extract the exact amount from the encoded message
+- `A_fun_verifyWithdrawal`: prove message validity does not modify the amount
+- `A_fun_safeTransfer`: prove the ERC-20 transfer moves exactly the extracted amount
+- `A_fun_finalizeWithdrawal`: compose into the full finalization statement
+
+Acceptance criteria:
+
+- `fun_finalizeWithdrawal_user` proves an amount equality of the form:
+  `extracted_amount = L1_custody_after - L1_custody_before`
+- the nullifier key is set in the output state (double-spend prevention)
+- theorem builds with no `sorry`
+
+Dependencies from current roadmap:
+
+- Milestone F does not depend on Milestones A–E
+- it can be developed in parallel on the L1Nullifier proof files
+
+#### Milestone G: L2 contract pipeline setup
+
+Goal:
+
+- bring L2 contracts into the Clear verification pipeline
+
+Work:
+
+1. Identify the correct L2 contract entry points:
+   - `L2NativeTokenVault` in `era-contracts/l2-contracts/`
+   - specifically `bridgeMint` (deposit finalization) and `bridgeBurn` (withdrawal init)
+2. Compile L2 contracts to Yul using `solc`
+3. Run the VC generator to produce `_gen.lean` and `_user.lean` stubs
+4. Confirm the generated files build as identity stubs before writing proofs
+
+This is infrastructure work, not proof work. No Lean proofs are written at this stage.
+
+Acceptance criteria:
+
+- `generated/L2NativeTokenVault/` directory exists with VC files
+- `specs/L2NativeTokenVault/` stubs build as identity abstractions
+- `lakefile.lean` includes the new modules
+
+#### Milestone H: L2 deposit finalization and withdrawal initiation proofs
+
+Goal:
+
+- prove `L2NativeTokenVault.bridgeMint` and `L2NativeTokenVault.bridgeBurn`
+
+For `bridgeMint`:
+
+- the function mints exactly the amount encoded in the incoming deposit calldata
+- the calldata amount matches what `fun_getDepositCalldata` encoded on L1 (link to Milestone C)
+
+For `bridgeBurn`:
+
+- the function burns exactly `var_amount` from the caller
+- the emitted L2-to-L1 log encodes exactly `var_amount`
+
+Acceptance criteria:
+
+- `A_fun_bridgeMint`: proves `L2_balance_after = L2_balance_before + amount`
+- `A_fun_bridgeBurn`: proves `L2_balance_after = L2_balance_before - amount` and the
+  emitted log encodes `amount`
+
+#### Milestone I: global conservation theorem
+
+Goal:
+
+- compose all four path lemmas into the global `TotalBridgeSupplyPreserved` invariant
+
+Shape of each component lemma:
+
+```
+deposit_preserves_total :
+  TotalBridgeSupplyPreserved total l1 flights_in l2 flights_out →
+  bridgehubDepositNonBaseTokenAsset amount ... →
+  TotalBridgeSupplyPreserved total (l1 - amount) (flights_in + {amount}) l2 flights_out
+
+l2_finalize_preserves_total :
+  TotalBridgeSupplyPreserved total l1 flights_in l2 flights_out →
+  amount ∈ flights_in →
+  bridgeMint amount ... →
+  TotalBridgeSupplyPreserved total l1 (flights_in - {amount}) (l2 + amount) flights_out
+
+l2_withdraw_preserves_total :
+  TotalBridgeSupplyPreserved total l1 flights_in l2 flights_out →
+  bridgeBurn amount ... →
+  TotalBridgeSupplyPreserved total l1 flights_in (l2 - amount) (flights_out + {amount})
+
+l1_finalize_preserves_total :
+  TotalBridgeSupplyPreserved total l1 flights_in l2 flights_out →
+  amount ∈ flights_out →
+  finalizeWithdrawal amount ... →
+  TotalBridgeSupplyPreserved total (l1 + amount) flights_in l2 (flights_out - {amount})
+```
+
+The global theorem is that repeated application of any sequence of these four steps
+leaves `total_supply` unchanged.
+
+Acceptance criteria:
+
+- all four component lemmas stated and proved
+- `TotalBridgeSupplyPreserved` invariant defined in a shared file
+- a top-level theorem states invariant preservation under all four operations
+- no `sorry`
+
+### Dependency order for the extension
+
+The new milestones can be pursued in parallel with the existing roadmap:
+
+```
+Current roadmap (A → B → C → D → E)    Milestone F (independent)
+                           ↓                      ↓
+                     Milestone G (infrastructure for L2 contracts)
+                           ↓
+                     Milestone H (L2 bridgeMint + bridgeBurn proofs)
+                           ↓
+                     Milestone I (global composition)
+```
+
+Milestone F (L1Nullifier finalization proof) does not depend on Milestones A–E and can
+be worked on immediately in parallel.
+
+Milestones G and H require the L2 contract pipeline, which is new infrastructure work
+and can begin as soon as someone is ready to invest time in the tooling setup.
+
+Milestone I requires all previous milestones and is the final integration step.
+
+### Scope note
+
+The full global invariant (Milestone I) requires trusting certain things that are hard
+or impossible to verify directly in the Clear framework:
+
+- the L2 Merkle proof verification (used in `fun_verifyWithdrawal`) is ultimately trusted
+  by `L1Nullifier` to encode the correct amount from the L2 log
+- the ZK proof system itself, which proves correct L2 state transition
+
+These can be treated as axioms or assumptions in the global theorem. The theorem would
+then read: "assuming the ZK proof is sound and the Merkle proof is correct, the total
+value is conserved across all four contract paths."
+
+This is an appropriate scope for smart contract formal verification. The ZK soundness
+is a separate cryptographic argument, not a contract-level argument.
+
+### Updated definition of done for the full system theorem
+
+We should consider the expanded goal reached only when all of the following are true:
+
+- Milestones A through E are complete (L1 deposit path)
+- Milestone F is complete (L1 withdrawal finalization)
+- Milestones G and H are complete (L2 pipeline and proofs)
+- `TotalBridgeSupplyPreserved` is defined with all four components
+- all four path lemmas are proved
+- the global invariant theorem builds with no `sorry` under the stated ZK/Merkle
+  axioms
