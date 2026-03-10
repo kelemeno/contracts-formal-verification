@@ -1,8 +1,7 @@
 import Lake
 open Lake DSL
 
-require clear from git
-  "https://github.com/kelemeno/Clear" @ "codex/vc-preprocessor-specs-split"
+require clear from "Clear"
 
 package «contracts-formal-verification» {
   leanOptions := #[⟨`autoImplicit, false⟩]
