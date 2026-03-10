@@ -1,7 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1AssetRouter.L1AssetRouter.Common.if_6395570222330567500
-import generated.L1AssetRouter.L1AssetRouter.Common.switch_9117052861744899638
 import generated.L1AssetRouter.L1AssetRouter.fun_bridgehubDepositNonBaseTokenAsset
 import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
 import generated.L1AssetRouter.L1AssetRouter.allocate_and_zero_memory_array_array_bytes_dyn
@@ -9,6 +7,9 @@ import generated.L1AssetRouter.L1AssetRouter.finalize_allocation_27947
 import generated.L1AssetRouter.L1AssetRouter.allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
 import generated.L1AssetRouter.L1AssetRouter.fun_requireNotPaused
 import generated.L1AssetRouter.L1AssetRouter.fun__bridgehubDeposit_inner
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_4118729959615125189
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_6917527303596625549
 
 import generated.L1AssetRouter.L1AssetRouter.fun_bridgehubDeposit_inner_gen
 

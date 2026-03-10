@@ -1,10 +1,11 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1AssetRouter.L1AssetRouter.Common.if_6355659747013642313
 import generated.L1AssetRouter.L1AssetRouter.array_allocation_size_bytes
 import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
-import generated.L1AssetRouter.L1AssetRouter.Common.if_1164150532433179709
 import generated.L1AssetRouter.L1AssetRouter.mcopy
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_6355659747013642313
+import generated.L1AssetRouter.L1AssetRouter.Common.if_1164150532433179709
 
 import generated.L1AssetRouter.L1AssetRouter.abi_decode_bytes_fromMemory_gen
 

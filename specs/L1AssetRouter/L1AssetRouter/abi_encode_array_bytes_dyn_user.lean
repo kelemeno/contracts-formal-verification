@@ -1,7 +1,8 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1AssetRouter.L1AssetRouter.Common.for_2520369864904095451
 import generated.L1AssetRouter.L1AssetRouter.abi_encode_bytes
+
+import generated.L1AssetRouter.L1AssetRouter.Common.for_6252067074600046020
 
 import generated.L1AssetRouter.L1AssetRouter.abi_encode_array_bytes_dyn_gen
 

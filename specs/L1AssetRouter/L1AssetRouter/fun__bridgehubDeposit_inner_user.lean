@@ -1,8 +1,9 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1AssetRouter.L1AssetRouter.Common.if_6395570222330567500
-import generated.L1AssetRouter.L1AssetRouter.Common.switch_7370631072074319954
 import generated.L1AssetRouter.L1AssetRouter.fun_bridgehubDepositNonBaseTokenAsset
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_4118729959615125189
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_3111734635498524533
 
 import generated.L1AssetRouter.L1AssetRouter.fun__bridgehubDeposit_inner_gen
 

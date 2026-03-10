@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1AssetRouter.L1AssetRouter.Common.if_2312780802672287253
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_6355659747013642313
 
 import generated.L1AssetRouter.L1AssetRouter.abi_decode_uint16_gen
 

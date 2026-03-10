@@ -1,8 +1,9 @@
 import Clear.ReasoningPrinciple
 
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_bytes_fromMemory
+
 import generated.L1AssetRouter.L1AssetRouter.Common.if_5564101263465963537
 import generated.L1AssetRouter.L1AssetRouter.Common.if_3680740834951988335
-import generated.L1AssetRouter.L1AssetRouter.abi_decode_bytes_fromMemory
 
 import generated.L1AssetRouter.L1AssetRouter.abi_decode_bytes_memory_ptr_fromMemory_gen
 

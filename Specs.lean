@@ -251,6 +251,7 @@ import specs.L1AssetRouter.L1AssetRouter.fun_setAssetHandler_user
 import specs.L1AssetRouter.L1AssetRouter.fun_transferFundsToNTV_inner_user
 import specs.L1AssetRouter.L1AssetRouter.fun_transferOwnership_user
 import specs.L1AssetRouter.L1AssetRouter.fun_verifyCallResultFromTarget_user
+import specs.L1AssetRouter.L1AssetRouter.mcopy_user
 import specs.L1AssetRouter.L1AssetRouter.require_helper_error_Unauthorized_address_user
 import specs.L1Nullifier.L1Nullifier.Common.for_4696250068406280517_user
 import specs.L1Nullifier.L1Nullifier.Common.for_6136861723173755809_user
