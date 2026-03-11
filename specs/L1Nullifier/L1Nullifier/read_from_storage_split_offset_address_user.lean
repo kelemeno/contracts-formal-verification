@@ -8,15 +8,25 @@ namespace generated.L1Nullifier.L1Nullifier
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
 
-def A_read_from_storage_split_offset_address (value : Identifier) (slot : Literal) (s₀ s₉ : State) : Prop := True
+/-- Reads an address from storage at slot: returns sload(slot) masked to 160 bits. -/
+def A_read_from_storage_split_offset_address (value : Identifier) (slot : Literal) (s₀ s₉ : State) : Prop :=
+  s₉ = s₀⟦value ↦ Fin.land (s₀.evm.sload slot) (Fin.shiftLeft 1 160 - 1)⟧
 
-lemma read_from_storage_split_offset_address_abs_of_concrete {s₀ s₉ : State} {value slot} :
+set_option maxHeartbeats 800000
+
+lemma read_from_storage_split_offset_address_abs_of_concrete {{s₀ s₉ : State}} {value slot} :
   Spec (read_from_storage_split_offset_address_concrete_of_code.1 value slot) s₀ s₉ →
   Spec (A_read_from_storage_split_offset_address value slot) s₀ s₉ := by
-  unfold A_read_from_storage_split_offset_address
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  unfold read_from_storage_split_offset_address_concrete_of_code A_read_from_storage_split_offset_address
+  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro hne hconcrete
+  clr_funargs at hconcrete
+  simp only [EVMSload', EVMShl', EVMSub', EVMAnd'] at hconcrete
+  symm
+  simpa using hconcrete
 
 end
 
