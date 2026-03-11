@@ -2,7 +2,6 @@ import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.array_allocation_size_bytes
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
-import generated.L1Nullifier.L1Nullifier.Common.if_4105598371516307700
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_available_length_bytes_gen
 

@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_5951236248056224476
 
 import generated.L1Nullifier.L1Nullifier.require_helper_stringliteral_e11a_gen
 

@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_6812734722208567921
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.abi_decode_uint256_fromMemory
 import generated.L1Nullifier.L1Nullifier.Common.switch_2352977164347510911

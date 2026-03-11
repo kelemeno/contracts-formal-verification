@@ -8,7 +8,6 @@ import generated.L1Nullifier.L1Nullifier.write_to_memory_address
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
 import generated.L1Nullifier.L1Nullifier.modifier_whenNotPaused_17695
 import generated.L1Nullifier.L1Nullifier.cleanup_address
-import generated.L1Nullifier.L1Nullifier.Common.if_4904059282733468388
 import generated.L1Nullifier.L1Nullifier.Common.if_7069222774777857031
 import generated.L1Nullifier.L1Nullifier.revert_forward
 import generated.L1Nullifier.L1Nullifier.Common.if_3845449680979841486

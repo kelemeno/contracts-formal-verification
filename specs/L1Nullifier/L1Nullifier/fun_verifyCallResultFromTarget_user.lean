@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.switch_1986012260634366082
 
 import generated.L1Nullifier.L1Nullifier.fun_verifyCallResultFromTarget_gen
 

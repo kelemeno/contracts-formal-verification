@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_8008812905130955553
 import generated.L1Nullifier.L1Nullifier.panic_error_0x21
 
 import generated.L1Nullifier.L1Nullifier.validator_assert_enum_TxStatus_gen

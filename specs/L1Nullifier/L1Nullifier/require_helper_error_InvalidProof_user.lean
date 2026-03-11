@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_211229108533670506
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_InvalidProof_gen
 

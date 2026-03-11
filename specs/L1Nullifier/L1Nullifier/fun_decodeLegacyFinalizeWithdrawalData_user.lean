@@ -4,7 +4,6 @@ import generated.L1Nullifier.L1Nullifier.require_helper_error_L2WithdrawalMessag
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.allocate_memory_array_string
 import generated.L1Nullifier.L1Nullifier.abi_encode_bytes
-import generated.L1Nullifier.L1Nullifier.mcopy
 import generated.L1Nullifier.L1Nullifier.fun_encodeBridgeMintData
 
 import generated.L1Nullifier.L1Nullifier.fun_decodeLegacyFinalizeWithdrawalData_gen

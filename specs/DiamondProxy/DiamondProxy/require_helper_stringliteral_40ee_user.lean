@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.DiamondProxy.DiamondProxy.Common.if_7494419974721350125
 
 import generated.DiamondProxy.DiamondProxy.require_helper_stringliteral_40ee_gen
 

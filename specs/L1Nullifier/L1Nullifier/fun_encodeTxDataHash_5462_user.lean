@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.switch_7230237767825797901
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.bytes_concat_bytes1_bytes
 import generated.L1Nullifier.L1Nullifier.revert_forward

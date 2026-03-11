@@ -1,11 +1,9 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_1054813692627715588
 import generated.L1Nullifier.L1Nullifier.Common.if_2095837721993293218
 import generated.L1Nullifier.L1Nullifier.panic_error_0x11
 import generated.L1Nullifier.L1Nullifier.array_allocation_size_bytes
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
-import generated.L1Nullifier.L1Nullifier.mcopy
 
 import generated.L1Nullifier.L1Nullifier.fun_decodeAssetRouterFinalizeDepositData_gen
 

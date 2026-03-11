@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_4257419847858889193
 import generated.L1Nullifier.L1Nullifier.validator_revert_contract_IL1ERC20Bridge
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_address_fromMemory_gen

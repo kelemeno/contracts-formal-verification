@@ -1,7 +1,6 @@
 import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.fun_getSelector
-import generated.L1Nullifier.L1Nullifier.Common.switch_7134055336228242222
 import generated.L1Nullifier.L1Nullifier.fun_decodeAssetRouterFinalizeDepositData
 import generated.L1Nullifier.L1Nullifier.fun_decodeLegacyFinalizeWithdrawalData
 import generated.L1Nullifier.L1Nullifier.cleanup_address

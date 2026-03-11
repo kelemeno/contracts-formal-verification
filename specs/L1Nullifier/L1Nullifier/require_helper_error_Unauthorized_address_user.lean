@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_4441247777815182798
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_Unauthorized_address_gen
 

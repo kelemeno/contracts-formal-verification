@@ -1,8 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_5825100901815297108
-import generated.L1Nullifier.L1Nullifier.Common.if_4417306148967690011
-import generated.L1Nullifier.L1Nullifier.Common.if_7035037884904118640
 
 import generated.L1Nullifier.L1Nullifier.fun_isPreSharedBridgeEraTokenWithdrawal_gen
 

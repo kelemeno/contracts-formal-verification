@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_7157215551033830480
 import generated.L1Nullifier.L1Nullifier.fun_resolveLegacyL2Sender
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16

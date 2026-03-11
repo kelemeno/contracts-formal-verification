@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_7502148099353757069
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_enum_TxStatus_gen
 

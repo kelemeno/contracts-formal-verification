@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_2100328732277863016
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_ZeroAddress_gen
 

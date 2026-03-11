@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_4315645440235625299
 
 import generated.L1Nullifier.L1Nullifier.fun_checkOwner_gen
 

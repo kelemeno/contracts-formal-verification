@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_4777931561444974735
 
 import generated.L1Nullifier.L1Nullifier.fun_requireNotPaused_gen
 

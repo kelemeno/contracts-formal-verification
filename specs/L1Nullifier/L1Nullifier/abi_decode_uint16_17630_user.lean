@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_2312780802672287253
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_uint16_17630_gen
 

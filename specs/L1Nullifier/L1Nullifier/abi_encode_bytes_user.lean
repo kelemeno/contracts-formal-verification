@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.mcopy
 
 import generated.L1Nullifier.L1Nullifier.abi_encode_bytes_gen
 

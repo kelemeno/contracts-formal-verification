@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_2897495546462069244
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_TokenNotLegacy_gen
 

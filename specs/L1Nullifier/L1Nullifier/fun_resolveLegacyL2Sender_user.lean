@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_5410775413796047016
 
 import generated.L1Nullifier.L1Nullifier.fun_resolveLegacyL2Sender_gen
 

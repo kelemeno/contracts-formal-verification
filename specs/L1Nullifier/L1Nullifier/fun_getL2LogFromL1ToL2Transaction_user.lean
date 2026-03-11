@@ -1,7 +1,6 @@
 import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.allocate_and_zero_memory_struct_struct_L2Log
-import generated.L1Nullifier.L1Nullifier.Common.if_6232425468939381982
 import generated.L1Nullifier.L1Nullifier.panic_error_0x21
 import generated.L1Nullifier.L1Nullifier.finalize_allocation_17765
 

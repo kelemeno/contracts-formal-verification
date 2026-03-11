@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.DiamondProxy.DiamondProxy.Common.if_5531105932464825883
 
 import generated.DiamondProxy.DiamondProxy.read_from_storage_reference_type_struct_SelectorToFacet_gen
 

@@ -1,7 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_8274462103363059005
-import generated.L1Nullifier.L1Nullifier.Common.if_5412002136855195735
 import generated.L1Nullifier.L1Nullifier.validator_revert_contract_IL1ERC20Bridge
 
 import generated.L1Nullifier.L1Nullifier.fun_decodeBridgeBurnData_gen

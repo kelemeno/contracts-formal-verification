@@ -1,13 +1,10 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_2817773351726180199
-import generated.L1Nullifier.L1Nullifier.Common.if_3806014958803950027
 import generated.L1Nullifier.L1Nullifier.allocate_memory_17659
 import generated.L1Nullifier.L1Nullifier.write_to_memory_address
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
 import generated.L1Nullifier.L1Nullifier.modifier_whenNotPaused
 import generated.L1Nullifier.L1Nullifier.cleanup_address
-import generated.L1Nullifier.L1Nullifier.Common.if_4904059282733468388
 import generated.L1Nullifier.L1Nullifier.Common.if_1636797331660012289
 import generated.L1Nullifier.L1Nullifier.revert_forward
 import generated.L1Nullifier.L1Nullifier.Common.if_508989492593568173

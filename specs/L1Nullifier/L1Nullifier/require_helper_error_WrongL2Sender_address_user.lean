@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_6391311172476828416
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_WrongL2Sender_address_gen
 

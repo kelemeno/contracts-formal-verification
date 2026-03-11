@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_7928665324398554026
 import generated.L1Nullifier.L1Nullifier.abi_decode_available_length_array_bytes32_dyn
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_array_bytes32_dyn_gen

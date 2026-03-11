@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_6530158971123141721
 import generated.L1Nullifier.L1Nullifier.panic_error_0x41
 
 import generated.L1Nullifier.L1Nullifier.allocate_and_zero_memory_struct_struct_L2Message_gen

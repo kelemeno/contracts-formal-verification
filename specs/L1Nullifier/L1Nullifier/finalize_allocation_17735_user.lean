@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_7220044324879941499
 import generated.L1Nullifier.L1Nullifier.panic_error_0x41
 
 import generated.L1Nullifier.L1Nullifier.finalize_allocation_17735_gen

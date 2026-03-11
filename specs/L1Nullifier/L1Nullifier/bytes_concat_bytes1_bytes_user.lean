@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.mcopy
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 
 import generated.L1Nullifier.L1Nullifier.bytes_concat_bytes1_bytes_gen

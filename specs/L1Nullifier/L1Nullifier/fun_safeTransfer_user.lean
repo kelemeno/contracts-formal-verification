@@ -1,10 +1,8 @@
 import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
-import generated.L1Nullifier.L1Nullifier.Common.switch_7427225936287566152
 import generated.L1Nullifier.L1Nullifier.array_allocation_size_bytes
 import generated.L1Nullifier.L1Nullifier.fun_verifyCallResultFromTarget
-import generated.L1Nullifier.L1Nullifier.Common.if_5698022297882754690
 import generated.L1Nullifier.L1Nullifier.abi_decode_bool_fromMemory
 import generated.L1Nullifier.L1Nullifier.require_helper_stringliteral_e11a
 

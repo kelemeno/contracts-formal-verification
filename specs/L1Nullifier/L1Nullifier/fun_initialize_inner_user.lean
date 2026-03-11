@@ -2,7 +2,6 @@ import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_ZeroAddress
 import generated.L1Nullifier.L1Nullifier.fun_transferOwnership
-import generated.L1Nullifier.L1Nullifier.Common.if_5134677978864251982
 
 import generated.L1Nullifier.L1Nullifier.fun_initialize_inner_gen
 
