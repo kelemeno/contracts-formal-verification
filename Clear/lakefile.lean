@@ -8,23 +8,5 @@ package «clear» {
   leanOptions := #[⟨`autoImplicit, false⟩]
 }
 
-lean_lib «Clear» {
-  -- add any library configuration options here
-}
-
-lean_lib «Generated» {
-  -- add any library configuration options here
-}
-
-lean_lib «specs» {
-  -- add any library configuration options here
-}
-
-lean_lib «All» {
-  -- add any library configuration options here
-}
-
 @[default_target]
-lean_lib «Main» {
-  -- add any library configuration options here
-}
+lean_lib «Clear» {}
