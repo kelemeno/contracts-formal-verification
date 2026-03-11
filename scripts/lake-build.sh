@@ -19,5 +19,5 @@ if [ -z "$LAKE" ]; then
   echo "ERROR: lake not found. Install elan: curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | bash" >&2
   exit 1
 fi
-"$LAKE" build --old "$@" > /tmp/lake-build.log 2>&1
+"$LAKE" build --old -j "$(nproc)" "$@" > /tmp/lake-build.log 2>&1
 exit $?

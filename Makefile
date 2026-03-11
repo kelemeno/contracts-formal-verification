@@ -25,7 +25,7 @@ verify: compile-yul generate-vc
 
 # Build Lean proofs
 build:
-	$(LAKE) build
+	$(LAKE) build -j $(shell nproc)
 
 # Build the VC generator
 build-vc:
