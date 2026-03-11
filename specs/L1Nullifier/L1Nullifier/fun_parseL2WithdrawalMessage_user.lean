@@ -21,13 +21,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_fun_parseL2WithdrawalMessage (var_assetId var_transferData_1336_mpos : Identifier) (var_chainId var_l2ToL1message_1331_mpos : Literal) (s₀ s₉ : State) : Prop := True
+def A_fun_parseL2WithdrawalMessage (var_assetId var_transferData_1336_mpos : Identifier) (var_chainId var_l2ToL1message_1331_mpos : Literal) (s₀ s₉ : State) : Prop :=
+  fun_parseL2WithdrawalMessage_concrete_of_code.1 var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos s₀ s₉
 
 lemma fun_parseL2WithdrawalMessage_abs_of_concrete {s₀ s₉ : State} {var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos} :
   Spec (fun_parseL2WithdrawalMessage_concrete_of_code.1 var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos) s₀ s₉ →
   Spec (A_fun_parseL2WithdrawalMessage var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos) s₀ s₉ := by
-  unfold A_fun_parseL2WithdrawalMessage
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [A_fun_parseL2WithdrawalMessage] using h
 
 end
 

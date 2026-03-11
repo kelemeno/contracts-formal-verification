@@ -11,7 +11,8 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
 
 -- mcopy is the EVM MCOPY opcode (EIP-5656). We abstract it with True since
 -- we do not model the actual memory-copy behaviour in Clear's EVM model.
-def A_mcopy (p0 p1 p2 : Literal) (s₀ s₉ : State) : Prop := True
+def A_mcopy (p0 p1 p2 : Literal) (s₀ s₉ : State) : Prop :=
+  mcopy_concrete_of_code.1 p0 p1 p2 s₀ s₉
 
 lemma mcopy_abs_of_concrete {s₀ s₉ : State} {p0 p1 p2} :
   Spec (mcopy_concrete_of_code.1 p0 p1 p2) s₀ s₉ →

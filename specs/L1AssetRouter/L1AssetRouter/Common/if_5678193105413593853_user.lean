@@ -43,13 +43,14 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
   about whether the guards triggered, which is outside Clear's Yul-level model.
   We use `True` and track this proof gap in fun_transferFundsToNTV_inner_user.lean.
 -/
-def A_if_5678193105413593853 (s₀ s₉ : State) : Prop := True
+def A_if_5678193105413593853 (s₀ s₉ : State) : Prop :=
+  if_5678193105413593853_concrete_of_code.1 s₀ s₉
 
 lemma if_5678193105413593853_abs_of_concrete {s₀ s₉ : State} :
   Spec if_5678193105413593853_concrete_of_code s₀ s₉ →
   Spec A_if_5678193105413593853 s₀ s₉ := by
-  unfold A_if_5678193105413593853
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [A_if_5678193105413593853] using h
 
 end
 

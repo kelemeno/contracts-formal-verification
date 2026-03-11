@@ -23,13 +23,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_modifier_onlyLegacyBridge  (var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length : Literal) (s₀ s₉ : State) : Prop := True
+def A_modifier_onlyLegacyBridge  (var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length : Literal) (s₀ s₉ : State) : Prop :=
+  modifier_onlyLegacyBridge_concrete_of_code.1 var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length s₀ s₉
 
 lemma modifier_onlyLegacyBridge_abs_of_concrete {s₀ s₉ : State} { var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length} :
   Spec (modifier_onlyLegacyBridge_concrete_of_code.1 var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length) s₀ s₉ →
   Spec (A_modifier_onlyLegacyBridge var_depositSender var_l1Token var__amount var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_1591_offset var_merkleProof_length) s₀ s₉ := by
-  unfold A_modifier_onlyLegacyBridge
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [A_modifier_onlyLegacyBridge] using h
 
 end
 

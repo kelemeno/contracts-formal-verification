@@ -13,13 +13,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_if_3804207500168655552 (s₀ s₉ : State) : Prop := True
+def A_if_3804207500168655552 (s₀ s₉ : State) : Prop :=
+  if_3804207500168655552_concrete_of_code.1 s₀ s₉
 
 lemma if_3804207500168655552_abs_of_concrete {s₀ s₉ : State} :
   Spec if_3804207500168655552_concrete_of_code s₀ s₉ →
   Spec A_if_3804207500168655552 s₀ s₉ := by
-  unfold A_if_3804207500168655552
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [A_if_3804207500168655552] using h
 
 end
 

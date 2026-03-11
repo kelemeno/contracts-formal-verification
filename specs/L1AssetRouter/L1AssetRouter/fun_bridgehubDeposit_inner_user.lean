@@ -20,13 +20,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
 
-def A_fun_bridgehubDeposit_inner (var_request_mpos : Identifier) (var_chainId var_originalCaller var__value var_data_offset var_data_length : Literal) (s₀ s₉ : State) : Prop := True
+def A_fun_bridgehubDeposit_inner (var_request_mpos : Identifier) (var_chainId var_originalCaller var__value var_data_offset var_data_length : Literal) (s₀ s₉ : State) : Prop :=
+  fun_bridgehubDeposit_inner_concrete_of_code.1 var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length s₀ s₉
 
 lemma fun_bridgehubDeposit_inner_abs_of_concrete {s₀ s₉ : State} {var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length} :
   Spec (fun_bridgehubDeposit_inner_concrete_of_code.1 var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length) s₀ s₉ →
   Spec (A_fun_bridgehubDeposit_inner var_request_mpos var_chainId var_originalCaller var__value var_data_offset var_data_length) s₀ s₉ := by
-  unfold fun_bridgehubDeposit_inner_concrete_of_code A_fun_bridgehubDeposit_inner
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [A_fun_bridgehubDeposit_inner] using h
 
 end
 
