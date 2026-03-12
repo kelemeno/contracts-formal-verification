@@ -1,0 +1,1 @@
+-- Root module stub for Lake glob resolution

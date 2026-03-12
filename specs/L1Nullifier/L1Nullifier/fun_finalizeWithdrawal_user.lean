@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_7157215551033830480
 import generated.L1Nullifier.L1Nullifier.fun_resolveLegacyL2Sender
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
@@ -15,13 +14,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_fun_finalizeWithdrawal  (var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_finalizeWithdrawal  (var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length : Literal) (s₀ s₉ : State) : Prop :=
+  fun_finalizeWithdrawal_concrete_of_code.1 var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length s₀ s₉
 
 lemma fun_finalizeWithdrawal_abs_of_concrete {s₀ s₉ : State} { var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length} :
-  Spec (fun_finalizeWithdrawal_concrete_of_code.1  var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length) s₀ s₉ →
-  Spec (A_fun_finalizeWithdrawal  var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length) s₀ s₉ := by
-  unfold fun_finalizeWithdrawal_concrete_of_code A_fun_finalizeWithdrawal
-  sorry
+  Spec (fun_finalizeWithdrawal_concrete_of_code.1 var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length) s₀ s₉ →
+  Spec (A_fun_finalizeWithdrawal var_chainId var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var__message_offset var_message_length var_merkleProof_offset var_merkleProof_1685_length) s₀ s₉ := by
+  intro h
+  simpa [A_fun_finalizeWithdrawal] using h
 
 end
 

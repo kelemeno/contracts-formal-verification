@@ -1,22 +1,25 @@
 import Lake
 open Lake DSL
 
-require clear from git
-  "https://github.com/kelemeno/Clear" @ "codex/vc-preprocessor-specs-split"
+require clear from "Clear"
 
 package «contracts-formal-verification» {
   leanOptions := #[⟨`autoImplicit, false⟩]
 }
 
--- Auto-generated verification conditions from Yul
 lean_lib «generated» {
-  roots := #[`generated]
-}
-
-lean_lib «specs» {
-  roots := #[`specs]
+  globs := #[
+    .andSubmodules `generated.DiamondProxy,
+    .andSubmodules `generated.L1AssetRouter,
+    .andSubmodules `generated.L1Nullifier
+  ]
 }
 
 @[default_target]
-lean_lib «Main» {
+lean_lib «specs» {
+  globs := #[
+    .andSubmodules `specs.DiamondProxy,
+    .andSubmodules `specs.L1AssetRouter,
+    .andSubmodules `specs.L1Nullifier
+  ]
 }

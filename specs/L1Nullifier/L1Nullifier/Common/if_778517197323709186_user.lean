@@ -10,12 +10,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_if_778517197323709186 (s₀ s₉ : State) : Prop := sorry
+def A_if_778517197323709186 (s₀ s₉ : State) : Prop :=
+  if_778517197323709186_concrete_of_code.1 s₀ s₉
 
 lemma if_778517197323709186_abs_of_concrete {s₀ s₉ : State} :
   Spec if_778517197323709186_concrete_of_code s₀ s₉ →
   Spec A_if_778517197323709186 s₀ s₉ := by
-  sorry
+  intro h
+  simpa [A_if_778517197323709186] using h
 
 end
 

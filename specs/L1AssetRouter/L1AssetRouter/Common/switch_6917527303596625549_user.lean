@@ -24,12 +24,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
 
-def A_switch_6917527303596625549 (s₀ s₉ : State) : Prop := sorry
+def A_switch_6917527303596625549 (s₀ s₉ : State) : Prop :=
+  switch_6917527303596625549_concrete_of_code.1 s₀ s₉
 
 lemma switch_6917527303596625549_abs_of_concrete {s₀ s₉ : State} :
   Spec switch_6917527303596625549_concrete_of_code s₀ s₉ →
   Spec A_switch_6917527303596625549 s₀ s₉ := by
-  sorry
+  intro h
+  simpa [A_switch_6917527303596625549] using h
 
 end
 

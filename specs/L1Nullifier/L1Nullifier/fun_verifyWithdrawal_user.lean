@@ -5,10 +5,8 @@ import generated.L1Nullifier.L1Nullifier.allocate_and_zero_memory_struct_struct_
 import generated.L1Nullifier.L1Nullifier.cleanup_address
 import generated.L1Nullifier.L1Nullifier.Common.if_6864078037843212115
 import generated.L1Nullifier.L1Nullifier.revert_forward
-import generated.L1Nullifier.L1Nullifier.Common.if_4428739331504025558
 import generated.L1Nullifier.L1Nullifier.finalize_allocation
 import generated.L1Nullifier.L1Nullifier.abi_decode_uint256_fromMemory
-import generated.L1Nullifier.L1Nullifier.Common.switch_2083441642682059880
 import generated.L1Nullifier.L1Nullifier.constant_L2_ASSET_ROUTER_ADDR
 import generated.L1Nullifier.L1Nullifier.require_helper_error_WrongL2Sender_address
 import generated.L1Nullifier.L1Nullifier.cleanup_uint16
@@ -16,15 +14,12 @@ import generated.L1Nullifier.L1Nullifier.allocate_memory
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
 import generated.L1Nullifier.L1Nullifier.write_to_memory_address
 import generated.L1Nullifier.L1Nullifier.Common.if_8661565790940807181
-import generated.L1Nullifier.L1Nullifier.Common.if_5558606279337253479
 import generated.L1Nullifier.L1Nullifier.abi_decode_bool_fromMemory
 import generated.L1Nullifier.L1Nullifier.require_helper_error_InvalidProof
 import generated.L1Nullifier.L1Nullifier.fun_getLeafHashFromLog
 import generated.L1Nullifier.L1Nullifier.fun_l2MessageToLog
 import generated.L1Nullifier.L1Nullifier.Common.if_4936249823334457734
-import generated.L1Nullifier.L1Nullifier.Common.if_416784045609959512
 import generated.L1Nullifier.L1Nullifier.abi_decode_struct_ProofData_fromMemory
-import generated.L1Nullifier.L1Nullifier.tstore
 import generated.L1Nullifier.L1Nullifier.checked_add_uint256
 
 import generated.L1Nullifier.L1Nullifier.fun_verifyWithdrawal_gen
@@ -36,13 +31,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_fun_verifyWithdrawal (var_assetId var_transferData_1160_mpos : Identifier) (var_finalizeWithdrawalParams_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_verifyWithdrawal (var_assetId var_transferData_1160_mpos : Identifier) (var_finalizeWithdrawalParams_mpos : Literal) (s₀ s₉ : State) : Prop :=
+  fun_verifyWithdrawal_concrete_of_code.1 var_assetId var_transferData_1160_mpos var_finalizeWithdrawalParams_mpos s₀ s₉
 
 lemma fun_verifyWithdrawal_abs_of_concrete {s₀ s₉ : State} {var_assetId var_transferData_1160_mpos var_finalizeWithdrawalParams_mpos} :
   Spec (fun_verifyWithdrawal_concrete_of_code.1 var_assetId var_transferData_1160_mpos var_finalizeWithdrawalParams_mpos) s₀ s₉ →
   Spec (A_fun_verifyWithdrawal var_assetId var_transferData_1160_mpos var_finalizeWithdrawalParams_mpos) s₀ s₉ := by
-  unfold fun_verifyWithdrawal_concrete_of_code A_fun_verifyWithdrawal
-  sorry
+  intro h
+  simpa [A_fun_verifyWithdrawal] using h
 
 end
 

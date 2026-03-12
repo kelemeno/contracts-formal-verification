@@ -1,7 +1,6 @@
 import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.fun_getSelector
-import generated.L1Nullifier.L1Nullifier.Common.switch_7134055336228242222
 import generated.L1Nullifier.L1Nullifier.fun_decodeAssetRouterFinalizeDepositData
 import generated.L1Nullifier.L1Nullifier.fun_decodeLegacyFinalizeWithdrawalData
 import generated.L1Nullifier.L1Nullifier.cleanup_address
@@ -22,13 +21,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_fun_parseL2WithdrawalMessage (var_assetId var_transferData_1336_mpos : Identifier) (var_chainId var_l2ToL1message_1331_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_parseL2WithdrawalMessage (var_assetId var_transferData_1336_mpos : Identifier) (var_chainId var_l2ToL1message_1331_mpos : Literal) (s₀ s₉ : State) : Prop :=
+  fun_parseL2WithdrawalMessage_concrete_of_code.1 var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos s₀ s₉
 
 lemma fun_parseL2WithdrawalMessage_abs_of_concrete {s₀ s₉ : State} {var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos} :
   Spec (fun_parseL2WithdrawalMessage_concrete_of_code.1 var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos) s₀ s₉ →
   Spec (A_fun_parseL2WithdrawalMessage var_assetId var_transferData_1336_mpos var_chainId var_l2ToL1message_1331_mpos) s₀ s₉ := by
-  unfold fun_parseL2WithdrawalMessage_concrete_of_code A_fun_parseL2WithdrawalMessage
-  sorry
+  intro h
+  simpa [A_fun_parseL2WithdrawalMessage] using h
 
 end
 

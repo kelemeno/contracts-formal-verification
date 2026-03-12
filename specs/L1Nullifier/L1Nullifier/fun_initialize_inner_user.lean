@@ -2,7 +2,6 @@ import Clear.ReasoningPrinciple
 
 import generated.L1Nullifier.L1Nullifier.require_helper_error_ZeroAddress
 import generated.L1Nullifier.L1Nullifier.fun_transferOwnership
-import generated.L1Nullifier.L1Nullifier.Common.if_5134677978864251982
 
 import generated.L1Nullifier.L1Nullifier.fun_initialize_inner_gen
 
@@ -13,13 +12,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_fun_initialize_inner  (var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_initialize_inner  (var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber : Literal) (s₀ s₉ : State) : Prop :=
+  fun_initialize_inner_concrete_of_code.1 var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber s₀ s₉
 
 lemma fun_initialize_inner_abs_of_concrete {s₀ s₉ : State} { var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber} :
-  Spec (fun_initialize_inner_concrete_of_code.1  var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber) s₀ s₉ →
-  Spec (A_fun_initialize_inner  var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber) s₀ s₉ := by
-  unfold fun_initialize_inner_concrete_of_code A_fun_initialize_inner
-  sorry
+  Spec (fun_initialize_inner_concrete_of_code.1 var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber) s₀ s₉ →
+  Spec (A_fun_initialize_inner var_owner var_eraPostDiamondUpgradeFirstBatch var_eraPostLegacyBridgeUpgradeFirstBatch var_eraLegacyBridgeLastDepositBatch var_eraLegacyBridgeLastDepositTxNumber) s₀ s₉ := by
+  intro h
+  simpa [A_fun_initialize_inner] using h
 
 end
 

@@ -1,0 +1,41 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1Nullifier.L1Nullifier.Common.switch_7023789909275755697
+import generated.L1Nullifier.L1Nullifier.abi_encode_bytes4
+import generated.L1Nullifier.L1Nullifier.fun_decodeAssetRouterFinalizeDepositData
+import generated.L1Nullifier.L1Nullifier.fun_decodeLegacyFinalizeWithdrawalData
+import generated.L1Nullifier.L1Nullifier.cleanup_address
+import generated.L1Nullifier.L1Nullifier.abi_encode_address
+import generated.L1Nullifier.L1Nullifier.revert_forward
+import generated.L1Nullifier.L1Nullifier.finalize_allocation
+import generated.L1Nullifier.L1Nullifier.abi_decode_uint256_fromMemory
+import generated.L1Nullifier.L1Nullifier.fun_encodeNTVAssetId
+import generated.L1Nullifier.L1Nullifier.require_helper_error_TokenNotLegacy
+import generated.L1Nullifier.L1Nullifier.fun_decodeBaseTokenFinalizeWithdrawalData
+import generated.L1Nullifier.L1Nullifier.abi_encode_uint256
+import generated.L1Nullifier.L1Nullifier.Common.if_6864078037843212115
+import generated.L1Nullifier.L1Nullifier.Common.if_4371745317684943388
+import generated.L1Nullifier.L1Nullifier.allocate_and_zero_memory_array_bytes
+import generated.L1Nullifier.L1Nullifier.fun_encodeBridgeMintData_17779
+
+import generated.L1Nullifier.L1Nullifier.Common.switch_2735766541591528116_gen
+
+
+namespace L1Nullifier.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
+
+def A_switch_2735766541591528116 (s₀ s₉ : State) : Prop :=
+  switch_2735766541591528116_concrete_of_code.1 s₀ s₉
+
+lemma switch_2735766541591528116_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_2735766541591528116_concrete_of_code s₀ s₉ →
+  Spec A_switch_2735766541591528116 s₀ s₉ := by
+  intro h
+  simpa [A_switch_2735766541591528116] using h
+
+end
+
+end L1Nullifier.Common

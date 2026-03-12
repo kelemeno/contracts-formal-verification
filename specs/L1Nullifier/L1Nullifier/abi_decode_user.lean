@@ -1,6 +1,5 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_3190434075208992686
 
 import generated.L1Nullifier.L1Nullifier.abi_decode_gen
 
@@ -11,13 +10,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common 
 
-def A_abi_decode  (headStart dataEnd : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_abi_decode  (headStart dataEnd : Literal) (s₀ s₉ : State) : Prop :=
+  abi_decode_concrete_of_code.1 headStart dataEnd s₀ s₉
 
 lemma abi_decode_abs_of_concrete {s₀ s₉ : State} { headStart dataEnd} :
-  Spec (abi_decode_concrete_of_code.1  headStart dataEnd) s₀ s₉ →
-  Spec (A_abi_decode  headStart dataEnd) s₀ s₉ := by
-  unfold abi_decode_concrete_of_code A_abi_decode
-  sorry
+  Spec (abi_decode_concrete_of_code.1 headStart dataEnd) s₀ s₉ →
+  Spec (A_abi_decode headStart dataEnd) s₀ s₉ := by
+  intro h
+  simpa [A_abi_decode] using h
 
 end
 
