@@ -4,3 +4,4 @@
 [submodule "Clear"]
 	path = Clear
 	url = https://github.com/kelemeno/Clear.git
+	branch = claude/apply-verification-changes-WVMbX
