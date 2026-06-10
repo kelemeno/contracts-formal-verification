@@ -1,0 +1,42 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_2289096099863630418
+import generated.L1AssetRouter.L1AssetRouter.abi_encode_bytes
+import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
+import generated.L1AssetRouter.L1AssetRouter.mcopy
+import generated.L1AssetRouter.L1AssetRouter.Common.block_2259138767161171492
+import generated.L1AssetRouter.L1AssetRouter.Common.block_3657381059644788590
+import generated.L1AssetRouter.L1AssetRouter.Common.if_8090077789747370802
+import generated.L1AssetRouter.L1AssetRouter.Common.if_6602275548560376283
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_address_fromMemory
+import generated.L1AssetRouter.L1AssetRouter.fun_encodeNTVAssetId
+import generated.L1AssetRouter.L1AssetRouter.Common.if_4050141078283874574
+import generated.L1AssetRouter.L1AssetRouter.Common.if_6478595247897345129
+import generated.L1AssetRouter.L1AssetRouter.Common.if_7399798940655740021
+import generated.L1AssetRouter.L1AssetRouter.Common.block_7413327390044085604
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_address_payable_fromMemory
+import generated.L1AssetRouter.L1AssetRouter.Common.block_872278090204043068
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6990934210005810721
+import generated.L1AssetRouter.L1AssetRouter.abi_encode_address_address_uint256
+import generated.L1AssetRouter.L1AssetRouter.Common.block_787248001104519190
+
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_4571106879701347778_gen
+
+
+namespace L1AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
+
+def A_switch_4571106879701347778 (s₀ s₉ : State) : Prop := switch_4571106879701347778_concrete_of_code.1 s₀ s₉
+
+lemma switch_4571106879701347778_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_4571106879701347778_concrete_of_code s₀ s₉ →
+  Spec A_switch_4571106879701347778 s₀ s₉ := by
+  intro h
+  simpa [A_switch_4571106879701347778] using h
+
+end
+
+end L1AssetRouter.Common

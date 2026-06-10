@@ -1,0 +1,47 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6423624462033512949
+import generated.L1AssetRouter.L1AssetRouter.Common.block_7337687271468086362
+import generated.L1AssetRouter.L1AssetRouter.Common.if_8322446248705927466
+import generated.L1AssetRouter.L1AssetRouter.Common.if_1996614206653605388
+import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
+import generated.L1AssetRouter.L1AssetRouter.Common.block_8050975986582071617
+import generated.L1AssetRouter.L1AssetRouter.Common.block_621009623172410025
+import generated.L1AssetRouter.L1AssetRouter.abi_encode_address_address_uint256
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1167866206228424440
+import generated.L1AssetRouter.L1AssetRouter.Common.block_3773962725732863912
+import generated.L1AssetRouter.L1AssetRouter.Common.block_3071902890469336979
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_7341777802889238516
+import generated.L1AssetRouter.L1AssetRouter.array_allocation_size_bytes
+import generated.L1AssetRouter.L1AssetRouter.fun_verifyCallResultFromTarget
+import generated.L1AssetRouter.L1AssetRouter.Common.if_3169290594777010327
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_bool_fromMemory
+import generated.L1AssetRouter.L1AssetRouter.Common.if_5131957720691438385
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1807578998277739730
+import generated.L1AssetRouter.L1AssetRouter.Common.block_2005307175004908760
+import generated.L1AssetRouter.L1AssetRouter.Common.block_239784328013097690
+import generated.L1AssetRouter.L1AssetRouter.Common.if_6612257451548554226
+import generated.L1AssetRouter.L1AssetRouter.Common.if_1254062856785940686
+import generated.L1AssetRouter.L1AssetRouter.Common.if_1850768182690122168
+import generated.L1AssetRouter.L1AssetRouter.Common.if_3512591431497983588
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_2082893542340508167_gen
+
+
+namespace L1AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
+
+def A_if_2082893542340508167 (s₀ s₉ : State) : Prop := if_2082893542340508167_concrete_of_code.1 s₀ s₉
+
+lemma if_2082893542340508167_abs_of_concrete {s₀ s₉ : State} :
+  Spec if_2082893542340508167_concrete_of_code s₀ s₉ →
+  Spec A_if_2082893542340508167 s₀ s₉ := by
+  intro h
+  simpa [A_if_2082893542340508167] using h
+
+end
+
+end L1AssetRouter.Common

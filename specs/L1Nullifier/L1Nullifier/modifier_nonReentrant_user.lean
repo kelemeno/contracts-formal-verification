@@ -1,13 +1,15 @@
 import Clear.ReasoningPrinciple
 
-import generated.L1Nullifier.L1Nullifier.Common.if_2817773351726180199
-import generated.L1Nullifier.L1Nullifier.Common.if_3806014958803950027
+import generated.L1Nullifier.L1Nullifier.Common.if_3480959913296124696
+import generated.L1Nullifier.L1Nullifier.Common.if_4307119837691313886
 import generated.L1Nullifier.L1Nullifier.allocate_memory_17659
 import generated.L1Nullifier.L1Nullifier.write_to_memory_address
 import generated.L1Nullifier.L1Nullifier.write_to_memory_uint16
+import generated.L1Nullifier.L1Nullifier.abi_decode_available_length_array_bytes32_dyn
 import generated.L1Nullifier.L1Nullifier.modifier_whenNotPaused
 import generated.L1Nullifier.L1Nullifier.cleanup_address
-import generated.L1Nullifier.L1Nullifier.Common.if_4904059282733468388
+import generated.L1Nullifier.L1Nullifier.Common.if_1874623059799935042
+import generated.L1Nullifier.L1Nullifier.abi_encode_uint256_enum_TxStatus_address_bytes32_bytes_17677
 import generated.L1Nullifier.L1Nullifier.Common.if_1636797331660012289
 import generated.L1Nullifier.L1Nullifier.revert_forward
 import generated.L1Nullifier.L1Nullifier.Common.if_508989492593568173
@@ -23,13 +25,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1Nullifier.Common generated.L1Nullifier L1Nullifier
 
-def A_modifier_nonReentrant  (var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_modifier_nonReentrant  (var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length : Literal) (s₀ s₉ : State) : Prop := modifier_nonReentrant_concrete_of_code.1  var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length s₀ s₉
 
 lemma modifier_nonReentrant_abs_of_concrete {s₀ s₉ : State} { var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length} :
   Spec (modifier_nonReentrant_concrete_of_code.1  var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length) s₀ s₉ →
   Spec (A_modifier_nonReentrant  var__chainId var_depositSender var_assetId var_assetData_mpos var_l2TxHash var_l2BatchNumber var_l2MessageIndex var_l2TxNumberInBatch var_merkleProof_652_offset var_merkleProof_652_length) s₀ s₉ := by
-  unfold modifier_nonReentrant_concrete_of_code A_modifier_nonReentrant
-  sorry
+  intro h
+  simpa [A_modifier_nonReentrant] using h
 
 end
 

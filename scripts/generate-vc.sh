@@ -9,8 +9,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLEAR_DIR="$ROOT_DIR/Clear"
 VC_DIR="$CLEAR_DIR/vc"
-STACK="$HOME/.local/bin/stack"
 ROOT_SPECS_DIR="$ROOT_DIR/specs"
+
+# Resolve `stack` from PATH, falling back to common user-space install locations.
+STACK="$(command -v stack || true)"
+if [ -z "$STACK" ]; then
+    for cand in "$HOME/.ghcup/bin/stack" "$HOME/.local/bin/stack"; do
+        [ -x "$cand" ] && STACK="$cand" && break
+    done
+fi
+
+# Resolve `node` similarly (used below to rebuild aggregate import modules).
+NODE="$(command -v node || true)"
+if [ -z "$NODE" ]; then
+    for cand in "$HOME/.local/bin/node" /usr/local/bin/node; do
+        [ -x "$cand" ] && NODE="$cand" && break
+    done
+fi
 CLEAR_SPECS_DIR="$CLEAR_DIR/specs"
 
 if [ $# -lt 1 ]; then
@@ -31,9 +46,15 @@ if [ ! -f "$YUL_PATH" ]; then
     exit 1
 fi
 
-if [ ! -f "$STACK" ]; then
-    echo "Error: stack not found at $STACK"
+if [ -z "$STACK" ]; then
+    echo "Error: 'stack' not found on PATH or in ~/.ghcup/bin / ~/.local/bin"
     echo "Install Haskell Stack: https://docs.haskellstack.org"
+    exit 1
+fi
+
+if [ -z "$NODE" ]; then
+    echo "Error: 'node' not found on PATH or in ~/.local/bin"
+    echo "Install Node.js: https://nodejs.org"
     exit 1
 fi
 
@@ -107,7 +128,7 @@ if [ -d "$SPECS_SRC" ]; then
 fi
 
 # Rebuild simple aggregate modules so `Main.lean` can import both generated and specs.
-node - <<'NODE'
+"$NODE" - <<'NODE'
 const fs = require('fs');
 const path = require('path');
 

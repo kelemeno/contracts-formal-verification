@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_update_storage_value_offset_uint8_to_uint8   (s₀ s₉ : State) : Prop := sorry
+def A_update_storage_value_offset_uint8_to_uint8   (s₀ s₉ : State) : Prop := update_storage_value_offset_uint8_to_uint8_concrete_of_code.1 s₀ s₉
 
 lemma update_storage_value_offset_uint8_to_uint8_abs_of_concrete {s₀ s₉ : State}  :
   Spec (update_storage_value_offset_uint8_to_uint8_concrete_of_code.1  ) s₀ s₉ →
   Spec (A_update_storage_value_offset_uint8_to_uint8  ) s₀ s₉ := by
-  unfold update_storage_value_offset_uint8_to_uint8_concrete_of_code A_update_storage_value_offset_uint8_to_uint8
-  sorry
+  intro h
+  simpa [A_update_storage_value_offset_uint8_to_uint8] using h
 
 end
 

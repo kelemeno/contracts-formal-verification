@@ -1,0 +1,44 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_138281125232121586
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6949736235908948857
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_address_payable_fromMemory
+import generated.L1AssetRouter.L1AssetRouter.Common.block_4301657567290628864
+import generated.L1AssetRouter.L1AssetRouter.Common.block_5003731925867487279
+import generated.L1AssetRouter.L1AssetRouter.Common.if_3680740834951988335
+import generated.L1AssetRouter.L1AssetRouter.Common.block_8860084344009960241
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_bytes_fromMemory
+import generated.L1AssetRouter.L1AssetRouter.Common.block_2442346409082162565
+import generated.L1AssetRouter.L1AssetRouter.Common.block_8881219158680555727
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1118725787194130345
+import generated.L1AssetRouter.L1AssetRouter.Common.block_4504276113131632538
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1829758545510234829
+import generated.L1AssetRouter.L1AssetRouter.abi_encode_bytes
+import generated.L1AssetRouter.L1AssetRouter.Common.block_4305739724873495007
+import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
+import generated.L1AssetRouter.L1AssetRouter.Common.block_5208054727264795434
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1378836689754712899
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6528032767250827227
+import generated.L1AssetRouter.L1AssetRouter.Common.block_3888679577902464288
+import generated.L1AssetRouter.L1AssetRouter.Common.block_538569492529821612
+
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_5429480134823831896_gen
+
+
+namespace L1AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
+
+def A_switch_5429480134823831896 (s₀ s₉ : State) : Prop := switch_5429480134823831896_concrete_of_code.1 s₀ s₉
+
+lemma switch_5429480134823831896_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_5429480134823831896_concrete_of_code s₀ s₉ →
+  Spec A_switch_5429480134823831896 s₀ s₉ := by
+  intro h
+  simpa [A_switch_5429480134823831896] using h
+
+end
+
+end L1AssetRouter.Common

@@ -3,3 +3,6 @@ yul/
 build/
 # Generated verification conditions are regenerated from Yul.
 generated/
+reference_proofs/
+.claude/
+*.bak

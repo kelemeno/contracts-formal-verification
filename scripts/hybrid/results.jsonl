@@ -1,0 +1,484 @@
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "claimed", "ts": 1780818960}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean", "model": "claude", "result": "claimed", "ts": 1780818960}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "blocked-genstring", "ts": 1780819327}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "claimed", "ts": 1780819524}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean", "model": "claude", "result": "claimed", "ts": 1780819524}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_verifyCallResultFromTarget_user.lean", "model": "claude", "result": "claimed", "ts": 1780819842}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_verifyCallResultFromTarget_user.lean", "model": "claude", "result": "proved", "ts": 1780819980}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "proved", "ts": 1780820163}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDepositNonBaseTokenAsset_user.lean", "model": "claude", "result": "proved", "ts": 1780820163}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDeposit_inner_user.lean", "model": "claude", "result": "claimed", "ts": 1780820163}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun__bridgehubDeposit_inner_user.lean", "model": "claude", "result": "claimed", "ts": 1780820163}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "proved", "ts": 1780820759}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_setAssetHandler_user.lean", "model": "claude", "result": "claimed", "ts": 1780820759}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_setAssetHandler_user.lean", "model": "claude", "result": "proved", "ts": 1780821028}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_bridgehubDeposit_inner_user.lean", "model": "claude", "result": "proved", "ts": 1780821028}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun__bridgehubDeposit_inner_user.lean", "model": "claude", "result": "proved", "ts": 1780821028}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_checkOwner_user.lean", "model": "claude", "result": "claimed", "ts": 1780821028}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_requireNotPaused_user.lean", "model": "claude", "result": "claimed", "ts": 1780821028}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_requireNotPaused_user.lean", "model": "claude", "result": "proved", "ts": 1780821102}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferOwnership_user.lean", "model": "claude", "result": "claimed", "ts": 1780821102}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_encodeAssetId_user.lean", "model": "claude", "result": "claimed", "ts": 1780821102}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_checkOwner_user.lean", "model": "claude", "result": "proved", "ts": 1780821123}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/require_helper_error_Unauthorized_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780821123}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/require_helper_error_Unauthorized_address_user.lean", "model": "claude", "result": "proved", "ts": 1780821216}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780821216}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_uint16_user.lean", "model": "claude", "result": "claimed", "ts": 1780821216}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_address_user.lean", "model": "claude", "result": "proved", "ts": 1780821316}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_address_27876_user.lean", "model": "claude", "result": "claimed", "ts": 1780821316}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_bool_fromMemory_user.lean", "model": "claude", "result": "claimed", "ts": 1780821316}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_address_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780821316}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_uint16_user.lean", "model": "claude", "result": "proved", "ts": 1780821327}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_bool_fromMemory_user.lean", "model": "claude", "result": "proved", "ts": 1780821393}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_address_27876_user.lean", "model": "claude", "result": "proved", "ts": 1780821405}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_address_address_user.lean", "model": "claude", "result": "proved", "ts": 1780821424}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "claimed", "ts": 1780821693}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude", "result": "proved", "ts": 1780821922}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/bridged_amount_preserved_user.lean", "model": "claude", "result": "proved", "ts": 1780824042}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_checkOwner_user.lean", "model": "claude", "result": "claimed", "ts": 1780825055}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_validateChainParams_user.lean", "model": "claude", "result": "claimed", "ts": 1780825055}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_sendRequest_user.lean", "model": "claude", "result": "claimed", "ts": 1780825055}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_checkOwner_user.lean", "model": "claude", "result": "proved", "ts": 1780825139}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_validateChainParams_user.lean", "model": "claude", "result": "proved", "ts": 1780825153}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_sendRequest_user.lean", "model": "claude", "result": "proved", "ts": 1780826205}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_registerNewZKChain_user.lean", "model": "claude", "result": "claimed", "ts": 1780826205}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_requireNotPaused_user.lean", "model": "claude", "result": "claimed", "ts": 1780826205}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_requireNotPaused_user.lean", "model": "claude", "result": "proved", "ts": 1780826269}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_registerNewZKChain_user.lean", "model": "claude", "result": "proved", "ts": 1780826301}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_add_user.lean", "model": "claude", "result": "claimed", "ts": 1780827104}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_get_user.lean", "model": "claude", "result": "claimed", "ts": 1780827104}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_add_user.lean", "model": "claude", "result": "proved", "ts": 1780827170}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_get_user.lean", "model": "claude", "result": "proved", "ts": 1780827188}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_tryGet_user.lean", "model": "claude", "result": "claimed", "ts": 1780827997}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_transferOwnership_user.lean", "model": "claude", "result": "claimed", "ts": 1780827997}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_transferOwnership_user.lean", "model": "claude", "result": "proved", "ts": 1780828073}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_tryGet_user.lean", "model": "claude", "result": "proved", "ts": 1780828092}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_43327_user.lean", "model": "claude", "result": "claimed", "ts": 1780828897}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_43333_user.lean", "model": "claude", "result": "claimed", "ts": 1780828897}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_43333_user.lean", "model": "claude", "result": "proved", "ts": 1780828962}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_43327_user.lean", "model": "claude", "result": "proved", "ts": 1780828972}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780829785}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_bool_fromMemory_user.lean", "model": "claude", "result": "claimed", "ts": 1780829785}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/checked_add_uint256_user.lean", "model": "claude", "result": "claimed", "ts": 1780829785}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_bool_fromMemory_user.lean", "model": "claude", "result": "proved", "ts": 1780829855}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_user.lean", "model": "claude", "result": "proved", "ts": 1780829863}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/checked_add_uint256_user.lean", "model": "claude", "result": "proved", "ts": 1780829875}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_fromMemory_user.lean", "model": "claude", "result": "claimed", "ts": 1780830683}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_address_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780830683}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/read_from_calldatat_address_user.lean", "model": "claude", "result": "claimed", "ts": 1780830683}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/read_from_calldatat_address_user.lean", "model": "claude", "result": "proved", "ts": 1780830746}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_address_fromMemory_user.lean", "model": "claude", "result": "proved", "ts": 1780830763}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_address_address_user.lean", "model": "claude", "result": "proved", "ts": 1780830775}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_bytes_fromMemory_user.lean", "model": "claude", "result": "claimed", "ts": 1780830829}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/finalize_allocation_user.lean", "model": "claude", "result": "claimed", "ts": 1780830829}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_bytes_fromMemory_user.lean", "model": "claude", "result": "proved", "ts": 1780830902}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/finalize_allocation_user.lean", "model": "claude", "result": "proved", "ts": 1780830977}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_uint256_bytes32_address_uint256_user.lean", "model": "claude", "result": "claimed", "ts": 1780831601}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/finalize_allocation_43325_user.lean", "model": "claude", "result": "claimed", "ts": 1780831601}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_bytes_user.lean", "model": "claude", "result": "claimed", "ts": 1780831601}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_uint256_bytes32_address_uint256_user.lean", "model": "claude", "result": "proved", "ts": 1780831672}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_bytes_user.lean", "model": "claude", "result": "proved", "ts": 1780831679}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/finalize_allocation_43325_user.lean", "model": "claude", "result": "proved", "ts": 1780831691}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/array_allocation_size_bytes_user.lean", "model": "claude", "result": "claimed", "ts": 1780831722}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_available_length_bytes_user.lean", "model": "claude", "result": "claimed", "ts": 1780831722}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/calldata_access_bytes_calldata_user.lean", "model": "claude", "result": "claimed", "ts": 1780831722}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_available_length_bytes_user.lean", "model": "claude", "result": "proved", "ts": 1780831798}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/calldata_access_bytes_calldata_user.lean", "model": "claude", "result": "proved", "ts": 1780831810}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/array_allocation_size_bytes_user.lean", "model": "claude", "result": "proved", "ts": 1780831851}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_bytes_calldata_user.lean", "model": "claude", "result": "claimed", "ts": 1780832485}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/memory_array_index_access_uint256_dyn_user.lean", "model": "claude", "result": "claimed", "ts": 1780832485}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_struct_L2TransactionRequestTwoBridgesOuter_calldata_user.lean", "model": "claude", "result": "claimed", "ts": 1780832485}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/memory_array_index_access_uint256_dyn_user.lean", "model": "claude", "result": "proved", "ts": 1780832558}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_bytes_calldata_user.lean", "model": "claude", "result": "proved", "ts": 1780832698}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_struct_L2TransactionRequestTwoBridgesOuter_calldata_user.lean", "model": "claude", "result": "proved", "ts": 1780832698}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/fun_sendRequest_user.lean", "model": "claude", "result": "blocked", "note": "gen runaway: fun_sendRequest_gen elaboration burns 100% CPU >2h18m (138min CPU) on big-switch concrete_of_code, never completes; defect#6 class. user proof is thin-wrapper (0 sorry) but gen uncompilable", "ts": 1780833514}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_decode_array_bytes32_dyn_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, derived inline (no subagent)", "ts": 1780833563}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/abi_encode_array_bytes32_dyn_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, derived inline (no subagent)", "ts": 1780833563}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/array_allocation_size_array_bytes_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, derived inline (no subagent)", "ts": 1780833563}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/access_calldata_tail_bytes_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, derived inline (no subagent)", "ts": 1780833563}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/copy_array_from_storage_to_memory_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, derived inline (no subagent)", "ts": 1780833563}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1054195021732265141_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1164150532433179709_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1209118431116190868_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1366110598910321239_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1430663170539197694_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_1574415747812902126_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_186403781627838268_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_222056077841235403_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_2328457584417225796_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_2352170140006762975_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_3128629598900990522_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_3660125111862948269_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_3680740834951988335_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_3726317777273006065_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_3875305509030638329_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_4112092877758689662_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_4531326074889478772_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_4757574632952405061_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_4888609276936831298_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_4961242233550291158_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_5064767104898712986_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_5351827025296077982_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_5564101263465963537_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_5642798889536836384_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_6040632739308624336_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_6111287530207380751_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_6355659747013642313_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_6547236921511043342_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_6747681429752853338_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_7036283890549845631_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_7136306376268056098_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_7506504477940969768_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_7669879635616097659_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_8274955638413537848_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_8365987808918906782_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_8641178249089768828_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/if_9186858324704191393_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/switch_2379653503816674189_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/switch_8539157929318587848_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/switch_8805183917919185541_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780833756}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/for_2051255765951039157_user.lean", "model": "claude-direct", "result": "proved", "note": "for-loop block, adapted from L1AssetRouter for_5632825108664701324 (lt(i,length), True abstractions)", "ts": 1780833905}
+{"stub": "specs/L1Bridgehub/L1Bridgehub/Common/for_1639041582502888472_user.lean", "model": "claude-direct", "result": "proved", "note": "for-loop block, adapted from L1AssetRouter for_5632825108664701324 (lt(i,length), True abstractions)", "ts": 1780833905}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1043264606266897008_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1164150532433179709_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1209118431116190868_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1254062856785940686_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1366110598910321239_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_13760576345689800_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1384984673001299506_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1569893669706455524_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1810623666621152160_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1829154961882075037_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1850768182690122168_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1974957643560532488_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_1996614206653605388_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_2338892551544939949_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_238538577602929412_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_2654214606827169161_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_2759842439704329415_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3074696543832101371_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3128629598900990522_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3158875210877696577_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3169290594777010327_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3184644454673276137_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3512591431497983588_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3549375524455581443_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_3867399954127536454_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_387746042582422619_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4114608673402717653_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4118729959615125189_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4489986574598841796_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4521731106176019512_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4630077109730052896_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4635858785563542990_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_4905610264939643226_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5064767104898712986_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5198757265867716647_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5327636436625673687_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5401906472475017904_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5564101263465963537_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5680788495791948010_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5718206110945243169_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5745271240382888121_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5903850729805010006_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_5922704974542936864_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6040632739308624336_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6211710129036802204_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6347281329581904638_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6355659747013642313_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6547236921511043342_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_658041605499731378_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6612257451548554226_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_663842672556501099_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_6747681429752853338_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_7014113024450494669_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_7118975047039834028_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_7146078886715759489_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_7158837568111266808_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_7506504477940969768_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_799566292769261972_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_8002972532267067327_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_8322446248705927466_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_8361590694864363686_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_8633753752739062557_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_879954185007019327_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/if_9153090929313368865_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_3487672722122768183_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_5364585472786756111_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_6917527303596625549_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_7614661687758543566_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_8026941473334182912_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_8145808823390256759_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrap-common script", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/switch_3111734635498524533_user.lean", "model": "claude-direct", "result": "blocked", "note": "gen deep-recursion (defect#6, deposit dispatcher switch)", "ts": 1780834523}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/Common/for_6252067074600046020_user.lean", "model": "claude-direct", "result": "proved", "note": "for-loop template (lt(i,length))", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_array_bytes32_dyn_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_decode_bytes_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_array_bytes_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_bytes_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_uint256_bytes32_bytes32_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_uint256_bytes32_bytes_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_encodeAssetId_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/abi_encode_array_bytes32_dyn_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferOwnership_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper inline", "ts": 1780834698}
+{"stub": "specs/L1AssetRouter/L1AssetRouter/fun_transferFundsToNTV_inner_user.lean", "model": "claude-direct", "result": "proved", "note": "custody control-flow proof; was only flagged by sorry-in-comment, builds clean; dep A_if now thin-wrapped", "ts": 1780834752}
+{"stub": "specs/DiamondProxy/cleanup_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/extract_from_storage_value_offset_address_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/extract_from_storage_value_offset_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/mapping_index_access_mapping_bytes4_struct_SelectorToFacet_storage_of_bytes4_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/read_from_storage_reference_type_struct_SelectorToFacet_user.lean", "model": "claude-direct", "result": "blocked", "note": "gen whnf timeout: read_from_storage_reference_type_struct_SelectorToFacet_gen explodes at whnf even @4M heartbeats (new defect: struct-storage-read whnf explosion)", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/require_helper_stringliteral_40ee_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/require_helper_stringliteral_b8d0_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/require_helper_stringliteral_e61d_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/Common/if_1366110598910321239_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/Common/if_2040821930665609055_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/Common/if_3824655429690947384_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/DiamondProxy/Common/if_5048110242291525478_user.lean", "model": "claude-direct", "result": "proved", "note": "thin-wrapper, fresh regen DiamondProxy", "ts": 1780835618}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_AddressAlreadySet_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_rational_by_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/revert_forward_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17645_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_address_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17774_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/constant_L2_ASSET_ROUTER_ADDR_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/finalize_allocation_17765_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/constant_L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_bytes32_bytes32_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_decodeBridgeBurnData_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_transferOwnership_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_bytes_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/validator_revert_contract_IL1ERC20Bridge_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/finalize_allocation_17735_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/cleanup_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/cleanup_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_array_bytes32_dyn_calldata_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_stringliteral_e11a_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_bytes32_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17729_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_bool_fromMemory_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/update_storage_value_offset_bool_to_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_available_length_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_available_length_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeNTVAssetId_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_InvalidProof_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_Unauthorized_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_ZeroAddress_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_address_address_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isContract_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_memory_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/array_allocation_size_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/cleanup_uint16_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/finalize_allocation_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_TokenNotLegacy_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_requireNotPaused_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/panic_error_0x11_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_address_bytes32_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/update_storage_value_offset_uint8_to_uint8_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_L2WithdrawalMessageWrongLength_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/panic_error_0x41_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_memory_17659_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/write_to_memory_uint16_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_address_fromMemory_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/read_from_storage_split_offset_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_enum_TxStatus_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/read_from_storage_split_offset_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17642_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_checkOwner_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/update_storage_value_offset_t_bool_to_t_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_safeTransfer_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_getSelector_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/cleanup_from_storage_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isPreSharedBridgeDepositOnEra_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_verifyCallResultFromTarget_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint16_17630_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_WrongL2Sender_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_and_zero_memory_struct_struct_L2Message_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isPreSharedBridgeEraEthWithdrawal_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint16_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17629_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_resolveLegacyL2Sender_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_fromMemory_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_and_zero_memory_struct_struct_L2Log_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_initialize_inner_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/panic_error_0x21_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17641_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_memory_17639_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/write_to_memory_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/mapping_index_access_mapping_address_uint256_of_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeBridgeBurnData_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/write_to_memory_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_t_bool_fromMemory_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_bytes4_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_l2MessageToLog_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_decodeBaseTokenFinalizeWithdrawalData_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeTxDataHash_5462_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isPreSharedBridgeEraTokenWithdrawal_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17628_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/checked_add_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_enum_TxStatus_address_bytes32_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_uint256_17652_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_decodeAssetRouterFinalizeDepositData_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_bytes32_address_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeTxDataHash_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_stringliteral_7a2a_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/require_helper_error_WithdrawalAlreadyFinalized_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/validator_assert_enum_TxStatus_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/extract_from_storage_value_offset_bool_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/bytes_concat_bytes1_bytes_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_enum_TxStatus_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/update_storage_value_offset_bool_to_bool_17751_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8722885647407853854_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1475492890989233506_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_396429549932726667_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8668657290474559314_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6209838031679978044_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2422166710875528756_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8661565790940807181_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_1586331052463743141_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1322301056081638725_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4243562269880518536_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3376291518595053174_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7158823157289719286_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_508989492593568173_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_415909480136577781_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6204704137440835262_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8695889900180351206_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2160268309564231326_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_226913968978600862_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8832779172174931881_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3128629598900990522_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/for_8662437257387404689_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5064767104898712986_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3860219166198766754_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5198757265867716647_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5792510925045852942_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8981579747868266284_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6747681429752853338_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1966118315202180062_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7834141748677516720_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_9006375582650777893_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4683618497854538374_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7506504477940969768_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8365987808918906782_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8978295670824315195_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5241142551529133718_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_5364585472786756111_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4779042393966803201_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_13760576345689800_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3159429698739859558_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6124620304077871236_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_401849216355358897_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3857970512749736261_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_879954185007019327_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6864078037843212115_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2422977234577224134_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4884626539333129882_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3714644158373291860_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7398123397289681387_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7624433659449274775_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3480959913296124696_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/for_6136861723173755809_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3281638141570151706_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5292108889875346497_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1794474706541866647_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7589762552718540589_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6547236921511043342_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5770903296355484632_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_8478880096303643694_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6939792469999041136_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7768789423214103908_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1830657456795928166_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5457932409743064427_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_352456214004318681_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_757398599896887534_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2479515901613014118_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_8026941473334182912_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7049296412361229646_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1874623059799935042_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4936249823334457734_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4378373803491156100_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2302834419921852506_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3030400364618924393_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1881948453520283554_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_8061299472236216384_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_4623873563022857434_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4371745317684943388_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8854921687139393146_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7408243273967218537_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3708168804682849505_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3525216432756457624_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7555350692620246630_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_2352977164347510911_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4842028208730101925_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1164150532433179709_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3720252696433631101_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1636797331660012289_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5301303707835357783_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_9097063384830582942_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6845355707072540497_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_778517197323709186_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4148053531410514966_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7111651108353324005_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7318330354559346316_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7909756524521358901_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_4307119837691313886_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7190394683733843645_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1670547032006806821_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_9164576800569104854_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3779093341896706365_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3804207500168655552_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1890138030862327418_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6355659747013642313_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_3845449680979841486_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5564101263465963537_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7069222774777857031_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1642626944664896899_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_2095837721993293218_user.lean", "model": "claude-direct", "result": "proved", "note": "L1Nullifier thin-wrap (fresh gen)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_verifyWithdrawal_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_nonReentrant_892_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_getL2LogFromL1ToL2Transaction_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_decodeLegacyFinalizeWithdrawalData_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_onlyLegacyBridge_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_nonReentrant_609_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_nonReentrant_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_whenNotPaused_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_decode_struct_ProofData_fromMemory_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/modifier_whenNotPaused_17695_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isLegacyTxDataHash_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_memory_array_string_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_finalizeWithdrawal_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeBridgeMintData_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_parseL2WithdrawalMessage_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_bytes32_uint256_uint256_uint16_array_bytes32_dyn_enum_TxStatus_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/allocate_and_zero_memory_array_bytes_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeBridgeMintData_17779_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_getLeafHashFromLog_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_enum_TxStatus_address_bytes32_bytes_17677_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7064742992538321793_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_8885061995403076879_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1805913646229035691_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_343510749532161682_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_5226289662066618189_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_6861713686796867628_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_7023789909275755697_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_1535582462203754558_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/if_7271597308487678777_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/Common/switch_2735766541591528116_user.lean", "model": "claude-direct", "result": "blocked", "note": "L1Nullifier gen defect (EVMCleanup_bool missing primop / whnf timeout / rewrite-fail / EVMFun missing)", "ts": 1780838698}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_encodeBridgeMintData_17779_user.lean", "model": "claude-direct", "result": "proved", "note": "recovered via maxHeartbeats 2000000 bump", "ts": 1780839106}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_enum_TxStatus_address_bytes32_bytes_17677_user.lean", "model": "claude-direct", "result": "proved", "note": "recovered via maxHeartbeats 2000000 bump", "ts": 1780839106}
+{"stub": "specs/L1Nullifier/L1Nullifier/abi_encode_uint256_bytes32_uint256_uint256_uint16_array_bytes32_dyn_enum_TxStatus_user.lean", "model": "claude-direct", "result": "proved", "note": "recovered via maxHeartbeats 2000000 bump", "ts": 1780839106}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_isLegacyTxDataHash_user.lean", "model": "claude-direct", "result": "proved", "note": "recovered via maxHeartbeats 8000000 bump", "ts": 1780839386}
+{"stub": "specs/L1Nullifier/L1Nullifier/fun_getL2LogFromL1ToL2Transaction_user.lean", "model": "claude-direct", "result": "proved", "note": "recovered via maxHeartbeats 8000000 bump", "ts": 1780839386}

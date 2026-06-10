@@ -1,0 +1,53 @@
+import Clear.ReasoningPrinciple
+
+import generated.L1AssetRouter.L1AssetRouter.Common.if_703545134399310454
+import generated.L1AssetRouter.L1AssetRouter.fun_bridgehubDepositNonBaseTokenAsset
+import generated.L1AssetRouter.L1AssetRouter.Common.if_4114608673402717653
+import generated.L1AssetRouter.L1AssetRouter.Common.if_2759842439704329415
+import generated.L1AssetRouter.L1AssetRouter.Common.if_3184644454673276137
+import generated.L1AssetRouter.L1AssetRouter.Common.if_8002972532267067327
+import generated.L1AssetRouter.L1AssetRouter.Common.block_7033434501370750183
+import generated.L1AssetRouter.L1AssetRouter.abi_decode_address_payable
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6854912133105158388
+import generated.L1AssetRouter.L1AssetRouter.allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
+import generated.L1AssetRouter.L1AssetRouter.Common.block_4310865140160357238
+import generated.L1AssetRouter.L1AssetRouter.Common.block_8106394306832420571
+import generated.L1AssetRouter.L1AssetRouter.Common.if_7158837568111266808
+import generated.L1AssetRouter.L1AssetRouter.Common.block_3744227472875697596
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6344513139367193090
+import generated.L1AssetRouter.L1AssetRouter.Common.block_2469573324742142972
+import generated.L1AssetRouter.L1AssetRouter.Common.block_8274520433358020707
+import generated.L1AssetRouter.L1AssetRouter.Common.if_2654214606827169161
+import generated.L1AssetRouter.L1AssetRouter.Common.if_4635858785563542990
+import generated.L1AssetRouter.L1AssetRouter.finalize_allocation
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6660044055625434684
+import generated.L1AssetRouter.L1AssetRouter.Common.block_285904039675068668
+import generated.L1AssetRouter.L1AssetRouter.Common.block_2038485903199560530
+import generated.L1AssetRouter.L1AssetRouter.Common.block_1447375835123366387
+import generated.L1AssetRouter.L1AssetRouter.Common.block_5464026732896519597
+import generated.L1AssetRouter.L1AssetRouter.allocate_and_zero_memory_array_array_bytes_dyn
+import generated.L1AssetRouter.L1AssetRouter.finalize_allocation_27947
+import generated.L1AssetRouter.L1AssetRouter.Common.block_6181646664513209028
+import generated.L1AssetRouter.L1AssetRouter.Common.block_196848599551275949
+import generated.L1AssetRouter.L1AssetRouter.Common.block_4227363285702726281
+
+import generated.L1AssetRouter.L1AssetRouter.Common.switch_2505746835257865738_gen
+
+
+namespace L1AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L1AssetRouter.Common generated.L1AssetRouter L1AssetRouter
+
+def A_switch_2505746835257865738 (s₀ s₉ : State) : Prop := switch_2505746835257865738_concrete_of_code.1 s₀ s₉
+
+lemma switch_2505746835257865738_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_2505746835257865738_concrete_of_code s₀ s₉ →
+  Spec A_switch_2505746835257865738 s₀ s₉ := by
+  intro h
+  simpa [A_switch_2505746835257865738] using h
+
+end
+
+end L1AssetRouter.Common

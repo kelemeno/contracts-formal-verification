@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_update_storage_value_offset_t_bool_to_t_bool   (s₀ s₉ : State) : Prop := sorry
+def A_update_storage_value_offset_t_bool_to_t_bool   (s₀ s₉ : State) : Prop := update_storage_value_offset_t_bool_to_t_bool_concrete_of_code.1 s₀ s₉
 
 lemma update_storage_value_offset_t_bool_to_t_bool_abs_of_concrete {s₀ s₉ : State}  :
   Spec (update_storage_value_offset_t_bool_to_t_bool_concrete_of_code.1  ) s₀ s₉ →
   Spec (A_update_storage_value_offset_t_bool_to_t_bool  ) s₀ s₉ := by
-  unfold update_storage_value_offset_t_bool_to_t_bool_concrete_of_code A_update_storage_value_offset_t_bool_to_t_bool
-  sorry
+  intro h
+  simpa [A_update_storage_value_offset_t_bool_to_t_bool] using h
 
 end
 
