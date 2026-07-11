@@ -56,7 +56,9 @@ story:**
   `committed_member_gap_impossible`), and **never both across time** — on-time membership and a
   deadline-pinned gap witness for the same leg are jointly impossible along any append-only IMT
   history with monotone settlement timestamps (*#34*, axiom-free) — and **never neither**: an
-  absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free).
+  absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free). The
+  timeout gate's compiled guards enforce exactly #34's premises: acceptance forces
+  `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -66,7 +68,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-35 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+36 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -617,6 +619,28 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 36. Atomic interop — THE TIMEOUT GATE'S TEMPORAL GUARDS: acceptance pins the deadline window  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../timeout_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** the three temporal guards of `fun_verifyTimeoutAdjacency` (the reclaim gate's outer
+  verifier), each proven in BOTH directions over its exact statement block quoted verbatim from the
+  compiled body: the absence-batch guard falls through iff `tN ≤ D̂` and reverts otherwise
+  (`absence_ontime_pass`/`absence_late_reverts`); the successor guard iff `D̂ < tS`
+  (`successor_late_pass`/`successor_ontime_reverts`); the adjacency guard iff `bS = bN + 1`
+  (`adjacency_consecutive_pass`/`adjacency_gap_reverts`). Supporting: `abi64_call` — the closed
+  form of `abi_encode_uint256_uint64` (the temporal reverts' error encoder).
+- **Why it matters (spec points 3, 4):** any ACCEPTING run of the timeout gate satisfies
+  `tN ≤ D̂ < tS` with consecutive batches — precisely the successor-pinning premises of the
+  abstract never-both theorem (#34, `delivered_and_reclaimed_impossible`): batch `N` is the LAST
+  on-time snapshot, so absence there (checked against the same root by #26's `verifyNonInclusion`)
+  is absence that delivery evidence cannot coexist with. The delivery side's `t ≤ D` premise is
+  guarded symmetrically by `verifyInclusion`'s deadline check (same `if gt(t, deadline) revert`
+  shape). The revert directions also close the force-refund-off-stale-root attack concretely: an
+  in-time successor (`tS ≤ D̂`) or a non-consecutive pair is REJECTED, not merely not-accepted.
+- **Caveat / trusted base:** **axiom-free** (all six theorems + encoder = standard three). The
+  guards are stated over their verbatim statement blocks with variable-lookup hypotheses; stitching
+  them through the full `fun_verifyTimeoutAdjacency` body (through `authenticateRoot`'s closed
+  form) is the remaining composition step.
 
 ### 35. Atomic interop — RECLAIM LIVENESS: a gap witness always exists for an absent leg  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
