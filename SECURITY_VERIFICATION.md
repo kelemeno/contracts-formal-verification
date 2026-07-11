@@ -58,7 +58,9 @@ story:**
   history with monotone settlement timestamps (*#34*, axiom-free) — and **never neither**: an
   absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free). The
   timeout gate's compiled guards enforce exactly #34's premises: acceptance forces
-  `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions).
+  `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions), and the
+  flow structure both gates run under is canonical and flowId-bound — sorted legs, aligned
+  chain-ids, recomputed hash — before any proof is examined (*#37*, axiom-free).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -68,7 +70,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-36 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+37 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -619,6 +621,27 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 37. Atomic interop — THE FLOW-ID GATE: the flow structure is canonical and bound  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../flowid_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** the guards of `fun_checkFlowId` — called by BOTH `requireFlowFinalized` (delivery) and
+  `authorizeRefund` (reclaim) before any proof is examined — over their verbatim compiled blocks:
+  `sorted_pass`/`sorted_reverts` — each adjacent leg-bundle-hash pair must be STRICTLY ascending
+  (both directions); `length_match_pass` — `legSourceChainIds` is aligned 1:1 with the bundle
+  hashes; `flowid_match_pass`/`flowid_mismatch_reverts` — the declared `flowId` must EQUAL the
+  recomputed `keccak256(abi.encode(legBundleHashes, legSourceChainIds, deadline,
+  settlementLayerChainId))` (both directions).
+- **Why it matters (spec points 1, 2, 3):** the `flowId` is what every leg's commit value bakes in
+  (#33). These guards mean an ACCEPTING gate run uses a deadline, leg set, and settlement layer
+  that are EXACTLY the ones bound into every tree commitment: a tampered deadline (to force or
+  block a timeout), an injected or duplicated leg, a permuted flow re-presentation, or a swapped
+  settlement-layer clock is rejected up front — before any Merkle proof is even looked at.
+  Canonical ascending order also makes the flow presentation unique per leg set.
+- **Caveat / trusted base:** **axiom-free**. The length guard's revert direction is not stated
+  (its revert body calls the calldata-tail accessor whose closed form is not yet proven); the pass
+  direction is what acceptance-implies arguments need. Injectivity of the flow encoding (flowId ⇒
+  unique legs/deadline/sl, the #33-style A6′ companion) needs the dynamic-array encoder's closed
+  form — future work.
 
 ### 36. Atomic interop — THE TIMEOUT GATE'S TEMPORAL GUARDS: acceptance pins the deadline window  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../timeout_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
