@@ -603,9 +603,11 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **Hypotheses (the honest remaining obligations):** per-level array bounds (`PassOK` over walk
   prefixes — tree well-formedness) and level-count slot stability (`hwalk_ss` — the parent stores
   at `keccak(…)+j` never hit the low length slot; dischargeable from A6″ `keccak256_ne_lowSlot`).
-- **Why it matters (spec point 4):** this is the concrete half of the tree-builder arc. With U4
-  (the `updateLeaf` top-level wire-up) and the same treatment of `pushNewLeaf`, the roots the
-  contract publishes become `updateWalk` images — the bridge to showing published roots commit
+- **Update (same day) — U4 DONE:** `updateLeaf_call` gives the FULL closed form of
+  `fun_updateLeaf`: range guard, leaf write (`leafWriteEvm` — the new leaf hash stored at
+  position `idx` of level 0), the `updateWalk` recompute, and the new root returned — axiom-free.
+- **Why it matters (spec point 4):** this is the concrete half of the tree-builder arc. With the
+  same treatment of `pushNewLeaf`, the roots the contract publishes become `updateWalk` images — the bridge to showing published roots commit
   only `GapSound` leaf sets (#30), which discharges the exclusivity capstone's one hypothesis.
 - **Caveat / trusted base:** axiom-free (`#print axioms update_loop` = standard three, no
   `sorryAx`, no keccak axioms).
