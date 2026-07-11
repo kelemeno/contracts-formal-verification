@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_push_user
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_5765234204941653661
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1084122831851539501
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_3948411532618903895
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 
 /-
@@ -744,6 +745,94 @@ private lemma growC_block
   rw [lookup_insert_self_fin]
   rw [array_push_array_call hlen2 hacc2 hstale hfuel]
   try rfl
+
+/-- **The taken padding-if**: initialize the counters and run the padding
+loop (`pad_loop`).  Preserves every variable outside `padVars`. -/
+lemma pad_if
+    {evm : EVMState} {σ : VarStore} {fuel k : ℕ} {c : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = c)
+    (hsp : (Ok evm σ)["split_expr_4"]!! = 0)
+    (hc0 : c ≠ 0)
+    (hcont : ∀ j, j < k → (padWalk j evm 0 (c - 1) c).2.1 < (padWalk j evm 0 (c - 1) c).1.sload 0
+      ∧ (padWalk j evm 0 (c - 1) c).2.2.1 ≠ (padWalk j evm 0 (c - 1) c).2.2.2)
+    (hstop : ¬ ((padWalk k evm 0 (c - 1) c).2.1 < (padWalk k evm 0 (c - 1) c).1.sload 0)
+      ∨ (padWalk k evm 0 (c - 1) c).2.2.1 = (padWalk k evm 0 (c - 1) c).2.2.2)
+    (hpass : ∀ j, j < k → PadOK (padWalk j evm 0 (c - 1) c))
+    (hfuel : 2 * k + 2 ≤ fuel) :
+    ∃ σ' : VarStore,
+      exec (fuel+1) L2InteropCommitmentTree.Common.if_3948411532618903895 (Ok evm σ)
+        = Ok (padWalk k evm 0 (c - 1) c).1 σ'
+      ∧ ∀ key : Identifier, key ∉ padVars →
+          (Ok (padWalk k evm 0 (c - 1) c).1 σ')[key]!! = (Ok evm σ)[key]!! := by
+  have h1e : ∀ e : EVMState, (Ok e σ)["_1"]!! = c := fun _ => h1
+  unfold _root_.L2InteropCommitmentTree.Common.if_3948411532618903895
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [hsp]
+  rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- prep: var_oldMaxNodeNumber := checked_sub(_1); var_maxNodeNumber := _1; var_i := 0; var_i := 0
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h1, checked_sub_call hc0]
+  rw [cons, LetEq']
+  simp only [Var']
+  rw [lookup_insert_ne_fin (by decide), h1e]
+  simp only [insert_Ok]
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  rw [cons, Assign']
+  simp only [Lit', eval, insert_Ok]
+  -- the padding loop, folded to the named components
+  rw [cons, nil]
+  rw [show ([AssignPrimCall ["var_i"] .Add [Var "var_i", Lit 1]] : List Stmt)
+        = _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_post from rfl,
+      show ([LetPrimCall ["split_expr_5"] .Sload [Lit 0],
+             LetPrimCall ["split_expr_6"] .Lt [Var "var_i", Var "split_expr_5"],
+             If (PrimCall .Iszero [Var "split_expr_6"]) [Stmt.Break],
+             If (PrimCall .Eq [Var "var_oldMaxNodeNumber", Var "var_maxNodeNumber"]) [Stmt.Break],
+             .Block
+              [LetCall ["_7", "_8"] storage_array_index_access_bytes32_dyn__dyn
+                 [Lit 2, Var "var_i"],
+               LetCall ["_9", "_10"] storage_array_index_access_bytes32_dyn__dyn
+                 [Lit 3, Var "var_i"],
+               LetPrimCall ["split_expr_7"] .Sload [Var "_9"],
+               LetCall ["split_expr_8"] extract_from_storage_value_dynamict_bytes32
+                 [Var "split_expr_7", Var "_10"],
+               ExprStmtCall array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+                 [Var "_7", Var "split_expr_8"]],
+             .Block
+              [AssignCall ["var_maxNodeNumber"] checked_div_uint256 [Var "var_maxNodeNumber"],
+               AssignCall ["var_oldMaxNodeNumber"] checked_div_uint256 [Var "var_oldMaxNodeNumber"]]] : List Stmt)
+        = _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_body from rfl,
+      show (Lit 1 : Expr)
+        = _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_cond from rfl]
+  obtain ⟨σ', hσ'eq, hσ'pres⟩ := pad_loop k (fuel := fuel+1)
+    (evm := evm)
+    (σ := Finmap.insert "var_i" 0 (Finmap.insert "var_i" 0
+      (Finmap.insert "var_maxNodeNumber" c
+        (Finmap.insert "var_oldMaxNodeNumber" (c - 1) σ))))
+    (i := 0) (om := c - 1) (m := c)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hcont hstop hpass (by omega)
+  refine ⟨σ', hσ'eq, ?_⟩
+  intro key hkey
+  rw [hσ'pres key hkey]
+  rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
 
 end
 
