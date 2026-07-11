@@ -292,6 +292,13 @@ axiom keccak256_slot_sep {σ₁ σ₂ σ₁' σ₂' : EVMState} {p₁ n₁ p₂ 
     i.val < lowSlotBound →
     r₁ + i ≠ r₂
 
+/-- **AXIOM (array element vs reserved low slot).** An array element slot
+`keccak(P) + i` (small `i`) never collides with a reserved low slot `c` —
+the same near-uniform-spread idealization as `keccak256_ne_lowSlot`,
+extended to small offsets. Idealization (trusted base) — see header. -/
+axiom keccak256_add_ne_lowSlot {σ σ' : EVMState} {p n r : UInt256} (i c : UInt256) :
+    σ.keccak256 p n = some (r, σ') → i.val < lowSlotBound → c.val < lowSlotBound → r + i ≠ c
+
 /-! ## Corollaries: the three `registerNewZKChain` value-slot non-aliasing facts
 
 `registerNewZKChain` commits the chain address at the EnumerableMap value slot
@@ -384,42 +391,19 @@ theorem keccak256_same_preimage
   rw [h₁] at h₂
   exact (Prod.mk.injEq .. ▸ Option.some.inj h₂).1
 
-/-! ## Task 2: accessor determinism toward the nullifier slot-equality
+/-! ## Accessor determinism — moved to `specs/KeccakDeterminism.lean`
 
-The Solidity mapping-slot accessor (`read_call_state`-style: `mstore 0 key; mstore 32 base;
-keccak256 0 64`) produces a slot that is a deterministic function of `(key, base)` ONCE the
-64-byte preimage `key‖base` is cached. We capture exactly that reusable fact: if two accessor
-calls write the same `(key, base)` (so their preimages coincide after the two `mstore`s) and
-that preimage is already cached to slot `r` in a SHARED cache, both return `r`.
-
-This is built directly on Task 1's `keccak256_of_cached` plus the existing `mstore`
-round-trip / preimage lemmas in this file. It is the determinism core of
-`split_expr_7 == split_expr_13`; what it does NOT do is trace the modifier prelude that
-establishes the cache and the `(key,base)` equality — see the honest gap note below. -/
-
-/-- The 64-byte accessor preimage `mkInterval (mstore (mstore σ 0 key) 32 base) 0 64` depends
-only on `(key, base)`: two base states that get the same `key` written at word 0 and the same
-`base` written at word 32 produce equal preimages. (The bytes at `[0,32)` are `key`'s bytes and
-at `[32,64)` are `base`'s bytes, regardless of the prior memory, by the `mstore` round-trip.)
-
-We prove the consequence we actually need — preimage EQUALITY under equal `(key,base)` — via the
-two-word round-trip: word 0 reads back `key`, word 32 reads back `base`, on either state. -/
-theorem accessor_preimage_eq_of_key_base_eq
-    {σa σb : EVMState} {key base : UInt256} :
-    mkInterval ((σa.mstore 0 key).mstore 32 base).machine_state 0 64
-      = mkInterval ((σb.mstore 0 key).mstore 32 base).machine_state 0 64 := by
-  -- `mkInterval ms 0 64 = (List.range' 0 64).map (fun i => ms.lookupMemory (Fin.ofNat i))`.
-  -- Each entry is `ms.lookupMemory j` for `j ∈ [0,64)`. We show the two states agree on every
-  -- such word. Word 32 reads `base` on both (round-trip); words `< 32` read `key` (the outer
-  -- `mstore 32` does not touch `[0,32)`); words in `(32,64)` are unconstrained but EQUAL only if
-  -- the two base states agreed there — which they need not. So instead reduce both lists by the
-  -- round-trip facts directly: this requires the full two-word round-trip lemma.
-  -- We obtain it from `lookupMemory_updateMemory_self`-style reasoning, which only covers the
-  -- exact-address word. The clean, fully-general statement that holds is the per-word agreement
-  -- only at the two written words; the bytes in `(32,64)` of the preimage CAN differ between
-  -- arbitrary base states. Hence equality of the WHOLE 64-byte preimage does NOT hold for
-  -- arbitrary `σa, σb`. We therefore state the honest, provable specialization below and leave
-  -- this general form unproven-by-design — see the gap note. (No `sorry`: we do not keep this.)
-  rfl
+An earlier revision of this file stated an UNCONDITIONAL accessor preimage
+equality (`accessor_preimage_eq_of_key_base_eq`): that the 64-byte accessor
+preimage `mkInterval (mstore (mstore σ 0 key) 32 base) 0 64` depends only on
+`(key, base)`. That statement is FALSE in the model: `lookupMemory j` for
+`j ∈ (32, 64)` reads bytes beyond offset 64, so the preimage also depends on the
+"junk window" `[64, 95)` of the prior memory. The honest, provable form is
+*frame-conditioned* (junk windows agree), and it lives — together with the full
+accessor-chain determinism theorem it enables (`accessor_chain_deterministic`,
+the determinism core of the L1Nullifier `split_expr_7 == split_expr_13`
+slot-equality) — in `specs/KeccakDeterminism.lean`. That file is deliberately
+AXIOM-FREE and does not import this one, so the trusted-base axioms above are
+not even transitively in its scope. -/
 
 end Clear.KeccakInjective
