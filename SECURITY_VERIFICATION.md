@@ -55,7 +55,8 @@ story:**
   tree (*#30* abstract invariant + insert preservation; capstone
   `committed_member_gap_impossible`), and **never both across time** — on-time membership and a
   deadline-pinned gap witness for the same leg are jointly impossible along any append-only IMT
-  history with monotone settlement timestamps (*#34*, axiom-free).
+  history with monotone settlement timestamps (*#34*, axiom-free) — and **never neither**: an
+  absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -65,7 +66,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-34 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+35 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -616,6 +617,29 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 35. Atomic interop — RECLAIM LIVENESS: a gap witness always exists for an absent leg  ★ NEW  ✅ axiom-clean
+`specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
+- **Claim (`reclaim_witness_available`):** along any IMT history (`Evolution`) from a sound base
+  containing the zero leaf, EVERY absent nonzero commit value has a valid gap witness at EVERY
+  snapshot — a leaf whose window straddles it, exactly what the reclaim gate (#26) requires.
+  Supporting: two further linked-list invariants — `NextClosed` (every nonzero `nextKey` resolves
+  to a real leaf; no dangling links) and `WindowPos` (windows open upward) — each preserved by the
+  guarded insert (`imtInsert_nextClosed`/`imtInsert_windowPos`); the full four-part `SoundState`
+  bundle is inductive (`evolution_sound`, genesis singleton proven sound); and
+  `gap_witness_exists` — in a well-formed list, the MAXIMAL key below an absent `v` carries a
+  straddling window (its link target is a real leaf, which would beat maximality if it were below
+  `v`, and equals `v` never since `v` is absent).
+- **Why it matters (spec points 3, 4):** this is the availability half of "reclaim on failure —
+  at any time" and the "never neither" side of exactly-one-outcome, abstractly: a leg that was
+  never committed can ALWAYS be witnessed absent — no tree state, however grown, can strand a
+  depositor by making the reclaim proof impossible. Dual to #34 ("never both"): together they pin
+  the abstract outcome space to exactly one of delivered/reclaimed, given the gates' evidence
+  shapes.
+- **Caveat / trusted base:** **axiom-free** (pure order theory). Liveness here means witness
+  EXISTENCE; producing the witness (indexing into the tree) and the gate accepting it are the
+  concrete layers #24–#26/#32. The absent-forever hypothesis (`v ∉ keys (S j)`) is the
+  "transaction failed / leg never committed" premise.
 
 ### 34. Atomic interop — DELIVERED XOR RECLAIMED, temporal core: never both  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
