@@ -53,11 +53,13 @@ story:**
   (*#29*) nor coexist in any `GapSound` tree (*#30* abstract invariant + insert preservation;
   capstone `committed_member_gap_impossible`).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
-  pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4).
-  Remaining for the full capstone discharge: `pushNewLeaf` and the `updateWalk` → `GapSound`
-  correspondence.
+  pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
+  **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
+  window, `foldRoot` recomputes exactly the stored root (*#32*, axiom-free). Remaining for the
+  full capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
+  (source-level inspection; outside the generated corpus).
 
-31 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+32 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -609,6 +611,29 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
 
+### 32. Atomic interop — THE VERIFIER FOLD REPLAYS THE BUILDER WALK  ★ NEW  ✅ axiom-clean
+`L2InteropCommitmentTree/.../imt_replay_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`fold_replays_walk`):** let the builder walk (`updateWalk`, #31) run `k` collision-free
+  levels from leaf `cur` at position `idx`, storing a final root. Then ANY verifier evm that (i)
+  carries the walk's final keccak cache, (ii) agrees with the walk's initial memory on the scratch
+  junk window `[64, 95)`, and (iii) is given a path array holding exactly the siblings the walk
+  read, folds (`foldRoot`, #24 — the delivery/reclaim gates' verifier) the SAME leaf at the SAME
+  position to EXACTLY the stored root. The three hypotheses of the agreement induction
+  (`fold_walk_agree`, arc A) are DISCHARGED, not assumed: `walk_caches` — a collision-free walk
+  cached every level's pair hash itself (`accOut_caches_of_clean` at the step, cache monotonicity
+  to the final state); `updateWalk_junk`/`walkPreHash_junk` — the walk writes memory only in
+  scratch `[0, 64)`, so the junk window is invariant; `foldWalk_mload_high`/`foldWalk_index` — the
+  fold's path reads (at `≥ 96`) see its initial memory and its counter is `iv + j`.
+- **Why it matters (spec points 2, 3, 4):** this closes arc (A) end-to-end at the concrete layer:
+  the root the builder stores is not merely *some* commitment — the gates' own fold procedure,
+  replayed with the builder's witnesses, RECOVERS that root from the written leaf. Composed with
+  #27 (`foldRoot_binding`: same root + same position ⇒ same leaf), the stored root verifies the
+  written leaf and ONLY the written leaf at its position. What delivery/reclaim check is exactly
+  what the builder committed.
+- **Caveat / trusted base:** **axiom-free** (`#print axioms fold_replays_walk` = standard three;
+  no A6′/A6″, no `sorryAx`). The sibling-array hypothesis (`hsibs`) is the prover-supplies-the-
+  right-path premise — substituting wrong siblings changes the fold output, which #27 then rejects.
+
 ### 31. Atomic interop — THE TREE-BUILDER'S MERKLE UPDATE LOOP IS A PURE WALK  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_storage_atoms_user.lean`, `imt_update_fold_user.lean`
 *(added 2026-07-11; PR #2218 contracts)*
@@ -645,21 +670,29 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **The remaining distance to the capstone (delivered-XOR-reclaimed), precisely:** the capstone
   (#29 file) needs "committed leaves abstract into a `GapSound` set". With the builder now fully
   closed-form, this decomposes into exactly two obligations:
-  **(A) builder–verifier agreement — DONE** (`imt_agreement_user.lean`, axiom-free):
-  `fold_walk_agree` — if, level by level, the verifier fold reads the walk's sibling, the walk's
-  pair-hash cache entry is transported into the verifier evm, and the two memories agree on the
-  scratch junk window `[64, 95)`, then the fold REPRODUCES the walk's node chain (and leaves its
-  cache and junk window untouched, so the hits chain). With `foldWalk_foldRoot` this is exactly
-  "`foldRoot` over the walk's siblings = the walk root". Supporting: one-level cross-evm cache-hit
-  agreement (`accOut_agree`), walk cache monotonicity (`updateWalk_lookup_mono` — every level's
-  entry survives to the final cache), and the junk/path invariance frames.
-  **(B) the insert protocol** *(outside the compiled corpus — an explicit hypothesis)*: the
-  caller composing `updateLeaf`+`pushNewLeaf` performs the IMT insert (retarget the low leaf,
-  append `⟨v, oldNext⟩`). No compiled function in the corpus calls the builder (checked: nothing
-  references `fun_pushNewLeaf`/`fun_updateLeaf`); the composition lives in the calling contract
-  outside the verified subset. Under (B), #30's `imtInsert_gapSound` gives the invariant by
-  induction from the empty tree, and with (A) + #27/#28 the capstone's `habs` hypothesis is
-  satisfied — completing spec point 4.
+  **(A) builder–verifier agreement — DONE, instantiated** (`imt_agreement_user.lean` +
+  `imt_replay_user.lean`, both axiom-free): `fold_walk_agree` — if, level by level, the verifier
+  fold reads the walk's sibling, the walk's pair-hash cache entry is transported into the verifier
+  evm, and the two memories agree on the scratch junk window `[64, 95)`, then the fold REPRODUCES
+  the walk's node chain. #32 (`fold_replays_walk`) then DISCHARGES all three per-level premises
+  concretely (the collision-free walk caches its own hashes; the walk never writes `[64, 95)`; the
+  fold's path reads see its initial memory) — so the closed form is: cache transport + junk
+  agreement + the walk's siblings in the path array ⇒ `foldRoot` = the stored walk root.
+  **(B) the insert protocol** *(present in the compiled Yul, but not in the generated corpus)*:
+  the composition `updateLeaf(lowIdx, hashLeaf(retargetedLow)); pushNewLeaf(hashLeaf(newLeaf))` is
+  `IndexedMerkleTree.sol::insert` (era-contracts, lines 60–105) — verbatim the abstract
+  `imtInsert` of #30 (guards: `value ≠ 0`, fresh `valueToIndex`, low-leaf window
+  `lowLeaf.value < value {< lowLeaf.nextValue or nextValue = 0}`; then retarget + append). It IS
+  compiled into `yul/L2InteropCommitmentTree.yul` — inlined in the external-function dispatcher
+  (guards at src offsets 2724–3011, the bounded low-leaf search loop, the two struct stores, and
+  the calls `fun_updateLeaf_5202(lowLeafIndex, fun_hashLeaf(...))` /
+  `fun_pushNewLeaf(fun_hashLeaf(...))` / `fun_publishRoot(newRoot)` at Yul lines ~120–250). The VC
+  generator, however, extracts only NAMED functions, so this dispatcher glue has no generated Lean
+  and cannot get a machine-checked closed form under the current pipeline. (B) therefore remains
+  the one code-level hypothesis, but it is now pinned to ~60 lines of straight-line, source-mapped
+  dispatcher glue whose shape is `imtInsert` by direct inspection. Under (B), #30's
+  `imtInsert_gapSound` gives the invariant by induction from the empty tree, and with (A) + #32 +
+  #27/#28 the capstone's `habs` hypothesis is satisfied — completing spec point 4.
 
 ### 30. Atomic interop — ABSTRACT IMT INVARIANT: gap soundness, exclusion, and insert preservation  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-11; contract-independent)*
