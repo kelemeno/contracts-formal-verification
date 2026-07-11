@@ -280,4 +280,167 @@ theorem empty_keyInj : KeyInj (∅ : Finset AbsLeaf) := by
   intro A hA
   exact absurd hA (Finset.not_mem_empty A)
 
+/-! ## Reclaim liveness — a gap witness always EXISTS for an absent key
+
+The reclaim gate (#26) demands a leaf whose window straddles the missing
+commit value.  The exclusivity results say such a witness is *sound*; this
+section says one is always *available*: in a well-formed linked list, the
+maximal key below an absent `v` carries a straddling window.  Two more
+list invariants make "well-formed" precise, and both are preserved by the
+guarded insert. -/
+
+/-- Every nonzero `nextKey` resolves to an actual leaf — no dangling links. -/
+def NextClosed (s : Finset AbsLeaf) : Prop :=
+  ∀ W ∈ s, W.nextKey ≠ 0 → ∃ L ∈ s, L.key = W.nextKey
+
+/-- Windows open upward: `nextKey` is 0 (list end) or strictly above the key. -/
+def WindowPos (s : Finset AbsLeaf) : Prop :=
+  ∀ W ∈ s, W.nextKey = 0 ∨ W.key < W.nextKey
+
+/-- **INSERT PRESERVES `NextClosed`.** -/
+theorem imtInsert_nextClosed
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
+    (hnc : NextClosed s) (hW₀ : W₀ ∈ s)
+    (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
+    NextClosed (imtInsert s W₀ v) := by
+  intro W hW hnz
+  rw [mem_imtInsert] at hW
+  rcases hW with rfl | rfl | ⟨hWs, hWne⟩
+  · -- retargeted low leaf ⟨W₀.key, v⟩: its nextKey v is the new leaf's key
+    exact ⟨⟨v, W₀.nextKey⟩, by rw [mem_imtInsert]; right; left; rfl, rfl⟩
+  · -- new leaf ⟨v, W₀.nextKey⟩: the old target of W₀ survives the erase
+    obtain ⟨L, hLs, hLkey⟩ := hnc W₀ hW₀ hnz
+    have hLne : L ≠ W₀ := by
+      intro h
+      rw [h] at hLkey
+      rcases hwin with h0 | hgt
+      · exact hnz h0
+      · exact absurd hLkey (ne_of_lt (lt_trans hlow hgt))
+    exact ⟨L, by rw [mem_imtInsert]; right; right; exact ⟨hLs, hLne⟩, hLkey⟩
+  · -- untouched old leaf: its old target either survives, or was W₀ — whose
+    -- key is re-added by the retargeted leaf
+    obtain ⟨L, hLs, hLkey⟩ := hnc W hWs hnz
+    by_cases hLW : L = W₀
+    · refine ⟨⟨W₀.key, v⟩, by rw [mem_imtInsert]; left; rfl, ?_⟩
+      rw [← hLkey, hLW]
+    · exact ⟨L, by rw [mem_imtInsert]; right; right; exact ⟨hLs, hLW⟩, hLkey⟩
+
+/-- **INSERT PRESERVES `WindowPos`.** -/
+theorem imtInsert_windowPos
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
+    (hwp : WindowPos s)
+    (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
+    WindowPos (imtInsert s W₀ v) := by
+  intro W hW
+  rw [mem_imtInsert] at hW
+  rcases hW with rfl | rfl | ⟨hWs, _⟩
+  · exact Or.inr hlow
+  · rcases hwin with h0 | hgt
+    · exact Or.inl h0
+    · exact Or.inr hgt
+  · exact hwp W hWs
+
+/-- **A GAP WITNESS EXISTS.**  In a well-formed list containing some key
+below `v`, an absent `v` always has a straddling window: the leaf with the
+MAXIMAL key below `v` carries it. -/
+theorem gap_witness_exists
+    {s : Finset AbsLeaf} {v : UInt256}
+    (hnc : NextClosed s) (hwp : WindowPos s)
+    (hbelow : ∃ X ∈ s, X.key < v)
+    (habs : v ∉ keys s) :
+    ∃ W ∈ s, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey) := by
+  classical
+  set B := s.filter (fun X => X.key < v) with hB
+  have hBne : B.Nonempty := by
+    obtain ⟨X, hXs, hXv⟩ := hbelow
+    exact ⟨X, by rw [hB, Finset.mem_filter]; exact ⟨hXs, hXv⟩⟩
+  obtain ⟨W, hWB, hWmax⟩ := B.exists_max_image AbsLeaf.key hBne
+  have hWB' := hWB
+  rw [hB, Finset.mem_filter] at hWB'
+  have hWs : W ∈ s := hWB'.1
+  have hWv : W.key < v := hWB'.2
+  refine ⟨W, hWs, hWv, ?_⟩
+  by_cases h0 : W.nextKey = 0
+  · exact Or.inl h0
+  · right
+    -- the link target is a real leaf strictly above W.key
+    obtain ⟨L, hLs, hLkey⟩ := hnc W hWs h0
+    have hgt : W.key < W.nextKey := by
+      rcases hwp W hWs with h | h
+      · exact absurd h h0
+      · exact h
+    rcases lt_trichotomy W.nextKey v with hlt | heq | hgt'
+    · -- target below v: it beats W's maximality
+      have hLB : L ∈ B := by
+        rw [hB, Finset.mem_filter]
+        exact ⟨hLs, by rw [hLkey]; exact hlt⟩
+      have := hWmax L hLB
+      rw [hLkey] at this
+      exact absurd this (not_le.mpr hgt)
+    · -- target IS v: contradicts absence
+      exact absurd (Finset.mem_image.mpr ⟨L, hLs, by rw [hLkey, heq]⟩) habs
+    · exact hgt'
+
+/-- The full linked-list well-formedness bundle. -/
+def SoundState (s : Finset AbsLeaf) : Prop :=
+  GapSound s ∧ KeyInj s ∧ NextClosed s ∧ WindowPos s
+
+/-- **THE FULL INVARIANT IS INDUCTIVE** along any evolution. -/
+theorem evolution_sound
+    {S : ℕ → Finset AbsLeaf}
+    (hevo : Evolution S) (h0 : SoundState (S 0)) :
+    ∀ n, SoundState (S n) := by
+  intro n
+  induction n with
+  | zero => exact h0
+  | succ n ih =>
+    obtain ⟨hgs, hinj, hnc, hwp⟩ := ih
+    rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
+    · rw [heq]; exact ⟨hgs, hinj, hnc, hwp⟩
+    · rw [heq]
+      exact ⟨imtInsert_gapSound hgs hinj hW₀ hlow hwin,
+             imtInsert_keyInj hgs hinj hW₀ hlow hwin,
+             imtInsert_nextClosed hnc hW₀ hlow hwin,
+             imtInsert_windowPos hwp hlow hwin⟩
+
+/-- **RECLAIM LIVENESS (abstract).**  Along any evolution from a sound base
+containing the zero leaf, EVERY absent nonzero commit value has a valid gap
+witness at EVERY snapshot: the reclaim gate can always be satisfied for a
+leg that was never committed — at any time, no matter how the tree grew. -/
+theorem reclaim_witness_available
+    {S : ℕ → Finset AbsLeaf}
+    (hevo : Evolution S) (h0 : SoundState (S 0))
+    (hzero : (0 : UInt256) ∈ keys (S 0))
+    {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) (habs : v ∉ keys (S j)) :
+    ∃ W ∈ S j, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey) := by
+  obtain ⟨_, _, hnc, hwp⟩ := evolution_sound hevo h0 j
+  have hzeroj : (0 : UInt256) ∈ keys (S j) :=
+    evolution_keys_mono hevo (Nat.zero_le j) hzero
+  obtain ⟨Z, hZs, hZkey⟩ := Finset.mem_image.mp hzeroj
+  refine gap_witness_exists hnc hwp ⟨Z, hZs, ?_⟩ habs
+  rw [hZkey]
+  exact Fin.pos_of_ne_zero hv0
+
+/-- The genesis singleton has no dangling links. -/
+theorem genesis_nextClosed : NextClosed ({⟨0, 0⟩} : Finset AbsLeaf) := by
+  intro W hW hnz
+  rw [Finset.mem_singleton] at hW
+  rw [hW] at hnz
+  exact absurd rfl hnz
+
+/-- The genesis singleton's window opens upward (it is the list end). -/
+theorem genesis_windowPos : WindowPos ({⟨0, 0⟩} : Finset AbsLeaf) := by
+  intro W hW
+  rw [Finset.mem_singleton] at hW
+  rw [hW]
+  exact Or.inl rfl
+
+/-- The genesis singleton is a fully sound base. -/
+theorem genesis_soundState : SoundState ({⟨0, 0⟩} : Finset AbsLeaf) :=
+  ⟨genesis_gapSound, genesis_keyInj, genesis_nextClosed, genesis_windowPos⟩
+
+/-- The genesis singleton contains the zero key. -/
+theorem genesis_zero_mem : (0 : UInt256) ∈ keys ({⟨0, 0⟩} : Finset AbsLeaf) :=
+  Finset.mem_image.mpr ⟨⟨0, 0⟩, Finset.mem_singleton_self _, rfl⟩
+
 end IMTAbstract
