@@ -1057,6 +1057,103 @@ theorem pushNewLeaf_call
   rw [setStore_ok]
   try simp only [multifill_cons, multifill_nil, insert_Ok]
 
+/-! ## P6 — the growth branch, composed -/
+
+/-- Stage composites of the growth branch. -/
+def growE1 (σ : EVMState) (d : UInt256) : EVMState := σ.sstore 0 (d + 1)
+
+def growSv (σ : EVMState) (d : UInt256) : UInt256 :=
+  (arrOut (growE1 σ d) 3).2.sload ((arrOut (growE1 σ d) 3).1 + ((d + 1) - 1))
+
+def growH (σ : EVMState) (d : UInt256) : UInt256 × EVMState :=
+  accOut (arrOut (growE1 σ d) 3).2 (growSv σ d) (growSv σ d)
+
+def growE2 (σ : EVMState) (d : UInt256) : EVMState :=
+  pushEvm (growH σ d).2 3 (growH σ d).1
+
+def growP (σ : EVMState) (d : UInt256) : UInt256 := (growE2 σ d).mload 64
+
+def growE3 (σ : EVMState) (d : UInt256) : EVMState :=
+  ((growE2 σ d).mstore 64 (growP σ d + 32)).mstore (growP σ d) (growH σ d).1
+
+/-- The full growth effect. -/
+def growEvm (σ : EVMState) (d : UInt256) : EVMState :=
+  pushArrEvm (growE3 σ d) 2 (growP σ d)
+
+/-- **The taken growth-if** equals `growEvm` (chunks A/B/C composed). -/
+lemma grow_if
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {c p d : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = c)
+    (hs1 : (Ok evm σ)["split_expr_1"]!! = p)
+    (h2 : (Ok evm σ)["_2"]!! = d)
+    (heq : c = p)
+    (hd1 : d + 1 ≠ 0)
+    (hb3 : (d + 1) - 1 < (growE1 evm d).sload 3)
+    (hlen3 : (((growH evm d).2).sload 3).val < 18446744073709551616)
+    (hacc3 : ((growH evm d).2.lookupAccount
+        (growH evm d).2.execution_env.code_owner).isSome)
+    (hfp : (growP evm d).val + 32 ≤ 18446744073709551615)
+    (hlen2 : ((growE3 evm d).sload 2).val < 18446744073709551616)
+    (hacc2 : ((growE3 evm d).lookupAccount
+        (growE3 evm d).execution_env.code_owner).isSome)
+    (hstale : ¬ ((1 : UInt256)
+      < (arrOut ((growE3 evm d).sstore 2 ((growE3 evm d).sload 2 + 1)) 2).2.sload
+          ((arrOut ((growE3 evm d).sstore 2 ((growE3 evm d).sload 2 + 1)) 2).1
+            + (growE3 evm d).sload 2)))
+    (hfuel : 5 ≤ fuel) :
+    ∃ σg : VarStore,
+      exec (fuel+1) L2InteropCommitmentTree.Common.if_1084122831851539501 (Ok evm σ)
+        = Ok (growEvm evm d) σg
+      ∧ ∀ key : Identifier,
+          key ∉ (["expr", "split_expr_2", "_3", "_4", "split_expr_3", "_5",
+            "expr_1", "size", "_6", "expr_mpos"] : List Identifier) →
+          (Ok (growEvm evm d) σg)[key]!! = (Ok evm σ)[key]!! := by
+  unfold _root_.L2InteropCommitmentTree.Common.if_1084122831851539501
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMEq']
+  rw [h1, hs1]
+  rw [show fromBool (c = p) = (1 : UInt256) from by rw [decide_eq_true heq]; rfl]
+  try simp only [head', List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- chunk A
+  rw [cons]
+  rw [growA_block h2 hd1 (by exact hb3)]
+  -- chunk B
+  rw [cons]
+  rw [growB_block (sv := growSv evm d)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact hlen3)
+    (by exact hacc3)]
+  -- chunk C
+  rw [cons, nil]
+  rw [growC_block (h := (growH evm d).1)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact hfp)
+    (by exact hlen2)
+    (by exact hacc2)
+    (by exact hstale)
+    hfuel]
+  refine ⟨_, rfl, ?_⟩
+  intro key hkey
+  rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+      lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
+  exact lookup_ok_evm
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
