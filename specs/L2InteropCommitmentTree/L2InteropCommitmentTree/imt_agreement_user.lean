@@ -231,12 +231,13 @@ theorem fold_walk_agree :
       ∧ (foldWalk p k σv iv idx cur).1.keccak_map = σv.keccak_map
       ∧ (∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
           Finmap.lookup i (foldWalk p k σv iv idx cur).1.machine_state.memory
-            = Finmap.lookup i σv.machine_state.memory) := by
+            = Finmap.lookup i σv.machine_state.memory)
+      ∧ (foldWalk p k σv iv idx cur).1.hash_collision = σv.hash_collision := by
   intro k
   induction k with
   | zero =>
     intro σv σw p iv ss base iw idx maxN cur _ _ _
-    exact ⟨rfl, rfl, fun _ _ _ => rfl⟩
+    exact ⟨rfl, rfl, fun _ _ _ => rfl, rfl⟩
   | succ k ih =>
     intro σv σw p iv ss base iw idx maxN cur hsib hcached hjunk
     have hsib0 := hsib 0 (by omega)
@@ -312,6 +313,13 @@ theorem fold_walk_agree :
         rw [mstore_junk (by decide) hi, mstore_junk (by decide) hi]
       · rw [if_neg hpar]
         rw [mstore_junk (by decide) hi, mstore_junk (by decide) hi]
+    have hflagv' : σv'.hash_collision = σv.hash_collision := by
+      rw [hσv']
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar]
+        rfl
+      · rw [if_neg hpar]
+        rfl
     -- apply the IH at the shifted states
     have := ih (σv := σv') (σw := (updateStep σw ss base iw idx maxN cur).2)
       (p := p) (iv := iv + 1) (ss := ss) (base := base) (iw := iw + 1)
@@ -337,12 +345,13 @@ theorem fold_walk_agree :
         rw [hwstep] at h
         rw [hjunkv' i hi hi']
         exact h i hi hi')
-    obtain ⟨hval, hcache, hjunkf⟩ := this
+    obtain ⟨hval, hcache, hjunkf, hflag⟩ := this
     rw [hwstep]
-    refine ⟨hval, ?_, ?_⟩
+    refine ⟨hval, ?_, ?_, ?_⟩
     · rw [hcache, hcachev']
     · intro i hi hi'
       rw [hjunkf i hi hi', hjunkv' i hi hi']
+    · rw [hflag, hflagv']
 
 end
 

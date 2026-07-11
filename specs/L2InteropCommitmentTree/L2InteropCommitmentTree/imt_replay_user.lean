@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_agreement_user
+import specs.AtomicFlowManager.AtomicFlowManager.merkle_binding_user
 
 /-
   BUILDER–VERIFIER AGREEMENT, layer 2 — the concrete replay corollary.
@@ -414,6 +415,78 @@ theorem fold_replays_walk
     exact hmap _ _ (walk_caches k hclean j hj)
   · intro j hj i hi1 hi2
     rw [hjunkv i hi1 hi2, walkPreHash_junk hi1, updateWalk_junk j hi1]
+
+/-- **The replay fold stays collision-free.**  Under the replay hypotheses,
+every fold level is a cache hit, so the fold's post-state carries the
+verifier's own collision flag: a clean verifier evm yields a clean fold. -/
+theorem fold_replays_walk_clean
+    (k : ℕ) {σv σw : EVMState} {p ss base iv iw idx maxN cur : UInt256}
+    (hclean : ((updateWalk ss base k σw iw idx maxN cur).1).hash_collision = false)
+    (hmap : ∀ (I : List UInt256) (w : UInt256),
+        Finmap.lookup I ((updateWalk ss base k σw iw idx maxN cur).1).keccak_map = some w →
+        Finmap.lookup I σv.keccak_map = some w)
+    (hjunkv : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+        Finmap.lookup i σv.machine_state.memory
+          = Finmap.lookup i σw.machine_state.memory)
+    (hlo : ∀ j : ℕ, j < k →
+        96 ≤ ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32).val)
+    (hhi : ∀ j : ℕ, j < k →
+        ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32).val + 32 ≤ 2 ^ 256)
+    (hsibs : ∀ j : ℕ, j < k →
+        σv.mload ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32)
+          = walkSib ss base (updateWalk ss base j σw iw idx maxN cur))
+    (hv : σv.hash_collision = false) :
+    ((generated.AtomicFlowManager.AtomicFlowManager.foldRoot σv p k iv idx cur).2).hash_collision
+      = false := by
+  rw [← (foldWalk_foldRoot k).2]
+  have hflag := (fold_walk_agree k
+    (σv := σv) (σw := σw) (p := p) (iv := iv) (ss := ss) (base := base)
+    (iw := iw) (idx := idx) (maxN := maxN) (cur := cur)
+    (fun j hj => by
+      rw [foldWalk_index j, foldWalk_mload_high j (hlo j hj) (hhi j hj)]
+      exact hsibs j hj)
+    (fun j hj => hmap _ _ (walk_caches k hclean j hj))
+    (fun j hj i hi1 hi2 => by
+      rw [hjunkv i hi1 hi2, walkPreHash_junk hi1, updateWalk_junk j hi1])).2.2.2
+  rw [hflag]
+  exact hv
+
+/-- **THE ROOT PINS THE WRITTEN LEAF (A6′).**  Compose the replay (#32) with
+Merkle path binding (#27): if a collision-free builder walk stored root `R`
+for leaf `cur` at position `idx`, and ANY challenger produces a collision-free
+fold of a leaf `L` at the SAME position `idx` reaching `R` — any proof array,
+any memory, any level counter — then `L` IS the written leaf `cur`.  The
+committed root admits exactly one leaf per position: the one the builder
+wrote.  This is what the delivery gate (#25) and reclaim gate (#26) check
+against, so whatever they accept at position `idx` is the builder's leaf. -/
+theorem root_pins_written_leaf
+    (k : ℕ) {σv σw σc : EVMState}
+    {p pc ss base iv ic iw idx maxN cur L : UInt256}
+    (hclean : ((updateWalk ss base k σw iw idx maxN cur).1).hash_collision = false)
+    (hmap : ∀ (I : List UInt256) (w : UInt256),
+        Finmap.lookup I ((updateWalk ss base k σw iw idx maxN cur).1).keccak_map = some w →
+        Finmap.lookup I σv.keccak_map = some w)
+    (hjunkv : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+        Finmap.lookup i σv.machine_state.memory
+          = Finmap.lookup i σw.machine_state.memory)
+    (hlo : ∀ j : ℕ, j < k →
+        96 ≤ ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32).val)
+    (hhi : ∀ j : ℕ, j < k →
+        ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32).val + 32 ≤ 2 ^ 256)
+    (hsibs : ∀ j : ℕ, j < k →
+        σv.mload ((p + Fin.shiftLeft (iv + (j : UInt256)) 5) + 32)
+          = walkSib ss base (updateWalk ss base j σw iw idx maxN cur))
+    (hv : σv.hash_collision = false)
+    -- the challenger: a collision-free fold of `L` at position `idx`
+    -- reaching the stored root
+    (hcc : ((generated.AtomicFlowManager.AtomicFlowManager.foldRoot σc pc k ic idx L).2).hash_collision = false)
+    (hcroot : (generated.AtomicFlowManager.AtomicFlowManager.foldRoot σc pc k ic idx L).1
+        = (updateWalk ss base k σw iw idx maxN cur).2.2.2.2) :
+    L = cur := by
+  have hreplay := fold_replays_walk k hclean hmap hjunkv hlo hhi hsibs
+  have hrclean := fold_replays_walk_clean k hclean hmap hjunkv hlo hhi hsibs hv
+  exact generated.AtomicFlowManager.AtomicFlowManager.foldRoot_binding k hcc hrclean
+    (by rw [hcroot, ← hreplay])
 
 end
 
