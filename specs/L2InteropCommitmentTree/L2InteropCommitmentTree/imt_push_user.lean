@@ -2,6 +2,8 @@ import Clear.ReasoningPrinciple
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_dataslot_array_array_bytes32_dyn_storage_dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.finalize_allocation
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
@@ -41,6 +43,10 @@ private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
 private lemma setEvm_Ok {e e' : EVMState} {σ : VarStore} :
     (Ok e σ).setEvm e' = Ok e' σ := rfl
 
+private lemma mkOk_Ok {e : EVMState} {σ : VarStore} : 👌 (Ok e σ) = Ok e σ := rfl
+
+private lemma reviveJump_Ok {e : EVMState} {σ : VarStore} : 🧟 (Ok e σ) = Ok e σ := rfl
+
 private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
   obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
 
@@ -61,6 +67,15 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
     {k : Identifier} {val : Literal} :
     (Ok evm (Finmap.insert k val σ))[k]!! = val := by
   rw [← insert_Ok]; exact lookup_insert' (by trivial)
+
+private lemma primCall_keccakOut {s : State} {a b : Literal} :
+    primCall s .Keccak256 [a, b]
+      = (s.setEvm (keccakOut s.evm a b).2, [(keccakOut s.evm a b).1]) := by
+  rw [EVMKeccak256']
+  unfold keccakOut
+  rcases hk : s.evm.keccak256 a b with _ | pr
+  · simp only [hk]
+  · simp only [hk]
 
 /-- Closed form of `fun_uncheckedInc(x)`: `x + 1`. -/
 lemma uncheckedInc_call
@@ -424,6 +439,295 @@ lemma allocate_memory_32_call
   try simp only [overwrite?_of_Ok]
   rw [setStore_ok]
   try simp only [multifill_cons, multifill_nil, insert_Ok]
+
+
+
+/-- Closed form of `array_dataslot(ptr)`: `keccak(ptr)` (one `arrOut` step). -/
+lemma dataslot_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {ptr : Literal} {v : Identifier} :
+    execCall (fuel+1) array_dataslot_array_array_bytes32_dyn_storage_dyn [v]
+        (Ok evm store, [ptr])
+      = Ok (arrOut evm ptr).2 (Finmap.insert v (arrOut evm ptr).1 store) := by
+  unfold execCall call array_dataslot_array_array_bytes32_dyn_storage_dyn
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["ptr"], [ptr]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["ptr"]!! = ptr := by rw [hs0]; exact lookup_initcall_1
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 ⊢
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMstore', multifill_cons, multifill_nil]
+  rw [hp1]
+  simp only [evm_Ok, setEvm_Ok]
+  rw [cons, nil, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append]
+  rw [primCall_keccakOut]
+  simp only [evm_Ok, setEvm_Ok, multifill_cons, multifill_nil]
+  rw [show keccakOut (evm.mstore 0 ptr) 0 32 = arrOut evm ptr from rfl]
+  simp only [insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_cons, multifill_nil, insert_Ok]
+
+
+
+/-- The arrays-of-arrays push effect: bump the outer length, set the new
+element's inner length to 1, copy the single value from memory. -/
+def pushArrEvm (σ : EVMState) (arr src : UInt256) : EVMState :=
+  let E1 := σ.sstore arr (σ.sload arr + 1)
+  let sl := (arrOut E1 arr).1 + σ.sload arr
+  let E3 := (arrOut E1 arr).2.sstore sl 1
+  let B := arrOut E3 sl
+  B.2.sstore B.1 (B.2.mload src)
+
+/-- **Closed form of the arrays-of-arrays push** (length below `2⁶⁴`, contract
+account exists, the fresh slot holds no long stale array): push a length-1
+level array whose single element is read from memory at `src`. -/
+lemma array_push_array_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {arr src : Literal}
+    (hlen : (evm.sload arr).val < 18446744073709551616)
+    (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
+    (hstale : ¬ ((1 : UInt256)
+      < (arrOut (evm.sstore arr (evm.sload arr + 1)) arr).2.sload
+          ((arrOut (evm.sstore arr (evm.sload arr + 1)) arr).1 + evm.sload arr)))
+    (hfuel : 5 ≤ fuel) :
+    execCall (fuel+1) array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr []
+        (Ok evm store, [arr, src])
+      = Ok (pushArrEvm evm arr src) store := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hlen1 : (evm.sload arr + 1).val = (evm.sload arr).val + 1 := by
+    rw [Fin.val_add, show ((1 : UInt256)).val = 1 from by decide]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hlen1nz : evm.sload arr + 1 ≠ 0 := by
+    intro h
+    have := congrArg Fin.val h
+    rw [hlen1, show ((0 : UInt256)).val = 0 from by decide] at this
+    omega
+  obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 5 := ⟨fuel - 5, by omega⟩
+  unfold execCall call array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["array", "value0"], [arr, src]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["array"]!! = arr := by rw [hs0]; exact lookup_initcall_1
+  have hp2 : s0["value0"]!! = src := by rw [hs0]; exact lookup_initcall_2 (by decide)
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 hp2 ⊢
+  have hp1e : ∀ e : EVMState, (Ok e σ0)["array"]!! = arr := fun _ => hp1
+  have hp2e : ∀ e : EVMState, (Ok e σ0)["value0"]!! = src := fun _ => hp2
+  -- oldLen := sload(array)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hp1]
+  simp only [insert_Ok]
+  rw [show ∀ σ' : VarStore, (Ok evm σ').evm = evm from fun _ => rfl]
+  -- split_expr_0 := lt(oldLen, 2^64) = 1; guard skipped
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool (evm.sload arr < (18446744073709551616 : UInt256)) = (1 : UInt256) from by
+    rw [decide_eq_true (by
+      rw [Fin.lt_def, show ((18446744073709551616 : UInt256)).val = 18446744073709551616 from by decide]
+      exact hlen)]; rfl]
+  simp only [insert_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- split_expr_1 := add(oldLen, 1); sstore(array, split_expr_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  simp only [insert_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hp1]
+  simp only [evm_Ok, setEvm_Ok]
+  -- (slot, offset) := arrayaccess(array, oldLen)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hp1e]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [storage_array_index_call (by
+    rw [generated.AtomicFlowManager.AtomicFlowManager.sload_sstore_self_of_nonzero evm arr _ hlen1nz hacc]
+    rw [Fin.lt_def, hlen1]
+    omega)]
+  -- if offset {…} — offset = 0, skipped
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', Lit', Var',
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- oldLen_1 := sload(slot); sstore(slot, 1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  simp only [evm_Ok, setEvm_Ok]
+  -- if lt(1, oldLen_1) — skipped (no stale long array)
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMLt']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256)
+      < (arrOut (evm.sstore arr (evm.sload arr + 1)) arr).2.sload
+          ((arrOut (evm.sstore arr (evm.sload arr + 1)) arr).1 + evm.sload arr))
+      = (0 : UInt256) from by rw [decide_eq_false hstale]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- srcPtr := value0 ; dstSlot := dataslot(slot) ; i := 0
+  rw [cons, LetEq']
+  simp only [Var']
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hp2e]
+  simp only [insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [dataslot_call]
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- the copy loop: exactly one iteration
+  rw [cons, nil]
+  rw [For']
+  dsimp only
+  simp only [eval, evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMLt',
+             mkOk_Ok]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((0 : UInt256) < 1) = (1 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+  -- iteration 1 body: mload / bump srcPtr / slot arith / sstore
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMload', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  simp only [insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  simp only [add_zero, insert_Ok]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  simp only [evm_Ok, setEvm_Ok]
+  -- select the continue arm, run the post, exit on the next check
+  try dsimp only
+  rw [reviveJump_Ok]
+  rw [cons, nil, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [show ((0 : UInt256) + 1) = (1 : UInt256) from by decide]
+  simp only [insert_Ok]
+  try simp only [overwrite?_of_Ok]
+  rw [For']
+  dsimp only
+  simp only [eval, evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMLt', mkOk_Ok]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) < 1) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  try simp only [if_true]
+  try simp only [overwrite?_of_Ok]
+  -- call wrapper (no rets)
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_nil]
+  rfl
 
 end
 
