@@ -859,6 +859,488 @@ lemma updateBody_break
   rw [cons, exec_checkpoint, cons, exec_checkpoint, cons, exec_checkpoint,
       cons, nil, exec_checkpoint]
 
+private lemma lookup_ok_evm {e e' : EVMState} {σ : VarStore} {k : Identifier} :
+    (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
+/-- The per-level side conditions (array bounds + no counter overflow) at a
+walk state.  Dischargeable later from tree well-formedness + non-aliasing. -/
+def PassOK (ss base : UInt256) (σe : EVMState) (i idx maxN cur : UInt256) : Prop :=
+  i.val + 1 < 2 ^ 256 ∧
+  (if Fin.land idx 1 = 0 then
+    (if maxN = idx then
+      i < σe.sload (ss + 3) ∧
+      i + 1 < (accOut (sideRead σe (ss + 3) i).2 cur (sideRead σe (ss + 3) i).1).2.sload base ∧
+      Fin.shiftRight idx 1
+        < (arrOut (accOut (sideRead σe (ss + 3) i).2 cur (sideRead σe (ss + 3) i).1).2 base).2.sload
+            ((arrOut (accOut (sideRead σe (ss + 3) i).2 cur
+                (sideRead σe (ss + 3) i).1).2 base).1 + (i + 1))
+    else
+      idx.val + 1 < 2 ^ 256 ∧
+      i < σe.sload base ∧
+      idx + 1 < (arrOut σe base).2.sload ((arrOut σe base).1 + i) ∧
+      i + 1 < (accOut (sibRead σe base i (idx + 1)).2 cur
+          (sibRead σe base i (idx + 1)).1).2.sload base ∧
+      Fin.shiftRight idx 1
+        < (arrOut (accOut (sibRead σe base i (idx + 1)).2 cur
+              (sibRead σe base i (idx + 1)).1).2 base).2.sload
+            ((arrOut (accOut (sibRead σe base i (idx + 1)).2 cur
+                (sibRead σe base i (idx + 1)).1).2 base).1 + (i + 1)))
+  else
+    (i < σe.sload base ∧
+     idx - 1 < (arrOut σe base).2.sload ((arrOut σe base).1 + i) ∧
+     i + 1 < (accOut (sibRead σe base i (idx - 1)).2
+         (sibRead σe base i (idx - 1)).1 cur).2.sload base ∧
+     Fin.shiftRight idx 1
+       < (arrOut (accOut (sibRead σe base i (idx - 1)).2
+             (sibRead σe base i (idx - 1)).1 cur).2 base).2.sload
+           ((arrOut (accOut (sibRead σe base i (idx - 1)).2
+               (sibRead σe base i (idx - 1)).1 cur).2 base).1 + (i + 1))))
+
+/-- `PassOK` over a walk tuple. -/
+def WalkOK (ss base : UInt256)
+    (t : EVMState × UInt256 × UInt256 × UInt256 × UInt256) : Prop :=
+  PassOK ss base t.1 t.2.1 t.2.2.1 t.2.2.2.1 t.2.2.2.2
+
+/-- **U3e — THE `updateLeaf` LOOP IS THE PURE WALK.**  Under the per-level
+bounds (`hwalk_pass`) and the level-count slot stability (`hwalk_ss`,
+dischargeable by keccak/low-slot non-aliasing), the storage-side Merkle
+update loop equals `updateWalk`: `k` levels of sibling-read + hash + parent
+store, then the break. -/
+lemma update_loop :
+    ∀ (k : ℕ) {fuel : ℕ} {evm : EVMState} {σ : VarStore}
+      {ss base i idx maxN cur : Literal},
+    (Ok evm σ)["var_self_slot"]!! = ss →
+    (Ok evm σ)["_1"]!! = base →
+    (Ok evm σ)["var_i"]!! = i →
+    (Ok evm σ)["var_index"]!! = idx →
+    (Ok evm σ)["var_maxNodeNumber"]!! = maxN →
+    (Ok evm σ)["var_currentHash"]!! = cur →
+    i.val + k = (evm.sload ss).val →
+    (∀ j, j < k → WalkOK ss base (updateWalk ss base j evm i idx maxN cur)) →
+    (∀ j, j ≤ k → ((updateWalk ss base j evm i idx maxN cur).1).sload ss = evm.sload ss) →
+    2 * k + 3 ≤ fuel →
+    ∃ σ' : VarStore,
+      exec fuel (.For L2InteropCommitmentTree.Common.for_4843491680166179088_cond
+          L2InteropCommitmentTree.Common.for_4843491680166179088_post
+          L2InteropCommitmentTree.Common.for_4843491680166179088_body) (Ok evm σ)
+        = Ok (updateWalk ss base k evm i idx maxN cur).1 σ'
+      ∧ (Ok (updateWalk ss base k evm i idx maxN cur).1 σ')["var_currentHash"]!!
+          = (updateWalk ss base k evm i idx maxN cur).2.2.2.2 := by
+  intro k
+  induction k with
+  | zero =>
+    intro fuel evm σ ss base i idx maxN cur hss h1 hi hidx hmax hcur hk _ _ hfuel
+    rcases fuel with _ | _ | f
+    · omega
+    · omega
+    have hstop : ¬ (i < evm.sload ss) := by
+      rw [Fin.lt_def]; omega
+    rw [For']
+    dsimp only
+    unfold _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_cond
+    simp only [eval, Lit', mkOk_of_isOk (show isOk (Ok evm σ) from trivial)]
+    rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+    obtain ⟨fb, rfl⟩ : ∃ fb, f = fb + 1 := ⟨f - 1, by omega⟩
+    rw [updateBody_break hss hi hstop]
+    dsimp only
+    refine ⟨Finmap.insert "split_expr_5" 0
+      (Finmap.insert "split_expr_4" (evm.sload ss) σ), ?_, ?_⟩
+    · rw [show (🧟 (Checkpoint (.Break evm (Finmap.insert "split_expr_5" 0
+          (Finmap.insert "split_expr_4" (evm.sload ss) σ)))) : State)
+        = Ok evm (Finmap.insert "split_expr_5" 0
+            (Finmap.insert "split_expr_4" (evm.sload ss) σ)) from rfl]
+      simp only [overwrite?_of_Ok]
+      rfl
+    · rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+      exact hcur
+  | succ k ih =>
+    intro fuel evm σ ss base i idx maxN cur hss h1 hi hidx hmax hcur hk hpass hssinv hfuel
+    obtain ⟨fb, rfl⟩ : ∃ fb, fuel = fb + 1 + 1 + 1 := ⟨fuel - 3, by omega⟩
+    have hcont : i < evm.sload ss := by
+      rw [Fin.lt_def]; omega
+    have hi1 : i.val + 1 < 2 ^ 256 := by
+      have := (evm.sload ss).isLt
+      have hs : UInt256.size = 2 ^ 256 := by norm_num
+      omega
+    -- unfold one For iteration; the guard `1` always enters
+    rw [For']
+    dsimp only
+    unfold _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_cond
+    simp only [eval, Lit', mkOk_of_isOk (show isOk (Ok evm σ) from trivial)]
+    rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+    -- the pass conditions at the current level
+    have hp0 := hpass 0 (by omega)
+    simp only [WalkOK, updateWalk, PassOK] at hp0
+    -- one body pass by parity/edge
+    have hbody :
+        ∃ bs : VarStore,
+          exec (fb+1) (.Block L2InteropCommitmentTree.Common.for_4843491680166179088_body)
+              (Ok evm σ)
+            = Ok (updateStep evm ss base i idx maxN cur).2 bs
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["var_self_slot"]!! = ss
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["_1"]!! = base
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["var_i"]!! = i
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["var_index"]!!
+              = Fin.shiftRight idx 1
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["var_maxNodeNumber"]!!
+              = Fin.shiftRight maxN 1
+          ∧ (Ok (updateStep evm ss base i idx maxN cur).2 bs)["var_currentHash"]!!
+              = (updateStep evm ss base i idx maxN cur).1 := by
+      by_cases hpar : Fin.land idx 1 = 0
+      · by_cases hedge : maxN = idx
+        · -- edge
+          rw [if_pos hpar, if_pos hedge] at hp0
+          have hbe := hp0.2.1
+          have hb3 := hp0.2.2.1
+          have hb4 := hp0.2.2.2
+          have hstep : updateStep evm ss base i idx maxN cur = stepEdge evm ss base i idx cur := by
+            unfold updateStep; rw [if_pos hpar, if_pos hedge]
+          rw [hstep]
+          rw [updateBody_edge hss h1 hi hidx hmax hcur hcont hpar hedge hbe hp0.1 hb3 hb4]
+          refine ⟨_, rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact hss)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact h1)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact hi)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+        · -- even (non-edge)
+          rw [if_pos hpar, if_neg hedge] at hp0
+          have hstep : updateStep evm ss base i idx maxN cur
+              = stepEven evm base i idx cur := by
+            unfold updateStep; rw [if_pos hpar, if_neg hedge]
+          rw [hstep]
+          rw [updateBody_even hss h1 hi hidx hmax hcur hcont hpar hedge hp0.2.1
+              hp0.2.2.1 hp0.2.2.2.1 hp0.1 hp0.2.2.2.2.1 hp0.2.2.2.2.2]
+          refine ⟨_, rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact hss)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact h1)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_ok_evm (e' := evm)]
+          exact hi)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+          · exact (by
+          rw [lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide),
+              lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+      · -- odd
+        rw [if_neg hpar] at hp0
+        have hstep : updateStep evm ss base i idx maxN cur
+            = stepOdd evm base i idx cur := by
+          unfold updateStep; rw [if_neg hpar]
+        rw [hstep]
+        rw [updateBody_odd hss h1 hi hidx hmax hcur hcont hpar hp0.2.1 hp0.2.2.1
+          hp0.1 hp0.2.2.2.1 hp0.2.2.2.2]
+        refine ⟨_, rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_ok_evm (e' := evm)]
+        exact hss)
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_ok_evm (e' := evm)]
+        exact h1)
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_ok_evm (e' := evm)]
+        exact hi)
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+        · exact (by
+        rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    -- compose: revive, post, recurse via ih
+    obtain ⟨bs, hexec, hbss, hb1, hbi, hbidx, hbmax, hbcur⟩ := hbody
+    rw [hexec]
+    dsimp only
+    rw [reviveJump_of_isOk
+      (show isOk (Ok (updateStep evm ss base i idx maxN cur).2 bs) from trivial)]
+    have hpost : exec (fb+1) (.Block L2InteropCommitmentTree.Common.for_4843491680166179088_post)
+        (Ok (updateStep evm ss base i idx maxN cur).2 bs)
+        = Ok (updateStep evm ss base i idx maxN cur).2 (bs.insert "var_i" (i + 1)) := by
+      unfold _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_post
+      simp only [cons, nil, AssignPrimCall', evalArgs, evalTail, cons', head',
+                 reverse', multifill', PrimCall', Lit', Var', execPrimCall,
+                 evalPrimCall, List.reverse_cons, List.reverse_nil, List.nil_append,
+                 List.singleton_append, EVMAdd', multifill_cons, multifill_nil]
+      rw [hbi]
+      rfl
+    rw [hpost]
+    simp only [overwrite?_of_Ok]
+    have hs : UInt256.size = 2 ^ 256 := by norm_num
+    have hi1v : (i + 1).val = i.val + 1 := by
+      rw [Fin.val_add, show ((1 : UInt256)).val = 1 from by decide]
+      exact Nat.mod_eq_of_lt (by omega)
+    have hw1 : (updateWalk ss base 1 evm i idx maxN cur).1
+        = (updateStep evm ss base i idx maxN cur).2 := by
+      simp only [updateWalk]
+    have hssStep : ((updateStep evm ss base i idx maxN cur).2).sload ss = evm.sload ss := by
+      rw [← hw1]
+      exact hssinv 1 (by omega)
+    obtain ⟨σ', hσ'⟩ := ih (fuel := fb+1)
+      (evm := (updateStep evm ss base i idx maxN cur).2)
+      (σ := bs.insert "var_i" (i + 1))
+      (ss := ss) (base := base) (i := i + 1) (idx := Fin.shiftRight idx 1)
+      (maxN := Fin.shiftRight maxN 1) (cur := (updateStep evm ss base i idx maxN cur).1)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact hbss)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact hb1)
+      (by exact lookup_insert_self_fin)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact hbidx)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact hbmax)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact hbcur)
+      (by rw [hi1v, hssStep]; omega)
+      (by intro j hj
+          have := hpass (j+1) (by omega)
+          simpa only [updateWalk] using this)
+      (by intro j hj
+          have h1 := hssinv (j+1) (by omega)
+          have h2 : (updateWalk ss base (j+1) evm i idx maxN cur).1
+              = (updateWalk ss base j (updateStep evm ss base i idx maxN cur).2 (i+1)
+                  (Fin.shiftRight idx 1) (Fin.shiftRight maxN 1)
+                  (updateStep evm ss base i idx maxN cur).1).1 := by
+            simp only [updateWalk]
+          rw [← h2, h1, hssStep])
+      (by omega)
+    have hwstep : updateWalk ss base (k+1) evm i idx maxN cur
+        = updateWalk ss base k (updateStep evm ss base i idx maxN cur).2 (i+1)
+            (Fin.shiftRight idx 1) (Fin.shiftRight maxN 1)
+            (updateStep evm ss base i idx maxN cur).1 := by
+      simp only [updateWalk]
+    refine ⟨σ', ?_, ?_⟩
+    · try simp only [overwrite?_of_Ok]
+      rw [hwstep]
+      exact hσ'.1
+    · rw [hwstep]
+      exact hσ'.2
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

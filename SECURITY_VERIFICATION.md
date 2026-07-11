@@ -590,6 +590,26 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
 
+### 31. Atomic interop — THE TREE-BUILDER'S MERKLE UPDATE LOOP IS A PURE WALK  ★ NEW  ✅ axiom-clean
+`L2InteropCommitmentTree/.../imt_storage_atoms_user.lean`, `imt_update_fold_user.lean`
+*(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`update_loop`):** `fun_updateLeaf`'s storage-side Merkle update loop equals the pure
+  iteration `updateWalk` of per-level steps `stepOdd`/`stepEven`/`stepEdge` — each: read the
+  sibling (2-level dynamic storage array via keccak slots / the side array at the tree edge), hash
+  the pair (`accOut`), store the parent at level `i+1`, halve the indices; then break at the level
+  count. Proven by induction with all three body variants (`updateBody_odd/even/edge`), the break
+  pass, and checkpoint pass-through. Under it: 7 storage atoms (array accessor `keccak(slot)+i`,
+  masked update = plain `sstore`, extractor = id, `mod2/div2/±1`) and 5 block closed forms.
+- **Hypotheses (the honest remaining obligations):** per-level array bounds (`PassOK` over walk
+  prefixes — tree well-formedness) and level-count slot stability (`hwalk_ss` — the parent stores
+  at `keccak(…)+j` never hit the low length slot; dischargeable from A6″ `keccak256_ne_lowSlot`).
+- **Why it matters (spec point 4):** this is the concrete half of the tree-builder arc. With U4
+  (the `updateLeaf` top-level wire-up) and the same treatment of `pushNewLeaf`, the roots the
+  contract publishes become `updateWalk` images — the bridge to showing published roots commit
+  only `GapSound` leaf sets (#30), which discharges the exclusivity capstone's one hypothesis.
+- **Caveat / trusted base:** axiom-free (`#print axioms update_loop` = standard three, no
+  `sorryAx`, no keccak axioms).
+
 ### 30. Atomic interop — ABSTRACT IMT INVARIANT: gap soundness, exclusion, and insert preservation  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-11; contract-independent)*
 - **Definitions:** `GapSound s` — every leaf's `nextKey` is a sound gap witness (any strictly larger
