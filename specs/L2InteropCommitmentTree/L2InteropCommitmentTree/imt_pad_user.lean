@@ -2,6 +2,8 @@ import Clear.ReasoningPrinciple
 
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_push_user
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_5765234204941653661
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1084122831851539501
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 
 /-
   P4a — the `fun_pushNewLeaf` padding loop, body layer.
@@ -25,11 +27,6 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
 set_option maxRecDepth 6000
 set_option maxHeartbeats 8000000
 set_option linter.dupNamespace false
-
-private lemma insert_Ok {evm : EVMState} {store : VarStore} {var : Identifier} {val : Literal} :
-    (Ok evm store)⟦var ↦ val⟧ = Ok evm (store.insert var val) := rfl
-
-private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
 
 private lemma lookup_insert_ne_fin {evm : EVMState} {σ : VarStore}
     {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
@@ -579,6 +576,174 @@ lemma pad_loop :
           lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
           lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
       exact lookup_ok_evm
+
+/-! ## P5 — the growth branch -/
+
+/-- Growth chunk A: bump the depth, locate the top side node. -/
+private lemma growA_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {d : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = d)
+    (hd1 : d + 1 ≠ 0)
+    (hb3 : (d + 1) - 1 < (evm.sstore 0 (d + 1)).sload 3) :
+    exec (fuel+1) (.Block
+        [LetCall ["expr"] fun_uncheckedInc [Var "_2"],
+         ExprStmtPrimCall .Sstore [Lit 0, Var "expr"],
+         LetCall ["split_expr_2"] checked_sub_uint256 [Var "expr"],
+         LetCall ["_3", "_4"] storage_array_index_access_bytes32_dyn__dyn
+           [Lit 3, Var "split_expr_2"],
+         LetPrimCall ["split_expr_3"] .Sload [Var "_3"]]) (Ok evm σ)
+      = Ok (arrOut (evm.sstore 0 (d + 1)) 3).2
+          (Finmap.insert "split_expr_3"
+              ((arrOut (evm.sstore 0 (d + 1)) 3).2.sload
+                ((arrOut (evm.sstore 0 (d + 1)) 3).1 + ((d + 1) - 1)))
+            (Finmap.insert "_3"
+                ((arrOut (evm.sstore 0 (d + 1)) 3).1 + ((d + 1) - 1))
+              (Finmap.insert "_4" 0
+                (Finmap.insert "split_expr_2" ((d + 1) - 1)
+                  (Finmap.insert "expr" (d + 1) σ))))) := by
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h2, uncheckedInc_call]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok]
+  rw [show ∀ (e : EVMState) (σ' : VarStore) (e' : EVMState),
+      ((Ok e σ' : State).setEvm e') = Ok e' σ' from fun _ _ _ => rfl]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [checked_sub_call hd1]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [storage_array_index_call hb3]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+
+/-- Growth chunk B: hash the top side node with itself, push it. -/
+private lemma growB_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {sv : Literal}
+    (h3 : (Ok evm σ)["split_expr_3"]!! = sv)
+    (h4 : (Ok evm σ)["_4"]!! = 0)
+    (hlen3 : (((accOut evm sv sv).2).sload 3).val < 18446744073709551616)
+    (hacc3 : ((accOut evm sv sv).2.lookupAccount
+        (accOut evm sv sv).2.execution_env.code_owner).isSome) :
+    exec (fuel+1) (.Block
+        [LetCall ["_5"] extract_from_storage_value_dynamict_bytes32
+           [Var "split_expr_3", Var "_4"],
+         LetCall ["expr_1"] fun_efficientHash [Var "_5", Var "_5"],
+         ExprStmtCall array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+           [Lit 3, Var "expr_1"],
+         LetEq "size" (Lit 0),
+         LetEq "_6" (Lit 0)]) (Ok evm σ)
+      = Ok (pushEvm (accOut evm sv sv).2 3 (accOut evm sv sv).1)
+          (Finmap.insert "_6" 0
+            (Finmap.insert "size" 0
+              (Finmap.insert "expr_1" (accOut evm sv sv).1
+                (Finmap.insert "_5" sv σ)))) := by
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h3, h4]
+  rw [extract_call_0]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [efficientHash_call_acc]
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [array_push_call hlen3 hacc3]
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  rw [cons, nil, LetEq']
+  simp only [Lit', insert_Ok]
+
+/-- Growth chunk C: allocate the 1-element buffer, store the hash, push the
+new level array. -/
+private lemma growC_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {h : Literal}
+    (hh : (Ok evm σ)["expr_1"]!! = h)
+    (hfp : (evm.mload 64).val + 32 ≤ 18446744073709551615)
+    (hlen2 : (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sload 2).val
+      < 18446744073709551616)
+    (hacc2 : (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).lookupAccount
+        ((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).execution_env.code_owner).isSome)
+    (hstale : ¬ ((1 : UInt256)
+      < (arrOut (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sstore 2
+            (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sload 2 + 1)) 2).2.sload
+          ((arrOut (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sstore 2
+              (((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sload 2 + 1)) 2).1
+            + ((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h).sload 2)))
+    (hfuel : 5 ≤ fuel) :
+    exec (fuel+1) (.Block
+        [Assign "_6" (Lit 0),
+         Assign "size" (Lit 32),
+         LetCall ["expr_mpos"] allocate_memory [Lit 32],
+         ExprStmtPrimCall .Mstore [Var "expr_mpos", Var "expr_1"],
+         ExprStmtCall array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+           [Lit 2, Var "expr_mpos"]]) (Ok evm σ)
+      = Ok (pushArrEvm ((evm.mstore 64 (evm.mload 64 + 32)).mstore (evm.mload 64) h)
+            2 (evm.mload 64))
+          (Finmap.insert "expr_mpos" (evm.mload 64)
+            (Finmap.insert "size" 32
+              (Finmap.insert "_6" 0 σ))) := by
+  have hhe : ∀ e : EVMState, (Ok e σ)["expr_1"]!! = h := fun _ => hh
+  rw [cons, Assign']
+  simp only [Lit', eval, insert_Ok]
+  rw [cons, Assign']
+  simp only [Lit', eval, insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [allocate_memory_32_call hfp]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hhe]
+  simp only [evm_Ok]
+  rw [show ∀ (e : EVMState) (σ' : VarStore) (e' : EVMState),
+      ((Ok e σ' : State).setEvm e') = Ok e' σ' from fun _ _ _ => rfl]
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [array_push_array_call hlen2 hacc2 hstale hfuel]
+  try rfl
 
 end
 
