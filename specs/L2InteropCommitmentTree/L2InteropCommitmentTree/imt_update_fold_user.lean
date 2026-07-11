@@ -1508,6 +1508,215 @@ private lemma vari_block
   rw [cons, nil, Assign']
   simp only [Lit', eval, insert_Ok]
 
+/-- **U4 — CLOSED FORM OF `fun_updateLeaf`.**  Success path: the guard passes,
+the new leaf hash is stored at position `idx` of level 0, the Merkle path is
+recomputed level by level (`updateWalk`), and the new root is returned. -/
+theorem updateLeaf_call
+    {evm : EVMState} {store : VarStore} {fuel k : ℕ}
+    {ss idx leaf : Literal} {v : Identifier}
+    (hsub0 : evm.sload (ss + 1) ≠ 0)
+    (hle : ¬ (idx > evm.sload (ss + 1) - 1))
+    (hne2 : evm.sload (ss + 2) ≠ 0)
+    (hbidx : idx < (arrOut evm (ss + 2)).2.sload (arrOut evm (ss + 2)).1)
+    (hk : ((leafWriteEvm evm ss idx leaf).sload ss).val = k)
+    (hpass : ∀ j, j < k → WalkOK ss (ss + 2)
+        (updateWalk ss (ss + 2) j (leafWriteEvm evm ss idx leaf) 0 idx
+          (evm.sload (ss + 1) - 1) leaf))
+    (hssinv : ∀ j, j ≤ k →
+        ((updateWalk ss (ss + 2) j (leafWriteEvm evm ss idx leaf) 0 idx
+            (evm.sload (ss + 1) - 1) leaf).1).sload ss
+          = (leafWriteEvm evm ss idx leaf).sload ss)
+    (hfuel : 2 * k + 2 ≤ fuel) :
+    execCall (fuel+1) fun_updateLeaf [v] (Ok evm store, [ss, idx, leaf])
+      = Ok (updateWalk ss (ss + 2) k (leafWriteEvm evm ss idx leaf) 0 idx
+            (evm.sload (ss + 1) - 1) leaf).1
+          (store.insert v
+            (updateWalk ss (ss + 2) k (leafWriteEvm evm ss idx leaf) 0 idx
+              (evm.sload (ss + 1) - 1) leaf).2.2.2.2) := by
+  unfold execCall call fun_updateLeaf
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["var_self_slot", "var_index", "var_itemHash"],
+      [ss, idx, leaf]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["var_self_slot"]!! = ss := by rw [hs0]; exact lookup_initcall_1
+  have hp2 : s0["var_index"]!! = idx := by rw [hs0]; exact lookup_initcall_2 (by decide)
+  have hp3 : s0["var_itemHash"]!! = leaf := by
+    rw [hs0]; exact lookup_initcall_3 (by decide) (by decide)
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 hp2 hp3 ⊢
+  have hp1e : ∀ e : EVMState, (Ok e σ0)["var_self_slot"]!! = ss := fun _ => hp1
+  have hp2e : ∀ e : EVMState, (Ok e σ0)["var_index"]!! = idx := fun _ => hp2
+  have hp3e : ∀ e : EVMState, (Ok e σ0)["var_itemHash"]!! = leaf := fun _ => hp3
+  -- statement 1: split_expr_0 := add(var_self_slot, 1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [hp1]
+  simp only [insert_Ok]
+  -- statement 2: split_expr_1 := sload(split_expr_0)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [insert_Ok]
+  rw [show ∀ σ' : VarStore, (Ok evm σ').evm = evm from fun _ => rfl]
+  -- statement 3: var_maxNodeNumber := checked_sub(split_expr_1)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [checked_sub_call hsub0]
+  -- statement 4: the range guard is skipped
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMGt']
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hp2]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool (idx > evm.sload (ss + 1) - 1) = (0 : UInt256) from by
+    rw [decide_eq_false hle]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- statement 5: the leaf write
+  rw [cons]
+  rw [leafWrite_block (ss := ss) (idx := idx) (leaf := leaf)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp1)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp2)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp3)
+    hne2 hbidx]
+  -- statement 6: the counter block
+  rw [cons]
+  rw [vari_block]
+  -- statement 7: the For loop — fold the inline AST to the named defs
+  rw [cons]
+  rw [show ([AssignPrimCall ["var_i"] .Add [Var "var_i", Lit 1]] : List Stmt)
+        = _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_post from rfl,
+      show ([LetPrimCall ["split_expr_4"] .Sload [Var "var_self_slot"],
+             LetPrimCall ["split_expr_5"] .Lt [Var "var_i", Var "split_expr_4"],
+             If (PrimCall .Iszero [Var "split_expr_5"]) [Stmt.Break],
+             LetCall ["split_expr_6"] mod_uint256 [Var "var_index"],
+             Switch (PrimCall .Iszero [Var "split_expr_6"])
+               [(0, [.Block
+                      [LetCall ["_6", "_7"] storage_array_index_access_bytes32_dyn__dyn
+                         [Var "_1", Var "var_i"],
+                       LetCall ["split_expr_7"] checked_sub_uint256 [Var "var_index"],
+                       LetCall ["_8", "_9"] storage_array_index_access_bytes32_dyn__dyn
+                         [Var "_6", Var "split_expr_7"],
+                       LetPrimCall ["split_expr_8"] .Sload [Var "_8"],
+                       LetCall ["split_expr_9"] extract_from_storage_value_dynamict_bytes32
+                         [Var "split_expr_8", Var "_9"]],
+                     .Block
+                      [AssignCall ["var_currentHash"] fun_efficientHash
+                         [Var "split_expr_9", Var "var_currentHash"]]])]
+               [LetEq "expr" (Lit 0),
+                Switch (PrimCall .Eq [Var "var_maxNodeNumber", Var "var_index"])
+                  [(0, [LetCall ["_10", "_11"] storage_array_index_access_bytes32_dyn__dyn
+                          [Var "_1", Var "var_i"],
+                        LetCall ["split_expr_10"] checked_add_uint256 [Var "var_index"],
+                        LetCall ["_12", "_13"] storage_array_index_access_bytes32_dyn__dyn
+                          [Var "_10", Var "split_expr_10"],
+                        LetPrimCall ["split_expr_11"] .Sload [Var "_12"],
+                        AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+                          [Var "split_expr_11", Var "_13"]])]
+                  [LetPrimCall ["split_expr_12"] .Add [Var "var_self_slot", Lit 3],
+                   LetCall ["_14", "_15"] storage_array_index_access_bytes32_dyn__dyn
+                     [Var "split_expr_12", Var "var_i"],
+                   LetPrimCall ["split_expr_13"] .Sload [Var "_14"],
+                   AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+                     [Var "split_expr_13", Var "_15"]],
+                AssignCall ["var_currentHash"] fun_efficientHash
+                  [Var "var_currentHash", Var "expr"]],
+             .Block
+              [AssignCall ["var_index"] checked_div_uint256 [Var "var_index"],
+               AssignCall ["var_maxNodeNumber"] checked_div_uint256 [Var "var_maxNodeNumber"],
+               LetCall ["split_expr_14"] checked_add_uint256 [Var "var_i"],
+               LetCall ["_16", "_17"] storage_array_index_access_bytes32_dyn__dyn
+                 [Var "_1", Var "split_expr_14"],
+               LetCall ["_18", "_19"] storage_array_index_access_bytes32_dyn__dyn
+                 [Var "_16", Var "var_index"]],
+             .Block
+              [ExprStmtCall update_storage_value_bytes32_to_bytes32
+                 [Var "_18", Var "_19", Var "var_currentHash"]]] : List Stmt)
+        = _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_body from rfl,
+      show (Lit 1 : Expr)
+        = _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_cond from rfl]
+  obtain ⟨σ', hσ'eq, hσ'cur⟩ := update_loop k (fuel := fuel+1)
+    (evm := leafWriteEvm evm ss idx leaf)
+    (σ := Finmap.insert "var_i" 0 (Finmap.insert "var_i" 0
+      (Finmap.insert "var_currentHash" leaf
+        (Finmap.insert "_4"
+            ((arrOut (arrOut evm (ss + 2)).2 (arrOut evm (ss + 2)).1).1 + idx)
+          (Finmap.insert "_5" 0
+            (Finmap.insert "_2" (arrOut evm (ss + 2)).1
+              (Finmap.insert "_3" 0
+                (Finmap.insert "_1" (ss + 2)
+                  (Finmap.insert "var_maxNodeNumber" (evm.sload (ss + 1) - 1)
+                    (Finmap.insert "split_expr_1" (evm.sload (ss + 1))
+                      (Finmap.insert "split_expr_0" (ss + 1) σ0)))))))))))
+    (ss := ss) (base := ss + 2) (i := 0) (idx := idx)
+    (maxN := evm.sload (ss + 1) - 1) (cur := leaf)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp1e _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_self_fin])
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp2e _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_self_fin])
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_self_fin])
+    (by rw [show ((0 : UInt256)).val = 0 from by decide]; omega)
+    hpass hssinv (by omega)
+  rw [hσ'eq]
+  -- statement 8: var := var_currentHash
+  rw [cons, nil, Assign']
+  simp only [Var']
+  rw [hσ'cur]
+  -- rets [var] + call wrapper
+  rw [lookup_insert' (by trivial)]
+  rw [reviveJump_of_isOk (by rw [isOk_insert]; trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [insert_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_cons, multifill_nil, insert_Ok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
