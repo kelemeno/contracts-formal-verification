@@ -339,6 +339,247 @@ lemma padBody_break2
   rw [break_block]
   rw [cons, exec_checkpoint, cons, nil, exec_checkpoint]
 
+private lemma lookup_ok_evm {e e' : EVMState} {σ : VarStore} {k : Identifier} :
+    (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
+/-- The padding walk state after `j` levels: `(evm, i, oldMax, max)`. -/
+def padWalk : ℕ → EVMState → UInt256 → UInt256 → UInt256
+    → EVMState × UInt256 × UInt256 × UInt256
+  | 0, σ, i, om, m => (σ, i, om, m)
+  | (j+1), σ, i, om, m =>
+      padWalk j (padStep σ i) (i + 1) (Fin.shiftRight om 1) (Fin.shiftRight m 1)
+
+/-- Per-pass side conditions of the padding loop. -/
+def PadOK (t : EVMState × UInt256 × UInt256 × UInt256) : Prop :=
+  t.2.1.val + 1 < 2 ^ 256 ∧
+  t.2.1 < t.1.sload 2 ∧
+  t.2.1 < (arrOut t.1 2).2.sload 3 ∧
+  (((arrOut (arrOut t.1 2).2 3).2).sload ((arrOut t.1 2).1 + t.2.1)).val
+    < 18446744073709551616 ∧
+  ((arrOut (arrOut t.1 2).2 3).2.lookupAccount
+      (arrOut (arrOut t.1 2).2 3).2.execution_env.code_owner).isSome
+
+/-- The variables the padding loop writes. -/
+def padVars : List Identifier :=
+  ["var_i", "var_oldMaxNodeNumber", "var_maxNodeNumber", "split_expr_5",
+   "split_expr_6", "_7", "_8", "_9", "_10", "split_expr_7", "split_expr_8"]
+
+/-- **P4c — THE PADDING LOOP IS `padWalk`.**  Under per-pass bounds, `k`
+continue passes then a break (by level count or counter agreement); every
+variable outside `padVars` is preserved. -/
+lemma pad_loop :
+    ∀ (k : ℕ) {fuel : ℕ} {evm : EVMState} {σ : VarStore} {i om m : Literal},
+    (Ok evm σ)["var_i"]!! = i →
+    (Ok evm σ)["var_oldMaxNodeNumber"]!! = om →
+    (Ok evm σ)["var_maxNodeNumber"]!! = m →
+    (∀ j, j < k → (padWalk j evm i om m).2.1 < (padWalk j evm i om m).1.sload 0
+      ∧ (padWalk j evm i om m).2.2.1 ≠ (padWalk j evm i om m).2.2.2) →
+    (¬ ((padWalk k evm i om m).2.1 < (padWalk k evm i om m).1.sload 0)
+      ∨ (padWalk k evm i om m).2.2.1 = (padWalk k evm i om m).2.2.2) →
+    (∀ j, j < k → PadOK (padWalk j evm i om m)) →
+    2 * k + 3 ≤ fuel →
+    ∃ σ' : VarStore,
+      exec fuel (.For L2InteropCommitmentTree.Common.for_5765234204941653661_cond
+          L2InteropCommitmentTree.Common.for_5765234204941653661_post
+          L2InteropCommitmentTree.Common.for_5765234204941653661_body) (Ok evm σ)
+        = Ok (padWalk k evm i om m).1 σ'
+      ∧ ∀ key : Identifier, key ∉ padVars →
+          (Ok (padWalk k evm i om m).1 σ')[key]!! = (Ok evm σ)[key]!! := by
+  intro k
+  induction k with
+  | zero =>
+    intro fuel evm σ i om m hi hom hm _ hstop _ hfuel
+    rcases fuel with _ | _ | f
+    · omega
+    · omega
+    rw [For']
+    dsimp only
+    unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_cond
+    simp only [eval, Lit', mkOk_of_isOk (show isOk (Ok evm σ) from trivial)]
+    rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+    obtain ⟨fb, rfl⟩ : ∃ fb, f = fb + 1 := ⟨f - 1, by omega⟩
+    simp only [padWalk] at hstop
+    rcases hstop with hstop | heqc
+    · -- exit by level count
+      rw [padBody_break1 hi hstop]
+      dsimp only
+      refine ⟨Finmap.insert "split_expr_6" 0
+        (Finmap.insert "split_expr_5" (evm.sload 0) σ), ?_, ?_⟩
+      · rw [show (🧟 (Checkpoint (.Break evm (Finmap.insert "split_expr_6" 0
+            (Finmap.insert "split_expr_5" (evm.sload 0) σ)))) : State)
+          = Ok evm (Finmap.insert "split_expr_6" 0
+              (Finmap.insert "split_expr_5" (evm.sload 0) σ)) from rfl]
+        simp only [overwrite?_of_Ok]
+        rfl
+      · intro key hkey
+        rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+            lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
+        simp only [padWalk]
+    · -- exit by counter agreement
+      by_cases hc : i < evm.sload 0
+      · rw [padBody_break2 hi hom hm hc heqc]
+        dsimp only
+        refine ⟨Finmap.insert "split_expr_6" 1
+          (Finmap.insert "split_expr_5" (evm.sload 0) σ), ?_, ?_⟩
+        · rw [show (🧟 (Checkpoint (.Break evm (Finmap.insert "split_expr_6" 1
+              (Finmap.insert "split_expr_5" (evm.sload 0) σ)))) : State)
+            = Ok evm (Finmap.insert "split_expr_6" 1
+                (Finmap.insert "split_expr_5" (evm.sload 0) σ)) from rfl]
+          simp only [overwrite?_of_Ok]
+          rfl
+        · intro key hkey
+          rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+              lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
+          simp only [padWalk]
+      · rw [padBody_break1 hi hc]
+        dsimp only
+        refine ⟨Finmap.insert "split_expr_6" 0
+          (Finmap.insert "split_expr_5" (evm.sload 0) σ), ?_, ?_⟩
+        · rw [show (🧟 (Checkpoint (.Break evm (Finmap.insert "split_expr_6" 0
+              (Finmap.insert "split_expr_5" (evm.sload 0) σ)))) : State)
+            = Ok evm (Finmap.insert "split_expr_6" 0
+                (Finmap.insert "split_expr_5" (evm.sload 0) σ)) from rfl]
+          simp only [overwrite?_of_Ok]
+          rfl
+        · intro key hkey
+          rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+              lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
+          simp only [padWalk]
+  | succ k ih =>
+    intro fuel evm σ i om m hi hom hm hcont hstop hpass hfuel
+    obtain ⟨fb, rfl⟩ : ∃ fb, fuel = fb + 1 + 1 + 1 := ⟨fuel - 3, by omega⟩
+    have h0 := hcont 0 (by omega)
+    simp only [padWalk] at h0
+    have hp0 := hpass 0 (by omega)
+    simp only [padWalk, PadOK] at hp0
+    rw [For']
+    dsimp only
+    unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_cond
+    simp only [eval, Lit', mkOk_of_isOk (show isOk (Ok evm σ) from trivial)]
+    rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+    rw [padBody hi hom hm h0.1 h0.2 hp0.2.1 hp0.2.2.1 hp0.2.2.2.1 hp0.2.2.2.2]
+    dsimp only
+    rw [show (🧟 (Ok (padStep evm i)
+        (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+          (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+            (Finmap.insert "split_expr_8"
+                ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+              (Finmap.insert "split_expr_7"
+                  ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                  (Finmap.insert "_10" 0
+                    (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                      (Finmap.insert "_8" 0
+                        (Finmap.insert "split_expr_6" 1
+                          (Finmap.insert "split_expr_5" (evm.sload 0) σ))))))))))) : State)
+      = Ok (padStep evm i)
+          (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+            (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+              (Finmap.insert "split_expr_8"
+                  ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                (Finmap.insert "split_expr_7"
+                    ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                  (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                    (Finmap.insert "_10" 0
+                      (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                        (Finmap.insert "_8" 0
+                          (Finmap.insert "split_expr_6" 1
+                            (Finmap.insert "split_expr_5" (evm.sload 0) σ)))))))))) from rfl]
+    -- the post bumps var_i
+    rw [show exec (fb+1) (.Block L2InteropCommitmentTree.Common.for_5765234204941653661_post)
+        (Ok (padStep evm i)
+          (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+            (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+              (Finmap.insert "split_expr_8"
+                  ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                (Finmap.insert "split_expr_7"
+                    ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                  (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                    (Finmap.insert "_10" 0
+                      (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                        (Finmap.insert "_8" 0
+                          (Finmap.insert "split_expr_6" 1
+                            (Finmap.insert "split_expr_5" (evm.sload 0) σ)))))))))))
+        = Ok (padStep evm i)
+            (Finmap.insert "var_i" (i + 1)
+              (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+                (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+                  (Finmap.insert "split_expr_8"
+                      ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                    (Finmap.insert "split_expr_7"
+                        ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                      (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                        (Finmap.insert "_10" 0
+                          (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                            (Finmap.insert "_8" 0
+                              (Finmap.insert "split_expr_6" 1
+                                (Finmap.insert "split_expr_5" (evm.sload 0) σ))))))))))) from by
+      unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_post
+      simp only [cons, nil, AssignPrimCall', evalArgs, evalTail, cons', head',
+                 reverse', multifill', PrimCall', Lit', Var', execPrimCall,
+                 evalPrimCall, List.reverse_cons, List.reverse_nil, List.nil_append,
+                 List.singleton_append, EVMAdd', multifill_cons, multifill_nil]
+      rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+          lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+          lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+          lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+          lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+      rw [lookup_ok_evm (e' := evm), hi]
+      rfl]
+    try simp only [overwrite?_of_Ok]
+    obtain ⟨σ', hσ'eq, hσ'pres⟩ := ih (fuel := fb+1)
+      (evm := padStep evm i)
+      (σ := Finmap.insert "var_i" (i + 1)
+        (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+          (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+            (Finmap.insert "split_expr_8"
+                ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+              (Finmap.insert "split_expr_7"
+                  ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                  (Finmap.insert "_10" 0
+                    (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                      (Finmap.insert "_8" 0
+                        (Finmap.insert "split_expr_6" 1
+                          (Finmap.insert "split_expr_5" (evm.sload 0) σ)))))))))))
+      (i := i + 1) (om := Fin.shiftRight om 1) (m := Fin.shiftRight m 1)
+      (by exact lookup_insert_self_fin)
+      (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+      (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+          exact lookup_insert_self_fin)
+      (by intro j hj
+          have := hcont (j+1) (by omega)
+          simpa only [padWalk] using this)
+      (by have := hstop
+          simpa only [padWalk] using this)
+      (by intro j hj
+          have := hpass (j+1) (by omega)
+          simpa only [padWalk] using this)
+      (by omega)
+    refine ⟨σ', ?_, ?_⟩
+    · try simp only [overwrite?_of_Ok]
+      rw [show padWalk (k+1) evm i om m
+          = padWalk k (padStep evm i) (i+1) (Fin.shiftRight om 1) (Fin.shiftRight m 1)
+        from by simp only [padWalk]]
+      exact hσ'eq
+    · intro key hkey
+      rw [show padWalk (k+1) evm i om m
+          = padWalk k (padStep evm i) (i+1) (Fin.shiftRight om 1) (Fin.shiftRight m 1)
+        from by simp only [padWalk]]
+      rw [hσ'pres key hkey]
+      rw [lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide)),
+          lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
+      exact lookup_ok_evm
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
