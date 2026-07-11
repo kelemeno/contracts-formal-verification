@@ -155,4 +155,129 @@ theorem imtInsert_keyInj
   · exact absurd hkey (hfresh A hAs)
   · exact hinj A hAs B hBs hkey
 
+/-! ## The temporal layer — append-only history and the delivered-XOR-reclaimed core
+
+The delivery gate accepts a membership proof against SOME settled root with
+`l1Timestamp ≤ deadline`; the reclaim gate accepts a gap witness against the
+LAST settled root with `l1Timestamp ≤ deadline`, pinned by a successor root
+with `l1Timestamp > deadline`.  With monotone timestamps and a key-set that
+only grows (the IMT insert never removes a key — it only retargets a
+`nextKey`), both cannot hold for the same commit value. -/
+
+/-- The key set of a leaf set. -/
+def keys (s : Finset AbsLeaf) : Finset UInt256 :=
+  s.image AbsLeaf.key
+
+/-- The IMT insert never removes a key: the erased low leaf is re-added with
+the same key (retargeted `nextKey`), and the new leaf only adds `v`. -/
+theorem imtInsert_keys_grow
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} :
+    keys s ⊆ keys (imtInsert s W₀ v) := by
+  intro k hk
+  obtain ⟨X, hX, rfl⟩ := Finset.mem_image.mp hk
+  by_cases hXW : X = W₀
+  · exact Finset.mem_image.mpr ⟨⟨W₀.key, v⟩,
+      by rw [mem_imtInsert]; left; rfl,
+      by rw [hXW]⟩
+  · exact Finset.mem_image.mpr ⟨X,
+      by rw [mem_imtInsert]; right; right; exact ⟨hX, hXW⟩,
+      rfl⟩
+
+/-- An IMT history: each snapshot is the previous one, or an insert of a
+fresh key through a well-formed window (exactly the guarded operation the
+tree contract performs). -/
+def Evolution (S : ℕ → Finset AbsLeaf) : Prop :=
+  ∀ n, S (n+1) = S n
+    ∨ ∃ W₀ v, W₀ ∈ S n ∧ W₀.key < v ∧ (W₀.nextKey = 0 ∨ v < W₀.nextKey)
+        ∧ S (n+1) = imtInsert (S n) W₀ v
+
+/-- **THE INVARIANT IS INDUCTIVE.**  Along any evolution from a `GapSound`,
+`KeyInj` base, every snapshot is `GapSound` and `KeyInj`. -/
+theorem evolution_invariant
+    {S : ℕ → Finset AbsLeaf}
+    (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0)) :
+    ∀ n, GapSound (S n) ∧ KeyInj (S n) := by
+  intro n
+  induction n with
+  | zero => exact ⟨h0, hinj0⟩
+  | succ n ih =>
+    rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
+    · rw [heq]; exact ih
+    · rw [heq]
+      exact ⟨imtInsert_gapSound ih.1 ih.2 hW₀ hlow hwin,
+             imtInsert_keyInj ih.1 ih.2 hW₀ hlow hwin⟩
+
+/-- Along any evolution, the key set only grows. -/
+theorem evolution_keys_mono
+    {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) :
+    ∀ {m n : ℕ}, m ≤ n → keys (S m) ⊆ keys (S n) := by
+  intro m n hmn
+  induction n with
+  | zero =>
+    rcases Nat.le_zero.mp hmn with rfl
+    exact Finset.Subset.refl _
+  | succ n ih =>
+    rcases Nat.eq_or_lt_of_le hmn with rfl | hlt
+    · exact Finset.Subset.refl _
+    · have hstep : keys (S n) ⊆ keys (S (n+1)) := by
+        rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
+        · rw [heq]
+        · rw [heq]
+          exact imtInsert_keys_grow
+      exact Finset.Subset.trans (ih (Nat.lt_succ_iff.mp hlt)) hstep
+
+/-- **DELIVERED XOR RECLAIMED — the temporal core.**  Fix an IMT history `S`
+(an `Evolution` from a sound base) with monotone settlement timestamps `t`
+and a deadline `D`.  Suppose
+
+* **delivery evidence** for commit value `v`: `v` is a key of some snapshot
+  `i` settled on time (`t i ≤ D`) — what the delivery gate (#25) requires of
+  every leg; and
+* **reclaim evidence** for the same `v`: some snapshot `j` pinned as the last
+  on-time one (`D < t (j+1)`) carries a gap witness `W` straddling `v` —
+  what the reclaim gate (#26) requires of the missing leg.
+
+Then `False`: the two evidences cannot coexist.  On-time membership persists
+to the pinned snapshot (keys only grow, timestamps are monotone so `i ≤ j`),
+where the gap witness excludes it (`gap_excludes_member`). -/
+theorem delivered_and_reclaimed_impossible
+    {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
+    (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0))
+    (htmono : Monotone t)
+    {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))
+    {j : ℕ} {W : AbsLeaf} (htj1 : D < t (j+1)) (hW : W ∈ S j)
+    (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
+    False := by
+  have hij : i ≤ j := by
+    by_contra hgt
+    push_neg at hgt
+    exact absurd hti (not_le.mpr (lt_of_lt_of_le htj1 (htmono hgt)))
+  have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo hij hdel
+  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hkeys
+  exact gap_excludes_member (evolution_invariant hevo h0 hinj0 j).1
+    hW hL hlow hwin hLkey
+
+/-- The genesis singleton `{⟨0, 0⟩}` (the zero leaf) is a sound base. -/
+theorem genesis_gapSound : GapSound ({⟨0, 0⟩} : Finset AbsLeaf) := by
+  intro W hW L hL hlt
+  rw [Finset.mem_singleton] at hW hL
+  subst hW; subst hL
+  exact absurd hlt (lt_irrefl _)
+
+/-- The genesis singleton has unique keys. -/
+theorem genesis_keyInj : KeyInj ({⟨0, 0⟩} : Finset AbsLeaf) := by
+  intro A hA B hB _
+  rw [Finset.mem_singleton] at hA hB
+  rw [hA, hB]
+
+/-- The empty base is also sound (for trees initialized empty). -/
+theorem empty_gapSound : GapSound (∅ : Finset AbsLeaf) := by
+  intro W hW
+  exact absurd hW (Finset.not_mem_empty W)
+
+/-- The empty base has unique keys. -/
+theorem empty_keyInj : KeyInj (∅ : Finset AbsLeaf) := by
+  intro A hA
+  exact absurd hA (Finset.not_mem_empty A)
+
 end IMTAbstract
