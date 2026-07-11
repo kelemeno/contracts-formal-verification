@@ -39,8 +39,27 @@ assumptions) to guarantee:
 - **The diamond proxy routes each selector to its correct registered facet** — dispatch slot =
   `keccak(selector‖DIAMOND_POSITION)` (#13) and the decoded facet = `address(sload(that slot))` (#14).
 
-20 machine-checked theorems in total (Part B), on top of a 485/485 real-build baseline (A9). The numbers
-in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted base is Part A.
+**Atomic interop (era-contracts PR #2218), added 2026-07-11 — the bridge's delivered-XOR-reclaimed
+story:**
+
+- **No double refund** — a refund pays out only from an authorized (`Revertable`) leg, at most once
+  (*#22*), and **no theft via crafted bundle bytes** — a claim is slot-bound to the exact committed
+  bundle hash (*#23*, A6′).
+- **Both verification gates are pure mathematics** — the Merkle path recomputation is the pure fold
+  `foldRoot` (*#24*), delivery accepts only proofs folding to the authenticated root (*#25*), and
+  the reclaim absence-witness verifier is fully characterized (*#26*).
+- **The committed root binds everything** — same position + same root ⇒ same leaf hash (*#27*, A6′)
+  ⇒ same leaf fields (*#28*, A6′); a delivered member and a reclaim gap cannot share a position
+  (*#29*) nor coexist in any `GapSound` tree (*#30* abstract invariant + insert preservation;
+  capstone `committed_member_gap_impossible`).
+- **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
+  pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4).
+  Remaining for the full capstone discharge: `pushNewLeaf` and the `updateWalk` → `GapSound`
+  correspondence.
+
+31 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
+base is Part A.
 
 ---
 
