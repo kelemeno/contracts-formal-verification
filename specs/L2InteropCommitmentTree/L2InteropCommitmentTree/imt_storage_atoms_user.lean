@@ -767,6 +767,160 @@ lemma evenRead_block
   rw [extract_call_0]
   rfl
 
+/-- One-level storage-array read (the roots side-array at `selfSlot + 3`). -/
+def sideRead (σ : EVMState) (slot lvl : UInt256) : UInt256 × EVMState :=
+  ((arrOut σ slot).2.sload ((arrOut σ slot).1 + lvl), (arrOut σ slot).2)
+
+/-- **Closed form of the edge-branch read** (`updateLeaf` loop, even case at
+the tree edge): reads element `lvl` of the side array at `selfSlot + 3` into
+`expr` (the duplicated-node convention). -/
+lemma edgeRead_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {selfSlot lvl : Literal}
+    (hss : (Ok evm σ)["var_self_slot"]!! = selfSlot)
+    (hlvl : (Ok evm σ)["var_i"]!! = lvl)
+    (hb : lvl < evm.sload (selfSlot + 3)) :
+    exec (fuel+1) (.Block
+        [LetPrimCall ["split_expr_12"] .Add [Var "var_self_slot", Lit 3],
+         LetCall ["_14", "_15"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "split_expr_12", Var "var_i"],
+         LetPrimCall ["split_expr_13"] .Sload [Var "_14"],
+         AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+           [Var "split_expr_13", Var "_15"]]) (Ok evm σ)
+      = Ok (sideRead evm (selfSlot + 3) lvl).2
+          (Finmap.insert "expr" (sideRead evm (selfSlot + 3) lvl).1
+            (Finmap.insert "split_expr_13" (sideRead evm (selfSlot + 3) lvl).1
+              (Finmap.insert "_14" ((arrOut evm (selfSlot + 3)).1 + lvl)
+                (Finmap.insert "_15" 0
+                  (Finmap.insert "split_expr_12" (selfSlot + 3) σ))))) := by
+  have hlvle : ∀ e : EVMState, (Ok e σ)["var_i"]!! = lvl := fun _ => hlvl
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [hss]
+  simp only [insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), hlvle]
+  rw [storage_array_index_call hb]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, nil, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [extract_call_0]
+  rfl
+
+/-- **Closed form of the div/store prep block**: halves `var_index` and
+`var_maxNodeNumber`, and computes the parent-node write slot — element
+`index >> 1` of the level-`lvl+1` array. -/
+lemma divStore_prep_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {base lvl idx maxN : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = base)
+    (hlvl : (Ok evm σ)["var_i"]!! = lvl)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hmax : (Ok evm σ)["var_maxNodeNumber"]!! = maxN)
+    (haddl : lvl.val + 1 < 2 ^ 256)
+    (hb1 : lvl + 1 < evm.sload base)
+    (hb2 : Fin.shiftRight idx 1
+        < (arrOut evm base).2.sload ((arrOut evm base).1 + (lvl + 1))) :
+    exec (fuel+1) (.Block
+        [AssignCall ["var_index"] checked_div_uint256 [Var "var_index"],
+         AssignCall ["var_maxNodeNumber"] checked_div_uint256 [Var "var_maxNodeNumber"],
+         LetCall ["split_expr_14"] checked_add_uint256 [Var "var_i"],
+         LetCall ["_16", "_17"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_1", Var "split_expr_14"],
+         LetCall ["_18", "_19"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_16", Var "var_index"]]) (Ok evm σ)
+      = Ok (arrOut (arrOut evm base).2 ((arrOut evm base).1 + (lvl + 1))).2
+          (Finmap.insert "_18"
+              ((arrOut (arrOut evm base).2 ((arrOut evm base).1 + (lvl + 1))).1
+                + Fin.shiftRight idx 1)
+            (Finmap.insert "_19" 0
+              (Finmap.insert "_16" ((arrOut evm base).1 + (lvl + 1))
+                (Finmap.insert "_17" 0
+                  (Finmap.insert "split_expr_14" (lvl + 1)
+                    (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight maxN 1)
+                      (Finmap.insert "var_index" (Fin.shiftRight idx 1) σ))))))) := by
+  have hmaxe : ∀ e : EVMState, (Ok e σ)["var_maxNodeNumber"]!! = maxN := fun _ => hmax
+  have hlvle : ∀ e : EVMState, (Ok e σ)["var_i"]!! = lvl := fun _ => hlvl
+  have h1e : ∀ e : EVMState, (Ok e σ)["_1"]!! = base := fun _ => h1
+  rw [cons, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [hidx, div2_call]
+  simp only [insert_Ok]
+  rw [cons, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), hmaxe, div2_call]
+  simp only [insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hlvle]
+  rw [checked_add_call haddl]
+  simp only [insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), h1e]
+  rw [lookup_insert_self_fin]
+  rw [storage_array_index_call hb1]
+  rw [cons, nil, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [storage_array_index_call hb2]
+
+/-- **Closed form of the store step**: writes the recomputed node at the
+prepared slot — a plain `sstore`. -/
+lemma store_call_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {wslot cur : Literal}
+    (h18 : (Ok evm σ)["_18"]!! = wslot)
+    (h19 : (Ok evm σ)["_19"]!! = 0)
+    (hcur : (Ok evm σ)["var_currentHash"]!! = cur) :
+    exec (fuel+1) (.Block
+        [ExprStmtCall update_storage_value_bytes32_to_bytes32
+           [Var "_18", Var "_19", Var "var_currentHash"]]) (Ok evm σ)
+      = Ok (evm.sstore wslot cur) σ := by
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h18, h19, hcur]
+  rw [update_storage_call_0]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
