@@ -579,9 +579,16 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   gate (#25). Both arms of delivered-XOR-reclaimed now sit on one mathematical object: exclusivity
   becomes "no leaf can fold to the root both as present (inclusion) and inside an adjacency gap
   (absence)" — an IMT statement, with the interpreter fully discharged.
+- **Update (same day):** the `hhl` abstraction is now DISCHARGED — the leaf-hash closed form was
+  ported to this tree (`imt_leafhash_user.lean`: `hashLeaf_call_acc`, `finalize_allocation_128_call`,
+  `hashLeafOut` + readback/byte-agreement lemmas; the generated bodies differ from the
+  L2InteropCommitmentTree copies only in one source-position variable name).
+  `verifyNonInclusion_call_concrete` states the end-to-end form with no per-call hypotheses:
+  accepted iff `foldRoot(proof, index, hashLeafOut(evm, lowLeaf)) = root`.
 - **Caveat / trusted base:** **axiom-free** (`#print axioms` = `[propext, Quot.sound,
-  Classical.choice]`). Success-path form: the revert directions of the three witness guards are
-  not yet stated (each is a small `gate_if_reverts`-style corollary if needed).
+  Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
+  directions of the three witness guards are not yet stated (each is a small
+  `gate_if_reverts`-style corollary if needed).
 
 ---
 

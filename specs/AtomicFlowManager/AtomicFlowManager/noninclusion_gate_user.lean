@@ -4,6 +4,7 @@ import generated.AtomicFlowManager.AtomicFlowManager.fun_hashLeaf
 import generated.AtomicFlowManager.AtomicFlowManager.fun_verifyNonInclusion
 import specs.AtomicFlowManager.AtomicFlowManager.imt_path_user
 import specs.AtomicFlowManager.AtomicFlowManager.imt_path_toplevel_user
+import specs.AtomicFlowManager.AtomicFlowManager.imt_leafhash_user
 
 /-
   CLOSED FORM OF `fun_verifyNonInclusion` — the reclaim arm's absence witness
@@ -368,6 +369,35 @@ theorem verifyNonInclusion_call
     try rw [setStore_ok]
     try simp only [insert_Ok]
     try rfl
+
+/-- **Fully concrete closed form** — `verifyNonInclusion_call` with the
+`fun_hashLeaf` step discharged by `hashLeaf_call_acc` (#ported leaf-hash):
+the absence witness is accepted iff `foldRoot` of the leaf hash
+`hashLeafOut(evm, lowLeaf)` equals the authenticated root. -/
+theorem verifyNonInclusion_call_concrete
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    {rootv val leafPos idxv proofPos : Literal} {v : Identifier}
+    (hval : val ≠ 0)
+    (hlow : evm.mload leafPos < val)
+    (hadj : evm.mload (leafPos + 64) = 0 ∨ val < evm.mload (leafPos + 64))
+    (hp : (evm.mload 64).val + 128 ≤ 18446744073709551615)
+    (hlt256 : (hashLeafOut evm leafPos).2.mload proofPos < 256)
+    (hidx : idxv < Fin.shiftLeft (1 : UInt256) ((hashLeafOut evm leafPos).2.mload proofPos))
+    (hfuel : 2 * ((hashLeafOut evm leafPos).2.mload proofPos).val + 2 ≤ fuel)
+    (hpath96 : 96 ≤ proofPos.val)
+    (hnw : proofPos.val + 32 * ((hashLeafOut evm leafPos).2.mload proofPos).val + 64 ≤ 2 ^ 256)
+    (hdepthlt : ((hashLeafOut evm leafPos).2.mload proofPos).val < 2 ^ 64) :
+    execCall (fuel+1) fun_verifyNonInclusion [v]
+        (Ok evm store, [rootv, val, leafPos, idxv, proofPos])
+      = Ok (foldRoot (hashLeafOut evm leafPos).2 proofPos
+            ((hashLeafOut evm leafPos).2.mload proofPos).val 0 idxv
+            (hashLeafOut evm leafPos).1).2
+          (store.insert v (fromBool
+            ((foldRoot (hashLeafOut evm leafPos).2 proofPos
+                ((hashLeafOut evm leafPos).2.mload proofPos).val 0 idxv
+                (hashLeafOut evm leafPos).1).1 = rootv))) :=
+  verifyNonInclusion_call hval hlow hadj
+    (fun _ => hashLeaf_call_acc hp) hlt256 hidx hfuel hpath96 hnw hdepthlt
 
 end
 
