@@ -55,8 +55,10 @@ story:**
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
-  window, `foldRoot` recomputes exactly the stored root (*#32*, axiom-free). Remaining for the
-  full capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
+  window, `foldRoot` recomputes exactly the stored root (*#32*, axiom-free), and **the stored root
+  admits ONLY the written leaf** — any collision-free fold reaching it at that position carries
+  the builder's leaf (`root_pins_written_leaf`, *#32* + *#27*, A6′). Remaining for the full
+  capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
 32 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
@@ -633,6 +635,15 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **Caveat / trusted base:** **axiom-free** (`#print axioms fold_replays_walk` = standard three;
   no A6′/A6″, no `sorryAx`). The sibling-array hypothesis (`hsibs`) is the prover-supplies-the-
   right-path premise — substituting wrong siblings changes the fold output, which #27 then rejects.
+- **Update (same day) — the composition capstone (`root_pins_written_leaf`, A6′):** the replay
+  fold also STAYS collision-free (`fold_replays_walk_clean` — every level is a cache hit, so the
+  fold carries the verifier's own flag; proven by extending `fold_walk_agree` with a
+  flag-preservation conjunct, axiom-free). Composing with #27's `foldRoot_binding`: if the builder
+  stored root `R` for leaf `cur` at position `idx`, then ANY collision-free fold of ANY leaf `L`
+  at position `idx` reaching `R` — arbitrary proof array, memory, level counter — forces
+  `L = cur`. The committed root admits EXACTLY the written leaf at its position: uniqueness of
+  what the delivery (#25) and reclaim (#26) gates can ever accept, stated against the builder's
+  own write. Axioms: standard three + `keccak256_inj` (A6′) only.
 
 ### 31. Atomic interop — THE TREE-BUILDER'S MERKLE UPDATE LOOP IS A PURE WALK  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_storage_atoms_user.lean`, `imt_update_fold_user.lean`
