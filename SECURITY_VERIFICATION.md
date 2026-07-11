@@ -625,6 +625,15 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   position `j ≠ i` — which is excluded exactly by the IMT linked-list sortedness invariant that the
   tree-builder (`L2InteropCommitmentTree` insert path) maintains. That invariant is the next arc.
 - **Caveat / trusted base:** **A6′** (standard three + `keccak256_inj`, no `sorryAx`).
+- **Update (same day) — conditional capstone:** `committed_member_gap_impossible` +
+  `CommittedLeafAt` state the FULL exclusivity in one theorem: if all leaves committed under root
+  `R` (the exact evidence shape gates #25/#26 produce — collision-free hash + fold reaching `R`)
+  abstract into some `GapSound` set (#30), then a delivery witness for `value` and a reclaim
+  window straddling `value` cannot coexist at ANY pair of positions. The theorem itself is
+  axiom-free — every remaining obligation of spec point 4 is now the single hypothesis "the
+  tree-builder's roots commit only `GapSound` leaf sets" (`habs`/`hS`), to be discharged by
+  verifying the `L2InteropCommitmentTree` insert path against `imtInsert` (#30 shows that
+  operation preserves the invariant).
 
 ### 28. Atomic interop — LEAF-HASH BINDING: the leaf hash pins the leaf fields  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../leafhash_binding_user.lean` *(added 2026-07-11; PR #2218 contracts)*

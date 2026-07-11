@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 
 import specs.AtomicFlowManager.AtomicFlowManager.merkle_binding_user
 import specs.AtomicFlowManager.AtomicFlowManager.leafhash_binding_user
+import specs.IMTAbstract
 
 /-
   DELIVERED-XOR-RECLAIMED, same-position case (A6′).
@@ -71,6 +72,40 @@ theorem same_position_member_gap_impossible
   -- W.key = value contradicts W.key < value
   rw [hmem] at hfields
   exact absurd hlow (by rw [← hfields.1]; exact lt_irrefl value)
+
+/-! ## The capstone: exclusivity conditional only on the builder invariant -/
+
+/-- A leaf committed under root `R` at depth `d`, position `idx`: some
+collision-free leaf hash + collision-free fold reaches `R`, and the leaf's
+key / nextKey fields decode to `key` / `nk`. This is exactly the evidence
+shape the two gates (#25/#26) produce. -/
+def CommittedLeafAt (R : UInt256) (d : ℕ) (idx key nk : UInt256) : Prop :=
+  ∃ (σh : EVMState) (leaf : Literal) (σf : EVMState) (p iv : UInt256),
+    (hashLeafOut σh leaf).2.hash_collision = false ∧
+    (σh.mload 64).val + 128 ≤ 18446744073709551615 ∧
+    96 ≤ (σh.mload 64).val ∧
+    (foldRoot σf p d iv idx (hashLeafOut σh leaf).1).2.hash_collision = false ∧
+    (foldRoot σf p d iv idx (hashLeafOut σh leaf).1).1 = R ∧
+    σh.mload leaf = key ∧ σh.mload (leaf + 64) = nk
+
+/-- **DELIVERED-XOR-RECLAIMED, conditional capstone.**  If the leaves committed
+under root `R` all abstract into some `GapSound` set `S` (the tree-builder
+invariant — the ONLY remaining obligation), then a delivery witness for
+`value` (a committed leaf with key `value`) and a reclaim witness (a committed
+adjacency leaf whose window straddles `value`) CANNOT coexist — at any pair of
+positions, equal or not. -/
+theorem committed_member_gap_impossible
+    {R value wk wnk nk₁ : UInt256} {d : ℕ} {idx₁ idx₂ : UInt256}
+    {S : Finset IMTAbstract.AbsLeaf}
+    (hS : IMTAbstract.GapSound S)
+    (habs : ∀ idx key nk, CommittedLeafAt R d idx key nk
+      → (⟨key, nk⟩ : IMTAbstract.AbsLeaf) ∈ S)
+    (hmem : CommittedLeafAt R d idx₁ value nk₁)
+    (hgapleaf : CommittedLeafAt R d idx₂ wk wnk)
+    (hlow : wk < value)
+    (hwin : wnk = 0 ∨ value < wnk) : False :=
+  IMTAbstract.gap_excludes_member hS
+    (habs _ _ _ hgapleaf) (habs _ _ _ hmem) hlow hwin rfl
 
 end
 
