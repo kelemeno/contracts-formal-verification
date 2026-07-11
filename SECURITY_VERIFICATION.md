@@ -182,12 +182,15 @@ it **guarantees**, and the honest **caveat**. File paths are under `specs/`.
   call) matches this source ordering.
 - **Caveat:** stated as the existence of those sub-block executions (read→cleanup→require, then
   accessor→write). Per A4, "reverts on replay" is the require-helper's witnessed behavior, not a
-  state predicate. **Remaining gap (narrowed 2026-06-09):** both *sides* of the loop are now proven
-  A3-free as state predicates (see #1b for the CHECK side and the SET-write lemmas below); the only
-  piece still "by construction" is the **slot-equality** linkage — that the read slot `split_expr_7`
-  equals the write slot `split_expr_13`. Both are the *same* triple-nested-keccak accessor of the same
-  params `(_1,_2,_3)`, so they coincide; a formal proof of equality needs keccak *determinism*
-  (same preimage ⇒ same slot across calls), which is future work.
+  state predicate. **Remaining gap (narrowed 2026-06-09, closed 2026-07-10):** both *sides* of the
+  loop are proven A3-free as state predicates (see #1b for the CHECK side and the SET-write lemmas
+  below); the last piece — the **slot-equality** linkage, that the read slot `split_expr_7` equals
+  the write slot `split_expr_13` — is now **proven** at statement level (`check_set_slots_eq`, see
+  the slot-equality entry below): the two triple-nested keccak accessor chains over the same params
+  `(_1,_2,_3)` provably return the same slot, because Clear's keccak memoizes each hashed preimage
+  and the re-run replays the cache. What remains "by construction" is only lifting that
+  statement-level chain to the two blocks' replay (the six accessor calls appear verbatim in the
+  blocks; wiring their execCall equations through the block AST is mechanical).
 - **SET-write lemmas (`no_replay_user.lean`, A3-free, added 2026-06-09):** `update_storage_writes_flag`
   gives the closed form of the nullifier write `sstore(slot, (sload(slot) & ~255) | 1)`, and
   `update_storage_sets_low_byte` proves the post-write byte is exactly `1` (so `≠ 0`) — i.e. the SET
@@ -201,7 +204,22 @@ it **guarantees**, and the honest **caveat**. File paths are under `specs/`.
   `split_expr_7 ↦ slot` on the post-write evm ⇒ the run ends `reverted = true`.* The byte the SET writes
   is literally the byte the CHECK reads (the post-write evm is fed straight into the CHECK), so this is a
   genuine composition, not re-hypothesized. `#print axioms` = `[propext, Quot.sound, Classical.choice]`.
-  The shared variable `slot` is the honest stand-in for the (still by-construction) slot-equality link.
+  The shared variable `slot` is the honest stand-in for the slot-equality link, itself now proven:
+- **Slot-equality — CHECK slot = SET slot (`check_set_slots_eq`, A3-free, axiom-clean, added
+  2026-07-10):** `no_replay_user.lean` + the new axiom-free `specs/KeccakDeterminism.lean`. Running
+  the triple accessor chain twice with the same keys `(_1,_2,_3)` and base slot 208 — the CHECK
+  chain (`split_expr_5/6/7`) and the SET chain (`split_expr_11/12/13`) — returns the **same** final
+  slot. Mechanism (model-derived, no axioms): each `mapping_index_access` writes `key`/`base` to
+  scratch `[0,64)` and hashes it; Clear's freshness model memoizes every hashed preimage in
+  `keccak_map`, so the SET-side re-run *hits the cache at every level*. Honest frame hypotheses
+  (both true of the actual intervening sload/iszero/cleanup/require-success statements): memory
+  bytes `[64,95)` unchanged (the model's `lookupMemory` makes the 64-byte hash interval depend on
+  that junk window too — the unconditional preimage-equality is FALSE in the model and an earlier
+  broken general form was removed from `KeccakInjective.lean`), and no keccak-cache entry dropped.
+  Plus the A6-style caveat hypothesis that no hash-collision fallback fired on the CHECK side.
+  `#print axioms check_set_slots_eq` = `[propext, Quot.sound, Classical.choice]` — no `sorryAx`,
+  no keccak axioms. Scope: stated over the six accessor `execCall`s (which appear verbatim in the
+  CHECK/SET blocks) rather than re-derived through the block ASTs.
 
 ### 1b. Cross-transaction replay revert  — *the anti-double-spend property, as a state predicate*  ✅ A3-free, axiom-clean
 `L1Nullifier/.../no_replay_user.lean` — theorem `replay_protection_check_reverts` *(added 2026-06-09)*
@@ -437,6 +455,93 @@ it **guarantees**, and the honest **caveat**. File paths are under `specs/`.
   doesn't run — faithful). It witnesses the modifier's *spec* by reference (control-flow routing), not a
   re-derivation. Same A3 dependency as #1/#20 (`sorryAx` only from the admitted `mcopy`/`tstore` via
   `fun_verifyWithdrawal`).
+
+### 22. Atomic interop — refund state-machine safety / NO DOUBLE REFUND  ★ NEW (PR #2218 contracts)  ✅ A3-free, axiom-clean
+`AtomicFlowManager/.../no_double_refund_user.lean` *(added 2026-07-10; contracts from era-contracts PR #2218
+@ 37ad8bf1d — the atomic multi-leg interop module; `AtomicFlowManager` is the L2 built-in that coordinates
+the timeout/refund path and re-mints burned source funds via `claimRefund`)*
+- **Claim (CHECK side, `refund_check_reverts`):** running `claimRefund`'s CHECK block + guard-if from any
+  state whose stored per-leg byte (`_state[flowId][bundleHash]`, low byte of the slot bound to
+  `split_expr_21`) is a valid `LegState` **other than `Revertable(2)`** ends `reverted = true` (RevertModel
+  flag, cf. #17). Instances: `Unset(0)` — a leg that never committed cannot be refunded; `Committed(1)` —
+  no refund without `authorizeRefund`'s timeout proof; `Reverted(3)` — no re-refund.
+- **Claim (SET side, `update_storage_sets_reverted_byte`):** the SET write helper stores exactly
+  `Reverted(3)` into the slot's low byte (`sstore(slot, (sload(slot) & ~255) | 3)`, closed form +
+  low-byte lemma).
+- **Claim (end-to-end, `reclaim_after_refund_reverts`):** run the SET write at `slot`, then re-run the
+  CHECK on the post-write evm ⇒ the re-claim REVERTS. **A leg is refunded at most once** — the leg-level
+  anti-double-mint half of atomicity. (`claimRefund` flips the leg to `Reverted` *before* its external
+  `_recoverBundle` calls — CEI — so this also covers the reentrant re-claim.)
+- **Guarantees:** `claimRefund` pays out only a leg in state `Revertable` (set only by `authorizeRefund`
+  after a verified IMT timeout-adjacency proof), and at most once.
+- **Claim (slot-equality, `claim_check_set_slots_eq`):** the slot the CHECK reads (`split_expr_21`) equals
+  the slot the SET writes (`split_expr_26`) — both are the same 2-level keccak accessor chain over
+  `(flowId, bundleHash)` from base slot 0, and the re-run provably replays the cached keccak slots
+  (`Clear.KeccakDeterminism.accessor_chain2_deterministic`, the 2-level analog of #1's `check_set_slots_eq`;
+  frame hypotheses: bytes `[64,95)` unchanged + no cache entry dropped between the chains — true of the
+  intervening read/validator/eq/guard statements; plus the A6-style collision-free hypothesis).
+- **Caveat:** stated at the CHECK-block/guard-if/SET-helper/accessor level of the generated
+  `fun_claimRefund` (the decode prelude and `_recoverBundle` are not re-derived); wiring the four accessor
+  `execCall`s through the enclosing block ASTs is mechanical, as in #1. `hacc` (contract account exists) as
+  in #1's SET lemmas. `#print axioms` for all four theorems = `[propext, Quot.sound, Classical.choice]` —
+  no `sorryAx`, no keccak axioms. NOT yet covered: the finalize-side (`requireFlowFinalized`
+  inclusion-proof witnessing — inlined in the dispatcher) and the deep IMT inclusion/absence mutual
+  exclusion (the cross-path atomicity crux; needs IMT semantics + A6′).
+
+### 23. Atomic interop — NO THEFT via the failed-deposit (refund) path  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../no_theft_refund_user.lean` *(added 2026-07-11; contracts from era-contracts PR #2218)*
+- **Interpretation (per the verification owner):** "theft" here means **value leaving to an unentitled
+  party** — the payout must go only to whoever the committed bundle entitles — NOT a conservation-of-total-value
+  invariant. All theorems in this section (and planned successors) are stated in that entitlement form.
+- **The security question (beyond atomicity):** the state-machine theorems (#22) show a refund pays out only
+  from `Revertable`, at most once — but *not* that the payout is bound to the **exact bundle bytes** committed
+  at burn time. The theft scenario: an attacker calls `claimRefund(flowId, craftedBundleBytes)` with a
+  different receiver/amount/calls, riding an authorization that `authorizeRefund` granted for the *honest*
+  bundle. This theorem closes that gap.
+- **Claim (`crafted_claim_reverts_after_authorization`):** let the honest bundle hash `k₁` resolve (via the
+  `_state[flowId][·]` accessor) to storage slot `r₁`, and let an authorization be granted by *any* write at
+  `r₁`. For ANY other bundle hash `k₂ ≠ k₁` whose leg was `Unset` before that write, the crafted `claimRefund`
+  still ends `reverted = true`: (i) the accessor maps `k₂` to a **different** slot `r₂ ≠ r₁`
+  (`accessor_slots_differ_of_key_ne`, from keccak injectivity — the two 64-byte accessor preimages differ at
+  word 0, which holds the bundle hash); (ii) the authorization write at `r₁` is **invisible** at `r₂`
+  (`sload_sstore_of_ne`, storage non-aliasing); (iii) so the crafted leg is still `Unset(0) ≠ Revertable(2)`,
+  and `refund_check_reverts` (#22) fires.
+- **Guarantees:** the refund payout is bound to the exact committed bundle hash. An attacker cannot substitute
+  crafted bundle bytes to redirect or inflate a refund — the crafted claim reverts, funds are not stolen.
+- **Caveat / trusted base:** uses the **A6′** keccak-injectivity axiom `Clear.KeccakInjective.keccak256_inj`
+  (`#print axioms` = `[propext, Quot.sound, Classical.choice, keccak256_inj]`, no `sorryAx`). Scoped to the
+  CHECK/guard-if level (as #22). The *other* half of the binding — different bundle BYTES ⇒ different
+  `bundleHash` through `abi.encode(sourceChainId, bundle)` (`encodeInteropBundleHash`) — is the same
+  idealization on the variable-length encoder and is the next step; combined they give: crafted bytes ⇒
+  different hash ⇒ different slot ⇒ `Unset` ⇒ revert. The final fund-return correctness (that `_recoverBundle`
+  re-mints to the **original depositor**) lives in `L2AssetRouter.recoverAtomicCall`, a separate contract
+  (not yet compiled).
+
+### 24. Atomic interop — IMT Merkle-path computation is a pure fold  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../imt_hash_user.lean`, `imt_path_user.lean`, `imt_path_toplevel_user.lean`
+*(added 2026-07-11; contracts from era-contracts PR #2218)*
+- **What is proven (bottom-up, each layer a closed form over the one below):**
+  (i) `efficientHash_call_acc` — the node-hash helper `fun_efficientHash(a,b)` returns exactly
+  `keccak256(a ‖ b)` (the `accOut` scratch-memory hash) and touches nothing else;
+  `efficientHash_deterministic` + `hashLeafOut_deterministic` (leaf hashing, chunk-wise over the
+  generated Common blocks) pin both hash layers as functions of their inputs alone.
+  (ii) `fold_loop` — the `for` loop of `fun_calculateRootMemory` equals the **pure recursion
+  `foldRoot`**: at each level it reads the sibling from the caller-supplied proof array, orients by the
+  index parity (`idx & 1`), hashes, halves the index, and recurses — the textbook Merkle-path fold.
+  (iii) **`calculateRootMemory_call`** — the **whole function** (both Solidity bound-guards
+  `depth < 256`, `index < 2^depth`, all initialisers, the loop, the return wire-up) equals
+  `foldRoot` on the success path: `execCall fun_calculateRootMemory [v] (Ok evm store, [path, idx, leaf])
+  = Ok (foldRoot …).2 (store.insert v (foldRoot …).1)`.
+- **Why it matters for the bridge spec:** finalize (`requireFlowFinalized`) and the timeout/refund
+  adjacency check both accept a leg only after `calculateRootMemory`-computed roots match the stored
+  IMT root. This theorem replaces the ~50-statement Yul loop with a pure mathematical fold, so
+  inclusion/exclusion arguments (the "delivered XOR reclaimed" crux, spec point 4) can now be made
+  about `foldRoot` instead of about the interpreter.
+- **Caveat / trusted base:** **axiom-free** — `#print axioms calculateRootMemory_call` =
+  `[propext, Quot.sound, Classical.choice]`, no `sorryAx`, no keccak axioms (determinism only; no
+  injectivity needed at this layer). Hypotheses: the two guard conditions hold (success path), the
+  proof array lies in valid memory (`96 ≤ path`, no wraparound), `depth < 2^64`, and fuel
+  `≥ 2·depth + 2`.
 
 ---
 
