@@ -1,6 +1,8 @@
 import Clear.ReasoningPrinciple
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.finalize_allocation
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_storage_atoms_user
@@ -41,6 +43,14 @@ private lemma setEvm_Ok {e e' : EVMState} {σ : VarStore} :
 
 private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
   obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
+
+private lemma evm_setEvm_of_isOk {s : State} {e : EVMState} (h : isOk s) :
+    (s.setEvm e).evm = e := by
+  obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
+
+private lemma lookup_setEvm_of_isOk {s : State} {e : EVMState} {k : Identifier}
+    (h : isOk s) : (s.setEvm e)[k]!! = s[k]!! := by
+  obtain ⟨evm₀, st, rfl⟩ := State_of_isOk h; rfl
 
 private lemma lookup_insert_ne_fin {evm : EVMState} {σ : VarStore}
     {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
@@ -253,6 +263,167 @@ lemma array_push_call
   rw [setStore_ok]
   try simp only [multifill_nil]
   rfl
+
+private lemma val_add_32 {p : UInt256} (hp : p.val + 32 ≤ 18446744073709551615) :
+    ((p + (32 : UInt256))).val = p.val + 32 := by
+  have h32 : ((32 : UInt256)).val = 32 := by decide
+  have hlt : p.val + ((32 : UInt256)).val < UInt256.size := by
+    have hs : UInt256.size = 2 ^ 256 := by norm_num
+    omega
+  calc ((p + (32 : UInt256))).val
+      = (p.val + ((32 : UInt256)).val) % UInt256.size := rfl
+    _ = p.val + ((32 : UInt256)).val := Nat.mod_eq_of_lt hlt
+    _ = p.val + 32 := by rw [h32]
+
+lemma finalize_allocation_32_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {p : Literal}
+    (hp : p.val + 32 ≤ 18446744073709551615) :
+    execCall (fuel+1) finalize_allocation [] (Ok evm store, [p, 32])
+      = (Ok evm store).setEvm (evm.mstore 64 (p + 32)) := by
+  unfold execCall call finalize_allocation
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  simp only [cons, nil]
+  simp only [If', LetPrimCall', AssignPrimCall', ExprStmtPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMAdd', EVMNot', EVMAnd', EVMGt', EVMLt', EVMOr', EVMMstore']
+  simp only [multifill_cons, multifill_nil]
+  set B := (Ok evm store)☎️⟦["memPtr", "size"], [p, 32]⟧ with hB
+  have hokB : isOk B := isOk_initcall_of_isOk trivial
+  have l_size : B["size"]!! = 32 := lookup_initcall_2 (by decide)
+  have l_mem : B["memPtr"]!! = p := lookup_initcall_1
+  rw [l_size]
+  rw [show ((32 : UInt256) + 31) = 63 from by decide]
+  set m31 := Clear.UInt256.lnot 31 with hm31
+  have hok0 : isOk (B⟦"split_expr_0" ↦ 63⟧) := isOk_insert.mpr hokB
+  have hok1 : isOk (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧) := isOk_insert.mpr hok0
+  have l0 : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧)["split_expr_0"]!! = 63 := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert' hokB]
+  have l1 : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧)["split_expr_1"]!! = m31 :=
+    lookup_insert' hok0
+  rw [l0, l1]
+  have hland : Fin.land 63 m31 = (32 : UInt256) := by
+    rw [hm31]; decide
+  rw [hland]
+  have l_mem2 : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧)["memPtr"]!!
+      = p := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+        lookup_insert_of_ne (by decide)]
+    exact l_mem
+  have hok2 : isOk (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧) :=
+    isOk_insert.mpr hok1
+  have l2 : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧)["split_expr_2"]!!
+      = 32 := lookup_insert' hok1
+  rw [l_mem2, l2]
+  -- the two guards evaluate to 0 given `hp`
+  have hMAXv : ((18446744073709551615 : UInt256)).val = 18446744073709551615 := by decide
+  have hgt : fromBool (p + 32 > (18446744073709551615 : UInt256)) = (0 : UInt256) := by
+    rw [decide_eq_false (by
+      intro h
+      rw [gt_iff_lt, Fin.lt_def, hMAXv, val_add_32 hp] at h
+      omega)]
+    rfl
+  have hlt : fromBool (p + 32 < p) = (0 : UInt256) := by
+    rw [decide_eq_false (by
+      intro h
+      rw [Fin.lt_def, val_add_32 hp] at h
+      omega)]
+    rfl
+  -- resolve the newFreePtr binding, then the two guard values
+  have hok3 : isOk (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧) :=
+    isOk_insert.mpr hok2
+  have lnf : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧)["newFreePtr"]!!
+      = p + 32 := lookup_insert' hok2
+  rw [lnf, hgt]
+  have hok4 : isOk (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧) :=
+    isOk_insert.mpr hok3
+  have l3nf : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧)["newFreePtr"]!!
+      = p + 32 := by
+    rw [lookup_insert_of_ne (by decide)]; exact lnf
+  have l3mem : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧)["memPtr"]!!
+      = p := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]; exact l_mem2
+  rw [l3nf, l3mem, hlt]
+  -- the guard `or` is 0: skip the panic branch
+  have l4a : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧⟦"split_expr_4" ↦ (0 : UInt256)⟧)["split_expr_3"]!!
+      = 0 := by
+    rw [lookup_insert_of_ne (by decide)]; exact lookup_insert' hok3
+  have l4b : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧⟦"split_expr_4" ↦ (0 : UInt256)⟧)["split_expr_4"]!!
+      = 0 := lookup_insert' hok4
+  rw [l4a, l4b]
+  rw [show Fin.lor (0 : UInt256) 0 = (0 : UInt256) from by decide]
+  simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  -- trailing mstore(64, newFreePtr) on the else-branch state
+  have hok5 : isOk (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧⟦"split_expr_4" ↦ (0 : UInt256)⟧) :=
+    isOk_insert.mpr hok4
+  have l5nf : (B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧⟦"split_expr_4" ↦ (0 : UInt256)⟧)["newFreePtr"]!!
+      = p + 32 := by
+    rw [lookup_insert_of_ne (by decide)]; exact l3nf
+  rw [l5nf]
+  have hBevm : B.evm = evm := by
+    rw [hB]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  simp only [evm_insert, evm_Ok]
+  rw [hBevm]
+  have hin_ok : isOk ((B⟦"split_expr_0" ↦ 63⟧⟦"split_expr_1" ↦ m31⟧⟦"split_expr_2" ↦ (32 : UInt256)⟧⟦"newFreePtr" ↦ p + 32⟧⟦"split_expr_3" ↦ (0 : UInt256)⟧⟦"split_expr_4" ↦ (0 : UInt256)⟧)🇪⟦evm.mstore 64 (p + 32)⟧) := by
+    rw [isOk_setEvm]; exact hok5
+  rw [reviveJump_of_isOk hin_ok]
+  simp only [overwrite?_of_Ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = evm.mstore 64 (p + 32) := by
+    have h := congrArg State.evm hi
+    rw [evm_setEvm_of_isOk hok5] at h
+    exact h.symm
+  rw [hi, setStore_ok, hi_evm]
+  rfl
+
+
+
+/-- **Closed form of `allocate_memory(32)`**: returns the free pointer and
+bumps it by 32. -/
+lemma allocate_memory_32_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {v : Identifier}
+    (hp : (evm.mload 64).val + 32 ≤ 18446744073709551615) :
+    execCall (fuel+1) allocate_memory [v] (Ok evm store, [32])
+      = Ok (evm.mstore 64 (evm.mload 64 + 32))
+          (Finmap.insert v (evm.mload 64) store) := by
+  unfold execCall call allocate_memory
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["size"], [32]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["size"]!! = 32 := by rw [hs0]; exact lookup_initcall_1
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 ⊢
+  rw [cons, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), hp1]
+  rw [finalize_allocation_32_call hp]
+  simp only [setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_cons, multifill_nil, insert_Ok]
 
 end
 
