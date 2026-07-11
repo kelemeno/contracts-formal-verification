@@ -1154,6 +1154,289 @@ lemma grow_if
       lookup_insert_ne_fin (by intro he; exact hkey (by rw [he]; decide))]
   exact lookup_ok_evm
 
+/-- The padding-phase start state on the growth path. -/
+def pushGrowBase (evm : EVMState) : EVMState :=
+  growEvm (evm.sstore 1 (evm.sload 1 + 1)) ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)
+
+/-- **CLOSED FORM OF `fun_pushNewLeaf` (growth path).**  At capacity: the tree
+grows one level (`growEvm`), the frontier is padded, and the root recompute
+delegates to `updateLeaf`. -/
+theorem pushNewLeaf_call_grow
+    {evm : EVMState} {store : VarStore} {fuel k k2 : ℕ}
+    {vleaf : Literal} {v : Identifier}
+    (hcmax : evm.sload 1
+      ≠ (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256))
+    (hc0 : evm.sload 1 ≠ 0)
+    (hcap : evm.sload 1
+      = Fin.shiftLeft 1 ((evm.sstore 1 (evm.sload 1 + 1)).sload 0))
+    -- the growth pack (over the post-increment evm, depth read from it)
+    (hd1 : (evm.sstore 1 (evm.sload 1 + 1)).sload 0 + 1 ≠ 0)
+    (hb3 : ((evm.sstore 1 (evm.sload 1 + 1)).sload 0 + 1) - 1
+      < (growE1 (evm.sstore 1 (evm.sload 1 + 1)) ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sload 3)
+    (hlen3 : (((growH (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).2).sload 3).val < 18446744073709551616)
+    (hacc3 : (((growH (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).2).lookupAccount
+        ((growH (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).2).execution_env.code_owner).isSome)
+    (hfpg : ((growP (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).val) + 32 ≤ 18446744073709551615)
+    (hlen2 : (((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sload 2).val) < 18446744073709551616)
+    (hacc2 : (((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).lookupAccount
+        ((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).execution_env.code_owner)).isSome))
+    (hstaleg : ¬ ((1 : UInt256)
+      < (arrOut ((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+              ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sstore 2
+            ((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+              ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sload 2 + 1)) 2).2.sload
+          ((arrOut ((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+                ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sstore 2
+              ((growE3 (evm.sstore 1 (evm.sload 1 + 1))
+                ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sload 2 + 1)) 2).1
+            + (growE3 (evm.sstore 1 (evm.sload 1 + 1))
+                ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)).sload 2)))
+    -- the padding pack (over the post-growth evm)
+    (hcont : ∀ j, j < k →
+      (padWalk j (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.1
+          < (padWalk j (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload 0
+        ∧ (padWalk j (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.2.1
+          ≠ (padWalk j (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.2.2)
+    (hstop : ¬ ((padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.1
+          < (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload 0)
+      ∨ (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.2.1
+          = (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).2.2.2)
+    (hpassp : ∀ j, j < k →
+      PadOK (padWalk j (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)))
+    -- the updateLeaf pack (over the post-padding evm)
+    (hsub0 : (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+        ((0 : UInt256) + 1) ≠ 0)
+    (hle : ¬ (evm.sload 1
+      > (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+          ((0 : UInt256) + 1) - 1))
+    (hne2 : (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+        ((0 : UInt256) + 2) ≠ 0)
+    (hbidx : evm.sload 1
+      < (arrOut (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+            ((0 : UInt256) + 2)).2.sload
+          (arrOut (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+            ((0 : UInt256) + 2)).1)
+    (hk2 : ((leafWriteEvm
+        (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+        0 (evm.sload 1) vleaf).sload 0).val = k2)
+    (hpass2 : ∀ j, j < k2 → WalkOK 0 ((0 : UInt256) + 2)
+        (updateWalk 0 ((0 : UInt256) + 2) j
+          (leafWriteEvm
+            (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+            0 (evm.sload 1) vleaf)
+          0 (evm.sload 1)
+          ((padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+            ((0 : UInt256) + 1) - 1) vleaf))
+    (hssinv2 : ∀ j, j ≤ k2 →
+        ((updateWalk 0 ((0 : UInt256) + 2) j
+          (leafWriteEvm
+            (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+            0 (evm.sload 1) vleaf)
+          0 (evm.sload 1)
+          ((padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+            ((0 : UInt256) + 1) - 1) vleaf).1).sload 0
+          = (leafWriteEvm
+              (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+              0 (evm.sload 1) vleaf).sload 0)
+    (hfuelg : 5 ≤ fuel)
+    (hfuelp : 2 * k + 2 ≤ fuel)
+    (hfuelu : 2 * k2 + 2 ≤ fuel) :
+    execCall (fuel+1) fun_pushNewLeaf [v] (Ok evm store, [vleaf])
+      = Ok (updateWalk 0 ((0 : UInt256) + 2) k2
+            (leafWriteEvm
+              (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+              0 (evm.sload 1) vleaf)
+            0 (evm.sload 1)
+            ((padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+              ((0 : UInt256) + 1) - 1) vleaf).1
+          (store.insert v
+            (updateWalk 0 ((0 : UInt256) + 2) k2
+              (leafWriteEvm
+                (padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1
+                0 (evm.sload 1) vleaf)
+              0 (evm.sload 1)
+              ((padWalk k (pushGrowBase evm) 0 (evm.sload 1 - 1) (evm.sload 1)).1.sload
+                ((0 : UInt256) + 1) - 1) vleaf).2.2.2.2) := by
+  unfold execCall call fun_pushNewLeaf
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["var_leaf"], [vleaf]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["var_leaf"]!! = vleaf := by rw [hs0]; exact lookup_initcall_1
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 ⊢
+  have hp1e : ∀ e : EVMState, (Ok e σ0)["var_leaf"]!! = vleaf := fun _ => hp1
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [increment_call hcmax]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok]
+  rw [show ∀ (e : EVMState) (σ' : VarStore) (e' : EVMState),
+      ((Ok e σ' : State).setEvm e') = Ok e' σ' from fun _ _ _ => rfl]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMShl', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [insert_Ok]
+  -- the growth-if is TAKEN
+  rw [cons]
+  obtain ⟨σg, hgeq, hgpres⟩ := grow_if (fuel := fuel)
+    (c := evm.sload 1)
+    (p := Fin.shiftLeft 1 ((evm.sstore 1 (evm.sload 1 + 1)).sload 0))
+    (d := (evm.sstore 1 (evm.sload 1 + 1)).sload 0)
+    (evm := evm.sstore 1 (evm.sload 1 + 1))
+    (σ := Finmap.insert "split_expr_1"
+        (Fin.shiftLeft 1 ((evm.sstore 1 (evm.sload 1 + 1)).sload 0))
+      (Finmap.insert "_2" ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)
+        (Finmap.insert "split_expr_0" (evm.sload 1 + 1)
+          (Finmap.insert "_1" (evm.sload 1) σ0))))
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hcap hd1 hb3 hlen3 hacc3 hfpg hlen2 hacc2 hstaleg hfuelg
+  rw [show (If (PrimCall .Eq [Var "_1", Var "split_expr_1"])
+        [.Block
+          [LetCall ["expr"] fun_uncheckedInc [Var "_2"],
+           ExprStmtPrimCall .Sstore [Lit 0, Var "expr"],
+           LetCall ["split_expr_2"] checked_sub_uint256 [Var "expr"],
+           LetCall ["_3", "_4"] storage_array_index_access_bytes32_dyn__dyn
+             [Lit 3, Var "split_expr_2"],
+           LetPrimCall ["split_expr_3"] .Sload [Var "_3"]],
+         .Block
+          [LetCall ["_5"] extract_from_storage_value_dynamict_bytes32
+             [Var "split_expr_3", Var "_4"],
+           LetCall ["expr_1"] fun_efficientHash [Var "_5", Var "_5"],
+           ExprStmtCall array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+             [Lit 3, Var "expr_1"],
+           LetEq "size" (Lit 0),
+           LetEq "_6" (Lit 0)],
+         .Block
+          [Assign "_6" (Lit 0),
+           Assign "size" (Lit 32),
+           LetCall ["expr_mpos"] allocate_memory [Lit 32],
+           ExprStmtPrimCall .Mstore [Var "expr_mpos", Var "expr_1"],
+           ExprStmtCall array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+             [Lit 2, Var "expr_mpos"]]])
+      = L2InteropCommitmentTree.Common.if_1084122831851539501 from rfl]
+  rw [hgeq]
+  -- split_expr_4 := iszero(_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMIszero', multifill_cons, multifill_nil]
+  rw [hgpres "_1" (by decide)]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [show fromBool (evm.sload 1 = 0) = (0 : UInt256) from by
+    rw [decide_eq_false hc0]; rfl]
+  simp only [insert_Ok]
+  -- the padding-if, folded to the named Common def
+  rw [cons]
+  rw [show (If (PrimCall .Iszero [Var "split_expr_4"])
+        [LetCall ["var_oldMaxNodeNumber"] checked_sub_uint256 [Var "_1"],
+         LetEq "var_maxNodeNumber" (Var "_1"),
+         LetEq "var_i" (Lit 0),
+         Assign "var_i" (Lit 0),
+         For (Lit 1) [AssignPrimCall ["var_i"] .Add [Var "var_i", Lit 1]]
+           [LetPrimCall ["split_expr_5"] .Sload [Lit 0],
+            LetPrimCall ["split_expr_6"] .Lt [Var "var_i", Var "split_expr_5"],
+            If (PrimCall .Iszero [Var "split_expr_6"]) [Stmt.Break],
+            If (PrimCall .Eq [Var "var_oldMaxNodeNumber", Var "var_maxNodeNumber"]) [Stmt.Break],
+            .Block
+             [LetCall ["_7", "_8"] storage_array_index_access_bytes32_dyn__dyn
+                [Lit 2, Var "var_i"],
+              LetCall ["_9", "_10"] storage_array_index_access_bytes32_dyn__dyn
+                [Lit 3, Var "var_i"],
+              LetPrimCall ["split_expr_7"] .Sload [Var "_9"],
+              LetCall ["split_expr_8"] extract_from_storage_value_dynamict_bytes32
+                [Var "split_expr_7", Var "_10"],
+              ExprStmtCall array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+                [Var "_7", Var "split_expr_8"]],
+            .Block
+             [AssignCall ["var_maxNodeNumber"] checked_div_uint256 [Var "var_maxNodeNumber"],
+              AssignCall ["var_oldMaxNodeNumber"] checked_div_uint256 [Var "var_oldMaxNodeNumber"]]]])
+      = L2InteropCommitmentTree.Common.if_3948411532618903895 from rfl]
+  obtain ⟨σ', hσ'eq, hσ'pres⟩ := pad_if (fuel := fuel) (k := k)
+    (evm := growEvm (evm.sstore 1 (evm.sload 1 + 1)) ((evm.sstore 1 (evm.sload 1 + 1)).sload 0))
+    (σ := Finmap.insert "split_expr_4" 0 σg)
+    (c := evm.sload 1)
+    (by rw [lookup_insert_ne_fin (by decide)]
+        rw [hgpres "_1" (by decide)]
+        rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    hc0 hcont hstop hpassp hfuelp
+  rw [hσ'eq]
+  -- var_newRoot := fun_updateLeaf(0, _1, var_leaf)
+  rw [cons, nil, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [hσ'pres "_1" (by decide)]
+  rw [lookup_insert_ne_fin (by decide)]
+  rw [hgpres "_1" (by decide)]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [hσ'pres "var_leaf" (by decide)]
+  rw [lookup_insert_ne_fin (by decide)]
+  rw [hgpres "var_leaf" (by decide)]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hp1e]
+  rw [updateLeaf_call (k := k2)
+    (evm := (padWalk k (growEvm (evm.sstore 1 (evm.sload 1 + 1))
+        ((evm.sstore 1 (evm.sload 1 + 1)).sload 0)) 0 (evm.sload 1 - 1) (evm.sload 1)).1)
+    (ss := 0) (idx := evm.sload 1) (leaf := vleaf)
+    hsub0 hle hne2 hbidx hk2 hpass2 hssinv2 hfuelu]
+  rw [lookup_insert_self_fin]
+  rw [reviveJump_Ok]
+  try simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_cons, multifill_nil, insert_Ok]
+  rw [show pushGrowBase evm = growEvm (evm.sstore 1 (evm.sload 1 + 1))
+      ((evm.sstore 1 (evm.sload 1 + 1)).sload 0) from rfl]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
