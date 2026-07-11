@@ -150,6 +150,252 @@ lemma extract_call_0
   rw [h2, setStore_ok, he2]
   simp only [multifill_cons, multifill_nil, insert_Ok]
 
+private lemma setEvm_Ok {e e' : EVMState} {σ : VarStore} :
+    (Ok e σ).setEvm e' = Ok e' σ := rfl
+
+/-- Chunk 1 of the masked update: the mask computation degenerates at offset 0. -/
+private lemma mask_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {slot : Literal}
+    (hslot : (Ok evm σ)["slot"]!! = slot)
+    (hoff : (Ok evm σ)["offset"]!! = 0) :
+    exec (fuel+1) (.Block
+        [LetPrimCall ["_1"] .Sload [Var "slot"],
+         LetPrimCall ["shiftBits"] .Shl [Lit 3, Var "offset"],
+         LetPrimCall ["split_expr_0"] .Not [Lit 0],
+         LetPrimCall ["split_expr_1"] .Shl [Var "shiftBits", Var "split_expr_0"],
+         LetPrimCall ["split_expr_2"] .Not [Var "split_expr_1"]]) (Ok evm σ)
+      = Ok evm (Finmap.insert "split_expr_2" 0
+          (Finmap.insert "split_expr_1" (UInt256.lnot 0)
+            (Finmap.insert "split_expr_0" (UInt256.lnot 0)
+              (Finmap.insert "shiftBits" 0
+                (Finmap.insert "_1" (evm.sload slot) σ))))) := by
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hslot]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMShl', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hoff]
+  rw [show Fin.shiftLeft (0 : UInt256) 3 = (0 : UInt256) from by decide]
+  simp only [insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMNot', multifill_cons, multifill_nil, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMShl', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [shiftLeft_zero]
+  simp only [insert_Ok]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMNot', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [show UInt256.lnot (UInt256.lnot 0) = (0 : UInt256) from by decide]
+  simp only [insert_Ok]
+
+/-- Chunk 2: masked combine + store — a full overwrite at offset 0. -/
+private lemma store_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {slot value : Literal}
+    (hsb : (Ok evm σ)["shiftBits"]!! = 0)
+    (h2 : (Ok evm σ)["split_expr_2"]!! = 0)
+    (hval : (Ok evm σ)["value"]!! = value)
+    (hslot : (Ok evm σ)["slot"]!! = slot) :
+    exec (fuel+1) (.Block
+        [LetPrimCall ["split_expr_3"] .And [Var "_1", Var "split_expr_2"],
+         LetPrimCall ["split_expr_4"] .Shl [Var "shiftBits", Var "value"],
+         LetPrimCall ["split_expr_5"] .Or [Var "split_expr_3", Var "split_expr_4"],
+         ExprStmtPrimCall .Sstore [Var "slot", Var "split_expr_5"]]) (Ok evm σ)
+      = Ok (evm.sstore slot value)
+          (Finmap.insert "split_expr_5" value
+            (Finmap.insert "split_expr_4" value
+              (Finmap.insert "split_expr_3" 0 σ))) := by
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAnd', multifill_cons, multifill_nil]
+  rw [h2, land_zero]
+  simp only [insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMShl', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hval]
+  rw [lookup_insert_ne_fin (by decide), hsb]
+  rw [shiftLeft_zero]
+  simp only [insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMOr', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lor_zero_left]
+  simp only [insert_Ok]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hslot]
+  simp only [evm_Ok, setEvm_Ok]
+
+/-- **Closed form of `update_storage_value_bytes32_to_bytes32(slot, 0, value)`**:
+at byte offset 0 the masked update is a full overwrite — `sstore slot value`. -/
+lemma update_storage_call_0
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {slot value : Literal} :
+    execCall (fuel+1) update_storage_value_bytes32_to_bytes32 []
+        (Ok evm store, [slot, 0, value])
+      = Ok (evm.sstore slot value) store := by
+  unfold execCall call update_storage_value_bytes32_to_bytes32
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, nil]
+  set s0 := (Ok evm store)☎️⟦["slot", "offset", "value"], [slot, 0, value]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["slot"]!! = slot := by rw [hs0]; exact lookup_initcall_1
+  have hp2 : s0["offset"]!! = 0 := by rw [hs0]; exact lookup_initcall_2 (by decide)
+  have hp3 : s0["value"]!! = value := by
+    rw [hs0]; exact lookup_initcall_3 (by decide) (by decide)
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 hp2 hp3 ⊢
+  rw [mask_block hp1 hp2]
+  rw [store_block (value := value) (slot := slot)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_self_fin])
+    (by rw [lookup_insert_self_fin])
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp3)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hp1)]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [multifill_nil]
+
+/-- **Closed form of `storage_array_index_access_bytes32_dyn__dyn(array, index)`**
+(success path, `index < sload(array)`): returns the element slot
+`keccak(array) + index` and byte offset `0`; the evm advances by the scratch
+write + keccak step (`arrOut`). -/
+lemma storage_array_index_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {arr idx : Literal}
+    {sv ov : Identifier}
+    (hlt : idx < evm.sload arr) :
+    execCall (fuel+1) storage_array_index_access_bytes32_dyn__dyn [sv, ov]
+        (Ok evm store, [arr, idx])
+      = Ok (arrOut evm arr).2
+          (Finmap.insert sv ((arrOut evm arr).1 + idx) (Finmap.insert ov 0 store)) := by
+  unfold execCall call storage_array_index_access_bytes32_dyn__dyn
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["array", "index"], [arr, idx]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["array"]!! = arr := by rw [hs0]; exact lookup_initcall_1
+  have hp2 : s0["index"]!! = idx := by rw [hs0]; exact lookup_initcall_2 (by decide)
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 hp2 ⊢
+  have hp1e : ∀ e : EVMState, (Ok e σ0)["array"]!! = arr := fun _ => hp1
+  have hp2e : ∀ e : EVMState, (Ok e σ0)["index"]!! = idx := fun _ => hp2
+  -- statement 1: split_expr_0 := sload(array)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hp1]
+  simp only [evm_Ok, insert_Ok]
+  -- statement 2: split_expr_1 := lt(index, split_expr_0)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hp2, lookup_insert_self_fin]
+  rw [show fromBool (idx < evm.sload arr) = (1 : UInt256) from by
+    rw [decide_eq_true hlt]; rfl]
+  simp only [insert_Ok]
+  -- statement 3: if iszero(split_expr_1) { panic } — skipped
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- statement 4: mstore(0, array)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hp1]
+  simp only [evm_Ok, setEvm_Ok]
+  -- statement 5: split_expr_2 := keccak256(0, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append]
+  rw [primCall_keccakOut]
+  simp only [evm_Ok, setEvm_Ok, multifill_cons, multifill_nil]
+  rw [show keccakOut (evm.mstore 0 arr) 0 32 = arrOut evm arr from rfl]
+  simp only [insert_Ok]
+  -- statement 6: slot := add(split_expr_2, index)
+  rw [cons, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hp2e]
+  simp only [insert_Ok]
+  -- statement 7: offset := 0
+  rw [cons, nil, Assign']
+  simp only [Lit', insert_Ok]
+  -- rets [slot, offset] + call wrapper
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [setStore_ok]
+  simp only [multifill_cons, multifill_nil, insert_Ok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
