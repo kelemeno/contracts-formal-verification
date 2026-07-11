@@ -610,6 +610,163 @@ lemma checked_sub_call
   rw [setStore_ok]
   try simp only [multifill_cons, multifill_nil, insert_Ok]
 
+/-- The 2-level storage-array sibling read: element `j` of the level-`lvl`
+array inside the array-of-arrays at `base`.  Value + resulting evm (two
+keccak steps). -/
+def sibRead (σ : EVMState) (base lvl j : UInt256) : UInt256 × EVMState :=
+  ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + lvl)).2.sload
+      ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + lvl)).1 + j),
+   (arrOut (arrOut σ base).2 ((arrOut σ base).1 + lvl)).2)
+
+/-- **Closed form of the odd-branch sibling read** (`updateLeaf` loop, case
+`index & 1 = 1`): reads element `index − 1` of the level-`lvl` node array —
+the left sibling — into `split_expr_9`. -/
+lemma oddRead_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {base lvl idx : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = base)
+    (hlvl : (Ok evm σ)["var_i"]!! = lvl)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hidx0 : idx ≠ 0)
+    (hb1 : lvl < evm.sload base)
+    (hb2 : idx - 1 < (arrOut evm base).2.sload ((arrOut evm base).1 + lvl)) :
+    exec (fuel+1) (.Block
+        [LetCall ["_6", "_7"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_1", Var "var_i"],
+         LetCall ["split_expr_7"] checked_sub_uint256 [Var "var_index"],
+         LetCall ["_8", "_9"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_6", Var "split_expr_7"],
+         LetPrimCall ["split_expr_8"] .Sload [Var "_8"],
+         LetCall ["split_expr_9"] extract_from_storage_value_dynamict_bytes32
+           [Var "split_expr_8", Var "_9"]]) (Ok evm σ)
+      = Ok (sibRead evm base lvl (idx - 1)).2
+          (Finmap.insert "split_expr_9" (sibRead evm base lvl (idx - 1)).1
+            (Finmap.insert "split_expr_8" (sibRead evm base lvl (idx - 1)).1
+              (Finmap.insert "_8"
+                ((arrOut (arrOut evm base).2 ((arrOut evm base).1 + lvl)).1 + (idx - 1))
+                (Finmap.insert "_9" 0
+                  (Finmap.insert "split_expr_7" (idx - 1)
+                    (Finmap.insert "_6" ((arrOut evm base).1 + lvl)
+                      (Finmap.insert "_7" 0 σ))))))) := by
+  have hidxe : ∀ e : EVMState, (Ok e σ)["var_index"]!! = idx := fun _ => hidx
+  -- statement 1: _6, _7 := arrayaccess(_1, var_i)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h1, hlvl]
+  rw [storage_array_index_call hb1]
+  -- statement 2: split_expr_7 := checked_sub(var_index)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hidxe]
+  rw [checked_sub_call hidx0]
+  -- statement 3: _8, _9 := arrayaccess(_6, split_expr_7)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_self_fin]
+  rw [storage_array_index_call hb2]
+  -- statement 4: split_expr_8 := sload(_8)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+  -- statement 5: split_expr_9 := extract(split_expr_8, _9)
+  rw [cons, nil, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [extract_call_0]
+  rfl
+
+/-- **Closed form of the even-branch sibling read** (`updateLeaf` loop, case
+`index & 1 = 0`, non-edge): reads element `index + 1` of the level-`lvl` node
+array — the right sibling — into `expr`. -/
+lemma evenRead_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {base lvl idx : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = base)
+    (hlvl : (Ok evm σ)["var_i"]!! = lvl)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hadd : idx.val + 1 < 2 ^ 256)
+    (hb1 : lvl < evm.sload base)
+    (hb2 : idx + 1 < (arrOut evm base).2.sload ((arrOut evm base).1 + lvl)) :
+    exec (fuel+1) (.Block
+        [LetCall ["_10", "_11"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_1", Var "var_i"],
+         LetCall ["split_expr_10"] checked_add_uint256 [Var "var_index"],
+         LetCall ["_12", "_13"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_10", Var "split_expr_10"],
+         LetPrimCall ["split_expr_11"] .Sload [Var "_12"],
+         AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+           [Var "split_expr_11", Var "_13"]]) (Ok evm σ)
+      = Ok (sibRead evm base lvl (idx + 1)).2
+          (Finmap.insert "expr" (sibRead evm base lvl (idx + 1)).1
+            (Finmap.insert "split_expr_11" (sibRead evm base lvl (idx + 1)).1
+              (Finmap.insert "_12"
+                ((arrOut (arrOut evm base).2 ((arrOut evm base).1 + lvl)).1 + (idx + 1))
+                (Finmap.insert "_13" 0
+                  (Finmap.insert "split_expr_10" (idx + 1)
+                    (Finmap.insert "_10" ((arrOut evm base).1 + lvl)
+                      (Finmap.insert "_11" 0 σ))))))) := by
+  have hidxe : ∀ e : EVMState, (Ok e σ)["var_index"]!! = idx := fun _ => hidx
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [h1, hlvl]
+  rw [storage_array_index_call hb1]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hidxe]
+  rw [checked_add_call hadd]
+  rw [show ((Ok (arrOut evm base).2
+      (Finmap.insert "_10" ((arrOut evm base).1 + lvl) (Finmap.insert "_11" 0 σ)) : State)⟦"split_expr_10" ↦ idx + 1⟧)
+      = Ok (arrOut evm base).2 (Finmap.insert "split_expr_10" (idx + 1)
+          (Finmap.insert "_10" ((arrOut evm base).1 + lvl) (Finmap.insert "_11" 0 σ))) from rfl]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_self_fin]
+  rw [storage_array_index_call hb2]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [lookup_insert_self_fin]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, nil, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [extract_call_0]
+  rfl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
