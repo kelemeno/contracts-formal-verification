@@ -590,6 +590,22 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
 
+### 29. Atomic interop — SAME-POSITION EXCLUSIVITY: member and gap cannot share a slot  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../exclusivity_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`same_position_member_gap_impossible`):** an inclusion leaf `L` with `L.key = value`
+  (what the delivery gate #25 requires) and an adjacency leaf `W` with `W.key < value` (what the
+  reclaim gate #26 requires) cannot BOTH fold to the same root at the same tree position — the
+  binding chain (#27 root→hash, #28 hash→fields) forces `W.key = L.key = value`, contradicting the
+  strict window edge. Fully composed from the two binding theorems; no execution hypotheses beyond
+  collision-freeness and a sane free pointer.
+- **Why it matters (spec point 4):** this is the first slice of delivered-XOR-reclaimed proper. Per
+  position, the root admits at most one leaf (#27/#28), and that leaf cannot simultaneously be the
+  delivered member and the reclaim witness (#29). The REMAINING obligation is now precisely scoped:
+  the cross-position case — a member of `value` at position `i` and a gap straddling `value` at
+  position `j ≠ i` — which is excluded exactly by the IMT linked-list sortedness invariant that the
+  tree-builder (`L2InteropCommitmentTree` insert path) maintains. That invariant is the next arc.
+- **Caveat / trusted base:** **A6′** (standard three + `keccak256_inj`, no `sorryAx`).
+
 ### 28. Atomic interop — LEAF-HASH BINDING: the leaf hash pins the leaf fields  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../leafhash_binding_user.lean` *(added 2026-07-11; PR #2218 contracts)*
 - **Claim (`hashLeafOut_inj`):** two collision-free `hashLeafOut` computations with the same hash
