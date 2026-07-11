@@ -3,6 +3,8 @@ import Clear.ReasoningPrinciple
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_4843491680166179088
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_storage_atoms_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn_5278
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf
 
 /-
   U3 — the `fun_updateLeaf` loop as a pure storage fold.
@@ -37,6 +39,18 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
     {k : Identifier} {val : Literal} :
     (Ok evm (Finmap.insert k val σ))[k]!! = val := by
   rw [← insert_Ok]; exact lookup_insert' (by trivial)
+
+private lemma setEvm_Ok {e e2 : EVMState} {σ : VarStore} :
+    (Ok e σ).setEvm e2 = Ok e2 σ := rfl
+
+private lemma primCall_keccakOut {s : State} {a b : Literal} :
+    primCall s .Keccak256 [a, b]
+      = (s.setEvm (keccakOut s.evm a b).2, [(keccakOut s.evm a b).1]) := by
+  rw [EVMKeccak256']
+  unfold keccakOut
+  rcases hk : s.evm.keccak256 a b with _ | pr
+  · simp only [hk]
+  · simp only [hk]
 
 /-- The parent-store evm effect: two `arrOut` slot computations then the
 `sstore` of `v` at element `j` of the level-`l` array. -/
@@ -1340,6 +1354,159 @@ lemma update_loop :
       exact hσ'.1
     · rw [hwstep]
       exact hσ'.2
+
+/-! ## U4 — the `fun_updateLeaf` top-level closed form -/
+
+/-- Closed form of the element-0 accessor `…_5278(array)` (nonempty array):
+returns `(keccak(array), 0)`. -/
+lemma storage_array_index0_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {arr : Literal}
+    {sv ov : Identifier}
+    (hne : evm.sload arr ≠ 0) :
+    execCall (fuel+1) storage_array_index_access_bytes32_dyn__dyn_5278 [sv, ov]
+        (Ok evm store, [arr])
+      = Ok (arrOut evm arr).2
+          (Finmap.insert sv (arrOut evm arr).1 (Finmap.insert ov 0 store)) := by
+  unfold execCall call storage_array_index_access_bytes32_dyn__dyn_5278
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["array"], [arr]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["array"]!! = arr := by rw [hs0]; exact lookup_initcall_1
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 ⊢
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hp1]
+  simp only [insert_Ok]
+  rw [show ∀ σ' : VarStore, (Ok evm σ').evm = evm from fun _ => rfl]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool (evm.sload arr = 0) = (0 : UInt256) from by
+    rw [decide_eq_false hne]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMMstore', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hp1]
+  simp only [evm_Ok, setEvm_Ok]
+  rw [cons, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append]
+  rw [primCall_keccakOut]
+  simp only [evm_Ok, setEvm_Ok, multifill_cons, multifill_nil]
+  rw [show keccakOut (evm.mstore 0 arr) 0 32 = arrOut evm arr from rfl]
+  simp only [insert_Ok]
+  rw [cons, nil, Assign']
+  simp only [Lit', insert_Ok]
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_self_fin]
+  rw [setStore_ok]
+  simp only [multifill_cons, multifill_nil, insert_Ok]
+
+/-- The evm after the leaf write: two `arrOut` slot computations then the
+`sstore` of the new leaf hash at element `idx` of the level-0 array. -/
+def leafWriteEvm (σ : EVMState) (ss idx leaf : UInt256) : EVMState :=
+  (arrOut (arrOut σ (ss + 2)).2 (arrOut σ (ss + 2)).1).2.sstore
+    ((arrOut (arrOut σ (ss + 2)).2 (arrOut σ (ss + 2)).1).1 + idx) leaf
+
+/-- The leaf-write block of `updateLeaf`. -/
+private lemma leafWrite_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {ss idx leaf : Literal}
+    (hss : (Ok evm σ)["var_self_slot"]!! = ss)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hleaf : (Ok evm σ)["var_itemHash"]!! = leaf)
+    (hne : evm.sload (ss + 2) ≠ 0)
+    (hb : idx < (arrOut evm (ss + 2)).2.sload (arrOut evm (ss + 2)).1) :
+    exec (fuel+1) (.Block
+        [LetPrimCall ["_1"] .Add [Var "var_self_slot", Lit 2],
+         LetCall ["_2", "_3"] storage_array_index_access_bytes32_dyn__dyn_5278
+           [Var "_1"],
+         LetCall ["_4", "_5"] storage_array_index_access_bytes32_dyn__dyn
+           [Var "_2", Var "var_index"],
+         ExprStmtCall update_storage_value_bytes32_to_bytes32
+           [Var "_4", Var "_5", Var "var_itemHash"],
+         LetEq "var_currentHash" (Var "var_itemHash")]) (Ok evm σ)
+      = Ok (leafWriteEvm evm ss idx leaf)
+          (Finmap.insert "var_currentHash" leaf
+            (Finmap.insert "_4"
+                ((arrOut (arrOut evm (ss + 2)).2 (arrOut evm (ss + 2)).1).1 + idx)
+              (Finmap.insert "_5" 0
+                (Finmap.insert "_2" (arrOut evm (ss + 2)).1
+                  (Finmap.insert "_3" 0
+                    (Finmap.insert "_1" (ss + 2) σ)))))) := by
+  have hidxe : ∀ e : EVMState, (Ok e σ)["var_index"]!! = idx := fun _ => hidx
+  have hleafe : ∀ e : EVMState, (Ok e σ)["var_itemHash"]!! = leaf := fun _ => hleaf
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [hss]
+  simp only [insert_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [storage_array_index0_call hne]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hidxe]
+  rw [storage_array_index_call hb]
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hleafe]
+  rw [update_storage_call_0]
+  rw [cons, nil, LetEq']
+  simp only [Var']
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hleafe]
+  simp only [insert_Ok]
+  rfl
+
+/-- The counter block `{ let var_i := 0; var_i := 0 }`. -/
+private lemma vari_block
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} :
+    exec (fuel+1) (.Block [LetEq "var_i" (Lit 0), Assign "var_i" (Lit 0)]) (Ok evm σ)
+      = Ok evm (Finmap.insert "var_i" 0 (Finmap.insert "var_i" 0 σ)) := by
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  rw [cons, nil, Assign']
+  simp only [Lit', eval, insert_Ok]
 
 end
 
