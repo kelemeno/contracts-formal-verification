@@ -309,6 +309,7 @@ import specs.AtomicFlowManager.AtomicFlowManager.inclusion_gate_user
 import specs.AtomicFlowManager.AtomicFlowManager.imt_leafhash_user
 import specs.AtomicFlowManager.AtomicFlowManager.noninclusion_gate_user
 import specs.AtomicFlowManager.AtomicFlowManager.merkle_binding_user
+import specs.AtomicFlowManager.AtomicFlowManager.leafhash_binding_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x11_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x32_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x41_user

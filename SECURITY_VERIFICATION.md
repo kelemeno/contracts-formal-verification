@@ -590,6 +590,21 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
 
+### 28. Atomic interop — LEAF-HASH BINDING: the leaf hash pins the leaf fields  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../leafhash_binding_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`hashLeafOut_inj`):** two collision-free `hashLeafOut` computations with the same hash
+  output agree on all three IMT leaf fields `(key, nextIndex, nextKey)` — extracted from the keccak
+  preimage at region offsets 0/32/64 via memory read-back through the five scratch writes
+  (`leafScratch_field0/1/2`) and symbolic `mkInterval` element extraction.
+- **Why it matters (spec points 2, 3, 4):** completes the commitment chain
+  root —(#27)→ leaf hash —(#28)→ decoded fields. For a committed root, a proven tree position now
+  determines the actual VALUES the gates read: #25's commit-value check (field 0) and #26's
+  adjacency window (fields 0 and 2). The delivered value and the witnessed gap are unique per
+  position — no substitution at any layer of the proof.
+- **Caveat / trusted base:** **A6′** (`#print axioms` = standard three + `keccak256_inj`, no
+  `sorryAx`). Hypotheses: collision-free end states and a sane free pointer (`96 ≤ P`,
+  `P + 128 ≤ 2⁶⁴−1` — Solidity's allocator guarantees both).
+
 ### 27. Atomic interop — MERKLE PATH BINDING: the committed root pins every position  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../merkle_binding_user.lean` *(added 2026-07-11; PR #2218 contracts)*
 - **Claim (`foldRoot_binding`):** two collision-free `foldRoot` computations at the SAME index that
