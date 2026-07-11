@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_push_user
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_5765234204941653661
 
 /-
   P4a — the `fun_pushNewLeaf` padding loop, body layer.
@@ -144,6 +145,199 @@ private lemma divPair_block
              List.append_assoc, List.cons_append]
   rw [lookup_insert_ne_fin (by decide), home, div2_call]
   simp only [insert_Ok]
+
+private lemma exec_checkpoint {c : Jump} {fuel : ℕ} {stmt : Stmt} :
+    exec fuel stmt (Checkpoint c) = Checkpoint c := by
+  have h := Clear.JumpLemmas.exec_Jump (c := c) (s := Checkpoint c) (fuel := fuel) (stmt := stmt) rfl
+  rcases hres : exec fuel stmt (Checkpoint c) with _ | _ | c'
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h
+    have : c = c' := h
+    rw [this]
+
+private lemma break_block {fuel : ℕ} {evm : EVMState} {σ : VarStore} :
+    exec (fuel+1) (.Block [Stmt.Break]) (Ok evm σ) = Checkpoint (.Break evm σ) := by
+  rw [cons, nil, Break']
+  rfl
+
+/-- **One continue pass** of the padding loop equals `padStep` (both guards
+pass: below the level count, counters still differ). -/
+lemma padBody
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {i om m : Literal}
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hom : (Ok evm σ)["var_oldMaxNodeNumber"]!! = om)
+    (hm : (Ok evm σ)["var_maxNodeNumber"]!! = m)
+    (hbreak : i < evm.sload 0)
+    (hne : om ≠ m)
+    (hb1 : i < evm.sload 2)
+    (hb2 : i < (arrOut evm 2).2.sload 3)
+    (hlen : (((arrOut (arrOut evm 2).2 3).2).sload ((arrOut evm 2).1 + i)).val
+      < 18446744073709551616)
+    (haccB : ((arrOut (arrOut evm 2).2 3).2.lookupAccount
+        (arrOut (arrOut evm 2).2 3).2.execution_env.code_owner).isSome) :
+    exec (fuel+1) (.Block L2InteropCommitmentTree.Common.for_5765234204941653661_body)
+        (Ok evm σ)
+      = Ok (padStep evm i)
+          (Finmap.insert "var_oldMaxNodeNumber" (Fin.shiftRight om 1)
+            (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight m 1)
+              (Finmap.insert "split_expr_8"
+                  ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                (Finmap.insert "split_expr_7"
+                    ((arrOut (arrOut evm 2).2 3).2.sload ((arrOut (arrOut evm 2).2 3).1 + i))
+                  (Finmap.insert "_9" ((arrOut (arrOut evm 2).2 3).1 + i)
+                    (Finmap.insert "_10" 0
+                      (Finmap.insert "_7" ((arrOut evm 2).1 + i)
+                        (Finmap.insert "_8" 0
+                          (Finmap.insert "split_expr_6" 1
+                            (Finmap.insert "split_expr_5" (evm.sload 0) σ)))))))))) := by
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  have home : ∀ e : EVMState, (Ok e σ)["var_oldMaxNodeNumber"]!! = om := fun _ => hom
+  have hme : ∀ e : EVMState, (Ok e σ)["var_maxNodeNumber"]!! = m := fun _ => hm
+  unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_body
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hie, lookup_insert_self_fin]
+  rw [show fromBool (i < evm.sload 0) = (1 : UInt256) from by
+    rw [decide_eq_true hbreak]; rfl]
+  simp only [insert_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMEq']
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), home]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hme]
+  rw [show fromBool (om = m) = (0 : UInt256) from by rw [decide_eq_false hne]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  rw [cons]
+  rw [pushSide_block (i := i)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hie _)
+    hb1 hb2 hlen haccB]
+  rw [cons, nil]
+  rw [divPair_block (om := om) (m := m)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact home _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hme _)]
+  try rfl
+
+/-- **Exit by level count**: the first guard breaks. -/
+lemma padBody_break1
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {i : Literal}
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hstop : ¬ (i < evm.sload 0)) :
+    exec (fuel+1) (.Block L2InteropCommitmentTree.Common.for_5765234204941653661_body)
+        (Ok evm σ)
+      = Checkpoint (.Break evm
+          (Finmap.insert "split_expr_6" 0
+            (Finmap.insert "split_expr_5" (evm.sload 0) σ))) := by
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_body
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hie, lookup_insert_self_fin]
+  rw [show fromBool (i < evm.sload 0) = (0 : UInt256) from by
+    rw [decide_eq_false hstop]; rfl]
+  simp only [insert_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [break_block]
+  rw [cons, exec_checkpoint, cons, exec_checkpoint, cons, nil, exec_checkpoint]
+
+/-- **Exit by counter agreement**: the second guard breaks. -/
+lemma padBody_break2
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {i om m : Literal}
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hom : (Ok evm σ)["var_oldMaxNodeNumber"]!! = om)
+    (hm : (Ok evm σ)["var_maxNodeNumber"]!! = m)
+    (hcont : i < evm.sload 0)
+    (heq : om = m) :
+    exec (fuel+1) (.Block L2InteropCommitmentTree.Common.for_5765234204941653661_body)
+        (Ok evm σ)
+      = Checkpoint (.Break evm
+          (Finmap.insert "split_expr_6" 1
+            (Finmap.insert "split_expr_5" (evm.sload 0) σ))) := by
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  have home : ∀ e : EVMState, (Ok e σ)["var_oldMaxNodeNumber"]!! = om := fun _ => hom
+  have hme : ∀ e : EVMState, (Ok e σ)["var_maxNodeNumber"]!! = m := fun _ => hm
+  unfold _root_.L2InteropCommitmentTree.Common.for_5765234204941653661_body
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  simp only [evm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hie, lookup_insert_self_fin]
+  rw [show fromBool (i < evm.sload 0) = (1 : UInt256) from by
+    rw [decide_eq_true hcont]; rfl]
+  simp only [insert_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMEq']
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), home]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hme]
+  rw [show fromBool (om = m) = (1 : UInt256) from by rw [decide_eq_true heq]; rfl]
+  try simp only [head', List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [break_block]
+  rw [cons, exec_checkpoint, cons, nil, exec_checkpoint]
 
 end
 
