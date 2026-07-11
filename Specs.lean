@@ -305,6 +305,7 @@ import specs.AtomicFlowManager.AtomicFlowManager.no_double_refund_user
 import specs.AtomicFlowManager.AtomicFlowManager.no_theft_refund_user
 import specs.AtomicFlowManager.AtomicFlowManager.imt_path_user
 import specs.AtomicFlowManager.AtomicFlowManager.imt_path_toplevel_user
+import specs.AtomicFlowManager.AtomicFlowManager.inclusion_gate_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x11_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x32_user
 import specs.AtomicFlowManager.AtomicFlowManager.panic_error_0x41_user

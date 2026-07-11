@@ -543,6 +543,27 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   proof array lies in valid memory (`96 ≤ path`, no wraparound), `depth < 2^64`, and fuel
   `≥ 2·depth + 2`.
 
+### 25. Atomic interop — the delivery gate REVERTS on a Merkle root mismatch  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../inclusion_gate_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`inclusion_root_mismatch_reverts`):** the tail of `fun_verifyInclusion` — the
+  `fun_calculateRootMemory` call, the root comparison `var := eq(computedRoot, authenticatedRoot)`,
+  and the guard-if `if cleanup_bool(iszero(var)) { revert }` — ends `reverted = true` whenever the
+  submitted proof does NOT fold to the authenticated root:
+  `foldRoot(evm, proof, depth, 0, index, leafHash).1 ≠ value ⇒ revert`. Supporting closed forms:
+  `gate_if_reverts` (the guard-if), `cleanup_bool_evalCall` (`iszero∘iszero`), `abi7396_call`
+  (the revert-payload encoder is pure memory + returns 68).
+- **Why it matters (spec points 2 and 4):** delivery is accepted ONLY when the submitted Merkle
+  proof folds to exactly the authenticated IMT root. Combined with #24 (`foldRoot` purity) this
+  reduces "no delivery of a leaf outside the committed tree" to the mathematical statement about
+  `foldRoot` preimages — the interpreter is out of the picture. This is the delivered-arm gate of
+  the delivered-XOR-reclaimed exclusivity.
+- **Caveat / trusted base:** **axiom-free** (`#print axioms` = `[propext, Quot.sound,
+  Classical.choice]`) — the revert direction needs only determinism, not keccak injectivity.
+  Stated at the gate level (the 4 tail statements as a block, with the operand bindings as lookup
+  hypotheses); the decode prelude of `verifyInclusion` (authenticateRoot, calldata decodes,
+  commit-value check) is not re-derived. Assumes the `calculateRootMemory` success-path guards; if
+  those fail the inner call itself reverts, so no delivery happens on either branch.
+
 ---
 
 ## Part C — What a reviewer should do
