@@ -276,6 +276,268 @@ lemma updateBody_odd
   rfl
 
 
+/-- One even-index (non-edge) loop level: read the right sibling at `idx + 1`,
+hash `H(cur ‖ sib)`, store the parent. -/
+def stepEven (σ : EVMState) (base i idx cur : UInt256) : UInt256 × EVMState :=
+  ((accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).1,
+   nodeStore (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).2
+     base (i + 1) (Fin.shiftRight idx 1)
+     (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).1)
+
+/-- The even (non-edge) switch arm: zero `expr`, inner max-check switch selects
+the sibling read at `idx + 1`, then hash `H(cur ‖ sib)`. -/
+private lemma arm_even
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {base i idx maxN cur : Literal}
+    (h1 : (Ok evm σ)["_1"]!! = base)
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hmax : (Ok evm σ)["var_maxNodeNumber"]!! = maxN)
+    (hcur : (Ok evm σ)["var_currentHash"]!! = cur)
+    (hne : maxN ≠ idx)
+    (hadd : idx.val + 1 < 2 ^ 256)
+    (hb1 : i < evm.sload base)
+    (hb2 : idx + 1 < (arrOut evm base).2.sload ((arrOut evm base).1 + i)) :
+    exec (fuel+1) (.Block
+        [LetEq "expr" (Lit 0),
+         Switch (PrimCall .Eq [Var "var_maxNodeNumber", Var "var_index"])
+           [(0, [LetCall ["_10", "_11"] storage_array_index_access_bytes32_dyn__dyn
+                   [Var "_1", Var "var_i"],
+                 LetCall ["split_expr_10"] checked_add_uint256 [Var "var_index"],
+                 LetCall ["_12", "_13"] storage_array_index_access_bytes32_dyn__dyn
+                   [Var "_10", Var "split_expr_10"],
+                 LetPrimCall ["split_expr_11"] .Sload [Var "_12"],
+                 AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+                   [Var "split_expr_11", Var "_13"]])]
+           [LetPrimCall ["split_expr_12"] .Add [Var "var_self_slot", Lit 3],
+            LetCall ["_14", "_15"] storage_array_index_access_bytes32_dyn__dyn
+              [Var "split_expr_12", Var "var_i"],
+            LetPrimCall ["split_expr_13"] .Sload [Var "_14"],
+            AssignCall ["expr"] extract_from_storage_value_dynamict_bytes32
+              [Var "split_expr_13", Var "_15"]],
+         AssignCall ["var_currentHash"] fun_efficientHash
+           [Var "var_currentHash", Var "expr"]]) (Ok evm σ)
+      = Ok (accOut (sibRead evm base i (idx + 1)).2 cur (sibRead evm base i (idx + 1)).1).2
+          (Finmap.insert "var_currentHash"
+              (accOut (sibRead evm base i (idx + 1)).2 cur (sibRead evm base i (idx + 1)).1).1
+            (Finmap.insert "expr" (sibRead evm base i (idx + 1)).1
+              (Finmap.insert "split_expr_11" (sibRead evm base i (idx + 1)).1
+                (Finmap.insert "_12"
+                    ((arrOut (arrOut evm base).2 ((arrOut evm base).1 + i)).1 + (idx + 1))
+                  (Finmap.insert "_13" 0
+                    (Finmap.insert "split_expr_10" (idx + 1)
+                      (Finmap.insert "_10" ((arrOut evm base).1 + i)
+                        (Finmap.insert "_11" 0
+                          (Finmap.insert "expr" 0 σ))))))))) := by
+  have h1e : ∀ e : EVMState, (Ok e σ)["_1"]!! = base := fun _ => h1
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  have hidxe : ∀ e : EVMState, (Ok e σ)["var_index"]!! = idx := fun _ => hidx
+  have hmaxe : ∀ e : EVMState, (Ok e σ)["var_maxNodeNumber"]!! = maxN := fun _ => hmax
+  have hcure : ∀ e : EVMState, (Ok e σ)["var_currentHash"]!! = cur := fun _ => hcur
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- the inner max-check switch: eq(maxN, idx) = 0 → case-0 arm (even read)
+  rw [cons, Switch']
+  simp only [evalArgs, evalTail, cons', head', reverse', PrimCall', Lit', Var',
+             execPrimCall, evalPrimCall, List.reverse_cons, List.reverse_nil,
+             List.nil_append, List.singleton_append, EVMEq',
+             execSwitchCases, List.foldr]
+  rw [lookup_insert_ne_fin (by decide), hmaxe]
+  rw [lookup_insert_ne_fin (by decide), hidxe]
+  rw [show fromBool (maxN = idx) = (0 : UInt256) from by
+    rw [decide_eq_false hne]; rfl]
+  simp only [List.head!]
+  -- the selected even-read arm
+  rw [evenRead_block (base := base) (lvl := i) (idx := idx)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact h1e _)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact hie _)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact hidxe _)
+    hadd hb1 hb2]
+  try simp only [if_true]
+  -- the hash: var_currentHash := fun_efficientHash(var_currentHash, expr)
+  rw [cons, nil, AssignCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+  rw [hcure]
+  rw [lookup_insert_self_fin]
+  rw [efficientHash_call_acc]
+  try simp only [insert_Ok]
+
+/-- **One even-index (non-edge) body pass** equals `stepEven`. -/
+lemma updateBody_even
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    {ss base i idx maxN cur : Literal}
+    (hss : (Ok evm σ)["var_self_slot"]!! = ss)
+    (h1 : (Ok evm σ)["_1"]!! = base)
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hidx : (Ok evm σ)["var_index"]!! = idx)
+    (hmax : (Ok evm σ)["var_maxNodeNumber"]!! = maxN)
+    (hcur : (Ok evm σ)["var_currentHash"]!! = cur)
+    (hbreak : i < evm.sload ss)
+    (heven : Fin.land idx 1 = 0)
+    (hne : maxN ≠ idx)
+    (hadd : idx.val + 1 < 2 ^ 256)
+    (hb1 : i < evm.sload base)
+    (hb2 : idx + 1 < (arrOut evm base).2.sload ((arrOut evm base).1 + i))
+    (haddl : i.val + 1 < 2 ^ 256)
+    (hb3 : i + 1
+      < (accOut (sibRead evm base i (idx + 1)).2 cur (sibRead evm base i (idx + 1)).1).2.sload base)
+    (hb4 : Fin.shiftRight idx 1
+      < (arrOut (accOut (sibRead evm base i (idx + 1)).2 cur (sibRead evm base i (idx + 1)).1).2
+            base).2.sload
+          ((arrOut (accOut (sibRead evm base i (idx + 1)).2 cur (sibRead evm base i (idx + 1)).1).2
+              base).1 + (i + 1))) :
+    exec (fuel+1) (.Block L2InteropCommitmentTree.Common.for_4843491680166179088_body)
+        (Ok evm σ)
+      = Ok (stepEven evm base i idx cur).2
+          (Finmap.insert "_18"
+              ((arrOut (arrOut (accOut (sibRead evm base i (idx + 1)).2 cur
+                    (sibRead evm base i (idx + 1)).1).2 base).2
+                  ((arrOut (accOut (sibRead evm base i (idx + 1)).2 cur
+                    (sibRead evm base i (idx + 1)).1).2 base).1 + (i + 1))).1
+                + Fin.shiftRight idx 1)
+            (Finmap.insert "_19" 0
+              (Finmap.insert "_16"
+                  ((arrOut (accOut (sibRead evm base i (idx + 1)).2 cur
+                    (sibRead evm base i (idx + 1)).1).2 base).1 + (i + 1))
+                (Finmap.insert "_17" 0
+                  (Finmap.insert "split_expr_14" (i + 1)
+                    (Finmap.insert "var_maxNodeNumber" (Fin.shiftRight maxN 1)
+                      (Finmap.insert "var_index" (Fin.shiftRight idx 1)
+                        (Finmap.insert "var_currentHash" (stepEven evm base i idx cur).1
+                          (Finmap.insert "expr" (sibRead evm base i (idx + 1)).1
+                            (Finmap.insert "split_expr_11" (sibRead evm base i (idx + 1)).1
+                              (Finmap.insert "_12"
+                                  ((arrOut (arrOut evm base).2 ((arrOut evm base).1 + i)).1
+                                    + (idx + 1))
+                                (Finmap.insert "_13" 0
+                                  (Finmap.insert "split_expr_10" (idx + 1)
+                                    (Finmap.insert "_10" ((arrOut evm base).1 + i)
+                                      (Finmap.insert "_11" 0
+                                        (Finmap.insert "expr" 0
+                                          (Finmap.insert "split_expr_6" (Fin.land idx 1)
+                                            (Finmap.insert "split_expr_5" 1
+                                              (Finmap.insert "split_expr_4" (evm.sload ss)
+                                                σ))))))))))))))))))) := by
+  have hsse : ∀ e : EVMState, (Ok e σ)["var_self_slot"]!! = ss := fun _ => hss
+  have h1e : ∀ e : EVMState, (Ok e σ)["_1"]!! = base := fun _ => h1
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  have hidxe : ∀ e : EVMState, (Ok e σ)["var_index"]!! = idx := fun _ => hidx
+  have hmaxe : ∀ e : EVMState, (Ok e σ)["var_maxNodeNumber"]!! = maxN := fun _ => hmax
+  have hcure : ∀ e : EVMState, (Ok e σ)["var_currentHash"]!! = cur := fun _ => hcur
+  unfold _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_body
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hss]
+  simp only [insert_Ok]
+  rw [show ∀ σ' : VarStore, (Ok evm σ').evm = evm from fun _ => rfl]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hie, lookup_insert_self_fin]
+  rw [show fromBool (i < evm.sload ss) = (1 : UInt256) from by
+    rw [decide_eq_true hbreak]; rfl]
+  simp only [insert_Ok]
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             List.append_assoc, List.cons_append]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hidxe]
+  rw [mod2_call]
+  simp only [insert_Ok]
+  -- the parity switch: scrutinee iszero(land idx 1) = 1 → DEFAULT arm
+  rw [cons, Switch']
+  simp only [evalArgs, evalTail, cons', head', reverse', PrimCall', Lit', Var',
+             execPrimCall, evalPrimCall, List.reverse_cons, List.reverse_nil,
+             List.nil_append, List.singleton_append, EVMIszero',
+             execSwitchCases, List.foldr]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool (Fin.land idx 1 = 0) = (1 : UInt256) from by
+    rw [decide_eq_true heven]; rfl]
+  simp only [List.head!]
+  rw [if_neg (by decide : ¬ ((0 : Literal) = 1))]
+  -- the default arm = the even/edge selector
+  rw [arm_even (base := base) (i := i) (idx := idx) (maxN := maxN) (cur := cur)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact h1e _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hie _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hidxe _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hmaxe _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact hcure _)
+    hne hadd hb1 hb2]
+  try simp only [if_true]
+  -- the div/store prep block
+  rw [cons]
+  rw [divStore_prep_block (base := base) (lvl := i) (idx := idx) (maxN := maxN)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact h1e _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hie _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hidxe _)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hmaxe _)
+    haddl hb3 hb4]
+  -- the store block
+  rw [cons, nil]
+  rw [store_call_block
+    (by rw [lookup_insert_self_fin])
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin])
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_self_fin])]
+  rfl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
