@@ -590,6 +590,26 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
 
+### 30. Atomic interop — ABSTRACT IMT INVARIANT: gap soundness, exclusion, and insert preservation  ★ NEW  ✅ axiom-clean
+`specs/IMTAbstract.lean` *(added 2026-07-11; contract-independent)*
+- **Definitions:** `GapSound s` — every leaf's `nextKey` is a sound gap witness (any strictly larger
+  key in the set is ≥ `nextKey`, and one existing forces `nextKey ≠ 0`); `KeyInj s` — keys identify
+  leaves; `imtInsert s W₀ v` — the IMT insert (retarget the low leaf's `nextKey` to `v`, add
+  `⟨v, W₀.nextKey⟩`).
+- **Claims:** (i) `gap_excludes_member` — in a `GapSound` set, an adjacency window straddling `v`
+  excludes ANY member with key `v` — the CROSS-position exclusivity, abstractly; (ii)
+  `imtInsert_gapSound` + `imtInsert_keyInj` — the insert operation PRESERVES both invariants for a
+  fresh key through a well-formed window. With the trivial empty-tree base case, every tree
+  reachable by inserts is `GapSound` by induction.
+- **Why it matters (spec point 4):** this is the missing mathematical half of
+  delivered-XOR-reclaimed. #29 closed the same-position case unconditionally; #30 closes the
+  cross-position case GIVEN the invariant, and shows the invariant is inductive under exactly the
+  operation the tree-builder performs. The remaining obligation is now purely mechanical: the
+  concrete `L2InteropCommitmentTree` insert path implements `imtInsert` (its low-leaf window check
+  is #26's adjacency condition verbatim), connecting the committed roots to `GapSound` sets.
+- **Caveat / trusted base:** **axiom-free** (pure order theory; `#print axioms` = standard only,
+  no A6′, no EVM semantics).
+
 ### 29. Atomic interop — SAME-POSITION EXCLUSIVITY: member and gap cannot share a slot  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../exclusivity_user.lean` *(added 2026-07-11; PR #2218 contracts)*
 - **Claim (`same_position_member_gap_impossible`):** an inclusion leaf `L` with `L.key = value`
