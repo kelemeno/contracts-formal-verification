@@ -625,8 +625,14 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **Update (same day) — U4 DONE:** `updateLeaf_call` gives the FULL closed form of
   `fun_updateLeaf`: range guard, leaf write (`leafWriteEvm` — the new leaf hash stored at
   position `idx` of level 0), the `updateWalk` recompute, and the new root returned — axiom-free.
-- **Why it matters (spec point 4):** this is the concrete half of the tree-builder arc. With the
-  same treatment of `pushNewLeaf`, the roots the contract publishes become `updateWalk` images — the bridge to showing published roots commit
+- **Update (same day) — `pushNewLeaf` DONE (non-growth path):** `pushNewLeaf_call` gives the full
+  closed form of the append path: count bump, capacity check (growth branch skipped; its three
+  chunks `growA/B/C_block` are separately proven for the growth variant), frontier padding
+  (`pad_loop`/`pad_if` = the pure `padWalk`, dual-exit induction with key preservation), and the
+  root recompute DELEGATING to the proven `updateLeaf_call`. Axiom-free.
+- **Why it matters (spec point 4):** this is the concrete half of the tree-builder arc. Both
+  mutating entry points are now pure functions; the roots the contract publishes are `updateWalk`
+  images — the bridge to showing published roots commit
   only `GapSound` leaf sets (#30), which discharges the exclusivity capstone's one hypothesis.
 - **Caveat / trusted base:** axiom-free (`#print axioms update_loop` = standard three, no
   `sorryAx`, no keccak axioms).
