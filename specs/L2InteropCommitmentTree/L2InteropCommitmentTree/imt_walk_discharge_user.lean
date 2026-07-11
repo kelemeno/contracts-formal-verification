@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakInjective
 import specs.KeccakDistinct
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_update_fold_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_pad_user
 
 /-
   DISCHARGE LAYER (A6″) — the walk slot-stability hypothesis becomes
@@ -251,6 +252,104 @@ lemma updateWalk_sload_low :
       have := hok (j+1) (by omega)
       simpa only [updateWalk] using this)]
     exact updateStep_sload_low hs h0
+
+/-- `sstore` does not touch the collision flag. -/
+private lemma hash_collision_sstore (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).hash_collision = σ.hash_collision := by
+  unfold EVMState.sstore
+  cases h : σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- The innermost hash flag of a padding step (the push's internal slot hash). -/
+def padFinClean (σ : EVMState) (i : UInt256) : Prop :=
+  (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+    ((arrOut σ 2).1 + i)).2.hash_collision = false
+
+/-- **The padding step preserves low slots** (A6″ + frames): both of its
+stores land at keccak-plus-small-offset slots. -/
+lemma padStep_sload_low
+    {σ : EVMState} {i s : UInt256}
+    (hs : s.val < lowSlotBound)
+    (hi : i.val < lowSlotBound)
+    (hlen : (((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i)).val < lowSlotBound)
+    (hfin : padFinClean σ i) :
+    ((padStep σ i).sload s) = σ.sload s := by
+  unfold padFinClean at hfin
+  -- backward cleanliness chain
+  have hE1 : (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).hash_collision = false :=
+    arrOut_clean_backward hfin
+  have hB : ((arrOut (arrOut σ 2).2 3).2).hash_collision = false := by
+    rwa [hash_collision_sstore] at hE1
+  have hA : ((arrOut σ 2).2).hash_collision = false := arrOut_clean_backward hB
+  -- keccak witnesses for the two written slots
+  have hksomeFin := keccakOut_some_of_clean
+    (σ := (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+        ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).mstore 0
+      ((arrOut σ 2).1 + i)) (p := 0) (n := 32) (by exact hfin)
+  have hpairFin : ((((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+        ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).mstore 0
+      ((arrOut σ 2).1 + i)).keccak256 0 32
+      = some ((arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+          ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+          ((arrOut σ 2).1 + i)).1,
+        (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+          ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+          ((arrOut σ 2).1 + i)).2) := by
+    rw [hksomeFin]
+    rfl
+  have hksomeA := keccakOut_some_of_clean
+    (σ := σ.mstore 0 2) (p := 0) (n := 32) (by exact hA)
+  have hpairA : (σ.mstore 0 2).keccak256 0 32
+      = some ((arrOut σ 2).1, (arrOut σ 2).2) := by
+    rw [hksomeA]
+    rfl
+  -- the two stored slots miss `s`
+  have hne1 : (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+      ((arrOut σ 2).1 + i)).1
+      + ((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i) ≠ s :=
+    keccak256_add_ne_lowSlot _ s hpairFin hlen hs
+  have hne2 : (arrOut σ 2).1 + i ≠ s :=
+    keccak256_add_ne_lowSlot i s hpairA hi hs
+  show ((pushEvm (arrOut (arrOut σ 2).2 3).2 ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut (arrOut σ 2).2 3).1 + i))).sload s)
+    = σ.sload s
+  unfold pushEvm
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne1)]
+  rw [sload_arrOut_of_clean s hfin]
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne2)]
+  rw [sload_arrOut_of_clean s hB]
+  rw [sload_arrOut_of_clean s hA]
+
+/-- Per-pass discharge conditions of the padding walk. -/
+def PadLowOK (t : EVMState × UInt256 × UInt256 × UInt256) : Prop :=
+  t.2.1.val < lowSlotBound ∧
+  (((arrOut (arrOut t.1 2).2 3).2).sload ((arrOut t.1 2).1 + t.2.1)).val < lowSlotBound ∧
+  padFinClean t.1 t.2.1
+
+/-- **THE PADDING WALK PRESERVES EVERY LOW SLOT** (A6″). -/
+lemma padWalk_sload_low :
+    ∀ (kk : ℕ) {σ : EVMState} {i om m s : UInt256},
+    s.val < lowSlotBound →
+    (∀ j, j < kk → PadLowOK (padWalk j σ i om m)) →
+    ((padWalk kk σ i om m).1).sload s = σ.sload s := by
+  intro kk
+  induction kk with
+  | zero =>
+    intro σ i om m s _ _
+    rfl
+  | succ kk ih =>
+    intro σ i om m s hs hok
+    have h0 := hok 0 (by omega)
+    simp only [padWalk] at h0 ⊢
+    rw [ih hs (by
+      intro j hj
+      have := hok (j+1) (by omega)
+      simpa only [padWalk] using this)]
+    exact padStep_sload_low hs h0.1 h0.2.1 h0.2.2
 
 end
 
