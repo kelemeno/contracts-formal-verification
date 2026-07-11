@@ -53,7 +53,9 @@ story:**
   commit value the tree stores is injective in the leg, and its closed form is axiom-free); a
   delivered member and a reclaim gap cannot share a position (*#29*) nor coexist in any `GapSound`
   tree (*#30* abstract invariant + insert preservation; capstone
-  `committed_member_gap_impossible`).
+  `committed_member_gap_impossible`), and **never both across time** — on-time membership and a
+  deadline-pinned gap witness for the same leg are jointly impossible along any append-only IMT
+  history with monotone settlement timestamps (*#34*, axiom-free).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -63,7 +65,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-33 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+34 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -614,6 +616,30 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 34. Atomic interop — DELIVERED XOR RECLAIMED, temporal core: never both  ★ NEW  ✅ axiom-clean
+`specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
+- **Claim (`delivered_and_reclaimed_impossible`):** fix an IMT history — an `Evolution`: each
+  snapshot is the previous one or a guarded `imtInsert` (fresh key through a well-formed window,
+  exactly the tree contract's operation) from a `GapSound`/`KeyInj` base — with monotone settlement
+  timestamps `t` and a deadline `D`. Then **delivery evidence** for a commit value `v` (membership
+  in some snapshot settled on time, `t i ≤ D` — what gate #25 demands of every leg) and **reclaim
+  evidence** for the same `v` (a gap witness straddling `v` in the last on-time snapshot, pinned by
+  a successor `D < t (j+1)` — what gate #26 demands of the missing leg) CANNOT coexist. Supporting:
+  `imtInsert_keys_grow` (the insert never removes a key — the erased low leaf returns retargeted,
+  so key sets only grow), `evolution_keys_mono`, and `evolution_invariant` — `GapSound`/`KeyInj`
+  are INDUCTIVE along any evolution (the induction #30 promised, now formal), with the genesis
+  singleton `{⟨0,0⟩}` and the empty base both proven sound.
+- **Why it matters (spec point 4):** this is "never both", the heart of exactly-one-outcome, at
+  the abstract level: on-time membership persists to the pinned snapshot (timestamps monotone force
+  `i ≤ j`; keys only grow), where the gap witness excludes it. Combined with the concrete layers —
+  the gates reduce to `foldRoot` (#24–#26), the root pins the leaf (#27/#28/#32), the leaf pins the
+  leg (#33), and the builder implements guarded inserts (#31 + source-level (B)) — the bridge's
+  central safety property is closed end-to-end modulo the documented (B) glue.
+- **Caveat / trusted base:** **axiom-free** (pure order theory; standard three only). The
+  "append-only + monotone timestamps" hypotheses are protocol facts about settled batches (each
+  root is the predecessor plus inserts; `l1Timestamp` is monotone), matching the source docstring's
+  argument verbatim.
 
 ### 33. Atomic interop — COMMIT-VALUE BINDING: the tree leaf value pins the flow leg  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../commit_binding_user.lean` *(added 2026-07-12; PR #2218 contracts)*
