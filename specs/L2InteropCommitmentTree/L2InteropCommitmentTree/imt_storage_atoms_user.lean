@@ -7,6 +7,10 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x3
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7182708311549001418
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_8692170500034331446
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mod_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_add_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
 
 import specs.KeccakDeterminism
 
@@ -395,6 +399,216 @@ lemma storage_array_index_call
   rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
   rw [setStore_ok]
   simp only [multifill_cons, multifill_nil, insert_Ok]
+
+/-- Closed form of `mod_uint256(x)`: pure, returns `x & 1` (parity). -/
+lemma mod2_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {x : Literal} {v : Identifier} :
+    execCall (fuel+1) mod_uint256 [v] (Ok evm store, [x])
+      = (Ok evm store)⟦v ↦ Fin.land x 1⟧ := by
+  unfold execCall call mod_uint256
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  simp only [cons, nil]
+  simp only [LetEq', Assign', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMAnd']
+  simp only [multifill_cons, multifill_nil]
+  have hok0 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧) := isOk_initcall_of_isOk trivial
+  have hx : ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧)["x"]!! = x := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_1
+  rw [hx]
+  have hok2 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧) := by
+    rw [isOk_insert, isOk_insert]; exact hok0
+  have hin_ok : isOk ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧⟦"r" ↦ Fin.land x 1⟧) := by
+    rw [isOk_insert]; exact hok2
+  rw [lookup_insert' hok2]
+  rw [reviveJump_of_isOk hin_ok]
+  simp only [overwrite?_of_Ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = evm := by
+    have h := congrArg State.evm hi
+    simp only [evm_insert] at h
+    rw [show ((Ok evm store)☎️⟦["x"], [x]⟧).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at h
+    exact h.symm
+  rw [hi, setStore_ok, hi_evm]
+
+/-- Closed form of `checked_div_uint256(x)`: pure, returns `x >> 1`. -/
+lemma div2_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {x : Literal} {v : Identifier} :
+    execCall (fuel+1) checked_div_uint256 [v] (Ok evm store, [x])
+      = (Ok evm store)⟦v ↦ Fin.shiftRight x 1⟧ := by
+  unfold execCall call checked_div_uint256
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  simp only [cons, nil]
+  simp only [LetEq', Assign', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMShr']
+  simp only [multifill_cons, multifill_nil]
+  have hok0 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧) := isOk_initcall_of_isOk trivial
+  have hx : ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧)["x"]!! = x := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_1
+  rw [hx]
+  have hok2 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧) := by
+    rw [isOk_insert, isOk_insert]; exact hok0
+  have hin_ok : isOk ((Ok evm store)☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧⟦"_1" ↦ 0⟧⟦"r" ↦ Fin.shiftRight x 1⟧) := by
+    rw [isOk_insert]; exact hok2
+  rw [lookup_insert' hok2]
+  rw [reviveJump_of_isOk hin_ok]
+  simp only [overwrite?_of_Ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = evm := by
+    have h := congrArg State.evm hi
+    simp only [evm_insert] at h
+    rw [show ((Ok evm store)☎️⟦["x"], [x]⟧).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at h
+    exact h.symm
+  rw [hi, setStore_ok, hi_evm]
+
+/-- Closed form of `checked_add_uint256(x)` (no-overflow case): `x + 1`. -/
+lemma checked_add_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {x : Literal} {v : Identifier}
+    (hx : x.val + 1 < 2 ^ 256) :
+    execCall (fuel+1) checked_add_uint256 [v] (Ok evm store, [x])
+      = (Ok evm store)⟦v ↦ x + 1⟧ := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hsucc : (x + 1).val = x.val + 1 := by
+    rw [Fin.val_add, show ((1 : UInt256)).val = 1 from by decide]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hngt : ¬ (x > x + 1) := by
+    intro h
+    have : (x + 1).val < x.val := h
+    omega
+  unfold execCall call checked_add_uint256
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, nil]
+  simp only [LetEq', Assign', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMAdd']
+  simp only [multifill_cons, multifill_nil]
+  have hok0 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧) := isOk_initcall_of_isOk trivial
+  rw [lookup_initcall_1]
+  -- the overflow guard is skipped
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMGt']
+  have hxs : ((Ok evm store)☎️⟦["x"], [x]⟧⟦"sum" ↦ x + 1⟧)["x"]!! = x := by
+    rw [lookup_insert_of_ne (by decide)]; exact lookup_initcall_1
+  have hsum : ((Ok evm store)☎️⟦["x"], [x]⟧⟦"sum" ↦ x + 1⟧)["sum"]!! = x + 1 :=
+    lookup_insert' hok0
+  rw [hxs, hsum]
+  rw [show fromBool (x > x + 1) = (0 : UInt256) from by rw [decide_eq_false hngt]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- rets + call wrapper
+  have hok2 : isOk ((Ok evm store)☎️⟦["x"], [x]⟧⟦"sum" ↦ x + 1⟧) := by
+    rw [isOk_insert]; exact hok0
+  rw [hsum]
+  rw [reviveJump_of_isOk hok2]
+  try simp only [overwrite?_of_Ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hok2
+  have hi_evm : ei = evm := by
+    have h := congrArg State.evm hi
+    simp only [evm_insert] at h
+    rw [show ((Ok evm store)☎️⟦["x"], [x]⟧).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at h
+    exact h.symm
+  rw [hi, setStore_ok, hi_evm]
+  try simp only [multifill_cons, multifill_nil]
+
+/-- Closed form of `checked_sub_uint256(x)` (`x ≠ 0`): `x - 1`. -/
+lemma checked_sub_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {x : Literal} {v : Identifier}
+    (hx : x ≠ 0) :
+    execCall (fuel+1) checked_sub_uint256 [v] (Ok evm store, [x])
+      = Ok evm (Finmap.insert v (x - 1) store) := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hxpos : 0 < x.val := by
+    rcases Nat.eq_zero_or_pos x.val with h0 | h
+    · exact absurd (Fin.ext (by rw [h0]; rfl) : x = 0) hx
+    · exact h
+  have hM : ((115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256)).val = 2 ^ 256 - 1 := by decide
+  have hsub : (x + (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256)).val = x.val - 1 := by
+    rw [Fin.val_add, hM]
+    rw [show x.val + (2 ^ 256 - 1) = (x.val - 1) + 2 ^ 256 from by omega]
+    rw [show (2 : ℕ) ^ 256 = UInt256.size from by norm_num]
+    rw [Nat.add_mod_right]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hsub1 : x + (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256) = x - 1 := by
+    apply Fin.ext
+    rw [hsub]
+    have hv : (x - 1).val = (x.val + (UInt256.size - ((1 : UInt256)).val)) % UInt256.size := rfl
+    rw [hv, show ((1 : UInt256)).val = 1 from by decide]
+    rw [show x.val + (UInt256.size - 1) = (x.val - 1) + UInt256.size from by omega]
+    rw [Nat.add_mod_right]
+    exact (Nat.mod_eq_of_lt (by omega)).symm
+  have hngt : ¬ (x + (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256) > x) := by
+    intro h
+    have hlt : x.val < (x + (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256)).val := h
+    omega
+  unfold execCall call checked_sub_uint256
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  set s0 := (Ok evm store)☎️⟦["x"], [x]⟧ with hs0
+  have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
+  have hevm0 : s0.evm = evm := by
+    rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hp1 : s0["x"]!! = x := by rw [hs0]; exact lookup_initcall_1
+  obtain ⟨e0, σ0, hs0eq⟩ := State_of_isOk hok0
+  have he0' : e0 = evm := by
+    have h := congrArg State.evm hs0eq
+    rw [hevm0] at h; exact h.symm
+  subst e0
+  rw [hs0eq] at hp1 ⊢
+  -- statement 1: split_expr_0 := not(0)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMNot', multifill_cons, multifill_nil, insert_Ok]
+  rw [show (UInt256.lnot 0 : UInt256) = (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256) from by decide]
+  -- statement 2: diff := add(x, split_expr_0)
+  rw [cons, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMAdd', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hp1, lookup_insert_self_fin]
+  rw [hsub1]
+  simp only [insert_Ok]
+  -- statement 3: the underflow guard is skipped
+  rw [cons, nil, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMGt']
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hp1]
+  rw [show fromBool (x - 1 > x) = (0 : UInt256) from by
+    rw [decide_eq_false (by rw [← hsub1]; exact hngt)]; rfl]
+  try simp only [head', List.head!]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+  try simp only [overwrite?_of_Ok]
+  -- rets + call wrapper
+  rw [lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  try simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  try simp only [multifill_cons, multifill_nil, insert_Ok]
 
 end
 
