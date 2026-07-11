@@ -645,11 +645,14 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **The remaining distance to the capstone (delivered-XOR-reclaimed), precisely:** the capstone
   (#29 file) needs "committed leaves abstract into a `GapSound` set". With the builder now fully
   closed-form, this decomposes into exactly two obligations:
-  **(A) builder–verifier agreement** *(in-corpus, provable)*: after a walk, the stored root
-  verifies the written leaf — `foldRoot` over the walk's sibling values reproduces the walk root.
-  Both sides iterate the same pair hash with the same orientation; the proof needs the
-  keccak-determinism replay machinery (cache coherence across the two evms), which exists
-  (`efficientHash_deterministic`) and must be threaded through the induction.
+  **(A) builder–verifier agreement — DONE** (`imt_agreement_user.lean`, axiom-free):
+  `fold_walk_agree` — if, level by level, the verifier fold reads the walk's sibling, the walk's
+  pair-hash cache entry is transported into the verifier evm, and the two memories agree on the
+  scratch junk window `[64, 95)`, then the fold REPRODUCES the walk's node chain (and leaves its
+  cache and junk window untouched, so the hits chain). With `foldWalk_foldRoot` this is exactly
+  "`foldRoot` over the walk's siblings = the walk root". Supporting: one-level cross-evm cache-hit
+  agreement (`accOut_agree`), walk cache monotonicity (`updateWalk_lookup_mono` — every level's
+  entry survives to the final cache), and the junk/path invariance frames.
   **(B) the insert protocol** *(outside the compiled corpus — an explicit hypothesis)*: the
   caller composing `updateLeaf`+`pushNewLeaf` performs the IMT insert (retarget the low leaf,
   append `⟨v, oldNext⟩`). No compiled function in the corpus calls the builder (checked: nothing

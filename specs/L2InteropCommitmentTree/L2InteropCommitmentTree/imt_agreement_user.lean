@@ -179,6 +179,171 @@ lemma updateWalk_lookup_mono :
     simp only [updateWalk]
     exact ih (updateStep_lookup_mono hI)
 
+/-- The walk's pre-hash evm at one level (post sibling read, dispatched). -/
+def walkPreHash (ss base : UInt256)
+    (t : EVMState × UInt256 × UInt256 × UInt256 × UInt256) : EVMState :=
+  if Fin.land t.2.2.1 1 = 0 then
+    (if t.2.2.2.1 = t.2.2.1 then (sideRead t.1 (ss + 3) t.2.1).2
+     else (sibRead t.1 base t.2.1 (t.2.2.1 + 1)).2)
+  else (sibRead t.1 base t.2.1 (t.2.2.1 - 1)).2
+
+/-- The pair hashed at one walk level, in fold orientation `(a, b)`. -/
+def walkPair (ss base : UInt256)
+    (t : EVMState × UInt256 × UInt256 × UInt256 × UInt256) : UInt256 × UInt256 :=
+  if Fin.land t.2.2.1 1 = 0 then (t.2.2.2.2, walkSib ss base t)
+  else (walkSib ss base t, t.2.2.2.2)
+
+/-- The scratch `mstore`s preserve the junk window `[64, 95)`. -/
+private lemma mstore_junk {σ : EVMState} {a v : UInt256} {i : UInt256}
+    (ha : a.val + 32 ≤ 64) (hi : 64 ≤ i.val) :
+    Finmap.lookup i (σ.mstore a v).machine_state.memory
+      = Finmap.lookup i σ.machine_state.memory := by
+  apply lookup_updateMemory_outside_val
+  · omega
+  · right
+    omega
+
+/-- **THE AGREEMENT INDUCTION.**  If, level by level, the verifier fold reads
+the walk's sibling, the walk's pair-hash entry is in the verifier's cache
+(interval over the walk's pre-hash memory), and the two memories agree on the
+junk window, then the fold reproduces the walk's node chain — and the fold
+leaves its cache and junk window untouched. -/
+theorem fold_walk_agree :
+    ∀ (k : ℕ) {σv σw : EVMState} {p iv : UInt256}
+      {ss base iw idx maxN cur : UInt256},
+    (∀ j, j < k →
+      (foldWalk p j σv iv idx cur).1.mload
+          ((p + Fin.shiftLeft (foldWalk p j σv iv idx cur).2.1 5) + 32)
+        = walkSib ss base (updateWalk ss base j σw iw idx maxN cur)) →
+    (∀ j, j < k →
+      Finmap.lookup
+        (accInterval (walkPreHash ss base (updateWalk ss base j σw iw idx maxN cur))
+          (walkPair ss base (updateWalk ss base j σw iw idx maxN cur)).1
+          (walkPair ss base (updateWalk ss base j σw iw idx maxN cur)).2)
+        σv.keccak_map
+      = some (walkHash ss base (updateWalk ss base j σw iw idx maxN cur)).1) →
+    (∀ j, j < k → ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i σv.machine_state.memory
+        = Finmap.lookup i
+            (walkPreHash ss base (updateWalk ss base j σw iw idx maxN cur)).machine_state.memory) →
+    (foldWalk p k σv iv idx cur).2.2.2
+        = (updateWalk ss base k σw iw idx maxN cur).2.2.2.2
+      ∧ (foldWalk p k σv iv idx cur).1.keccak_map = σv.keccak_map
+      ∧ (∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+          Finmap.lookup i (foldWalk p k σv iv idx cur).1.machine_state.memory
+            = Finmap.lookup i σv.machine_state.memory) := by
+  intro k
+  induction k with
+  | zero =>
+    intro σv σw p iv ss base iw idx maxN cur _ _ _
+    exact ⟨rfl, rfl, fun _ _ _ => rfl⟩
+  | succ k ih =>
+    intro σv σw p iv ss base iw idx maxN cur hsib hcached hjunk
+    have hsib0 := hsib 0 (by omega)
+    have hcached0 := hcached 0 (by omega)
+    have hjunk0 := hjunk 0 (by omega)
+    simp only [foldWalk, updateWalk] at hsib0 hcached0 hjunk0 ⊢
+    -- the level-0 fold hash is a cache hit returning the walk's node
+    have hagree :
+        (if Fin.land idx 1 = 0
+          then accOut σv cur (σv.mload ((p + Fin.shiftLeft iv 5) + 32))
+          else accOut σv (σv.mload ((p + Fin.shiftLeft iv 5) + 32)) cur)
+        = ((walkHash ss base (σw, iw, idx, maxN, cur)).1,
+           (if Fin.land idx 1 = 0
+            then (σv.mstore 0 cur).mstore 32 (σv.mload ((p + Fin.shiftLeft iv 5) + 32))
+            else (σv.mstore 0 (σv.mload ((p + Fin.shiftLeft iv 5) + 32))).mstore 32 cur)) := by
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar, if_pos hpar]
+        rw [hsib0]
+        have := accOut_agree (σw := walkPreHash ss base (σw, iw, idx, maxN, cur))
+          (a := cur) (b := walkSib ss base (σw, iw, idx, maxN, cur))
+          (r := (walkHash ss base (σw, iw, idx, maxN, cur)).1)
+          hjunk0
+          (by
+            have h := hcached0
+            unfold walkPair at h
+            rw [if_pos hpar] at h
+            exact h)
+        rw [this]
+      · rw [if_neg hpar, if_neg hpar]
+        rw [hsib0]
+        have := accOut_agree (σw := walkPreHash ss base (σw, iw, idx, maxN, cur))
+          (a := walkSib ss base (σw, iw, idx, maxN, cur)) (b := cur)
+          (r := (walkHash ss base (σw, iw, idx, maxN, cur)).1)
+          hjunk0
+          (by
+            have h := hcached0
+            unfold walkPair at h
+            rw [if_neg hpar] at h
+            exact h)
+        rw [this]
+    -- the walk's next node equals its level hash
+    have hwstep : (updateStep σw ss base iw idx maxN cur).1
+        = (walkHash ss base (σw, iw, idx, maxN, cur)).1 := by
+      unfold updateStep walkHash
+      by_cases hpar : Fin.land idx 1 = 0
+      · by_cases hedge : maxN = idx
+        · rw [if_pos hpar, if_pos hedge, if_pos hpar, if_pos hedge]
+          rfl
+        · rw [if_pos hpar, if_neg hedge, if_pos hpar, if_neg hedge]
+          rfl
+      · rw [if_neg hpar, if_neg hpar]
+        rfl
+    rw [hagree]
+    -- the fold's next base state: cache and junk of σv preserved (mstores only)
+    set σv' := (if Fin.land idx 1 = 0
+        then (σv.mstore 0 cur).mstore 32 (σv.mload ((p + Fin.shiftLeft iv 5) + 32))
+        else (σv.mstore 0 (σv.mload ((p + Fin.shiftLeft iv 5) + 32))).mstore 32 cur)
+      with hσv'
+    have hcachev' : σv'.keccak_map = σv.keccak_map := by
+      rw [hσv']
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar]
+        rfl
+      · rw [if_neg hpar]
+        rfl
+    have hjunkv' : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+        Finmap.lookup i σv'.machine_state.memory
+          = Finmap.lookup i σv.machine_state.memory := by
+      intro i hi hi'
+      rw [hσv']
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar]
+        rw [mstore_junk (by decide) hi, mstore_junk (by decide) hi]
+      · rw [if_neg hpar]
+        rw [mstore_junk (by decide) hi, mstore_junk (by decide) hi]
+    -- apply the IH at the shifted states
+    have := ih (σv := σv') (σw := (updateStep σw ss base iw idx maxN cur).2)
+      (p := p) (iv := iv + 1) (ss := ss) (base := base) (iw := iw + 1)
+      (idx := Fin.shiftRight idx 1) (maxN := Fin.shiftRight maxN 1)
+      (cur := (walkHash ss base (σw, iw, idx, maxN, cur)).1)
+      (by
+        intro j hj
+        have h := hsib (j+1) (by omega)
+        simp only [foldWalk, updateWalk] at h
+        rw [hagree, hwstep] at h
+        exact h)
+      (by
+        intro j hj
+        have h := hcached (j+1) (by omega)
+        simp only [updateWalk] at h
+        rw [hwstep] at h
+        rw [hcachev']
+        exact h)
+      (by
+        intro j hj i hi hi'
+        have h := hjunk (j+1) (by omega)
+        simp only [updateWalk] at h
+        rw [hwstep] at h
+        rw [hjunkv' i hi hi']
+        exact h i hi hi')
+    obtain ⟨hval, hcache, hjunkf⟩ := this
+    rw [hwstep]
+    refine ⟨hval, ?_, ?_⟩
+    · rw [hcache, hcachev']
+    · intro i hi hi'
+      rw [hjunkf i hi hi', hjunkv' i hi hi']
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
