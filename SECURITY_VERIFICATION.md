@@ -641,6 +641,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   guards are stated over their verbatim statement blocks with variable-lookup hypotheses; stitching
   them through the full `fun_verifyTimeoutAdjacency` body (through `authenticateRoot`'s closed
   form) is the remaining composition step.
+- **Update (same day) — the DELIVERY side:** `fun_verifyInclusion`'s two guards, same both-ways
+  treatment: `delivery_ontime_pass`/`delivery_late_reverts` — the membership batch guard falls
+  through iff `t ≤ D̂` (the uint64-masked deadline; #34's delivery-side premise — a commit cannot
+  be back-dated past the deadline), and `value_match_pass`/`value_mismatch_reverts` — the proof's
+  leaf field 0 must EQUAL the leg's commit value (the concrete hook for #33's binding: no
+  substitution of what is being delivered). Both axiom-free. All four temporal guards of the two
+  gates are now verified in both directions.
 
 ### 35. Atomic interop — RECLAIM LIVENESS: a gap witness always exists for an absent leg  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
