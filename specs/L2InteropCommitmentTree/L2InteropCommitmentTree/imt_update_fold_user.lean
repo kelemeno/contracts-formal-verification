@@ -779,6 +779,86 @@ lemma updateBody_edge
             lookup_insert_ne_fin (by decide), lookup_insert_self_fin])]
   rfl
 
+/-! ## U3d — the loop as an iterated pure walk -/
+
+/-- Statements are the identity on checkpoint states. -/
+private lemma exec_checkpoint {c : Jump} {fuel : ℕ} {stmt : Stmt} :
+    exec fuel stmt (Checkpoint c) = Checkpoint c := by
+  have h := Clear.JumpLemmas.exec_Jump (c := c) (s := Checkpoint c) (fuel := fuel) (stmt := stmt) rfl
+  rcases hres : exec fuel stmt (Checkpoint c) with _ | _ | c'
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h
+    have : c = c' := h
+    rw [this]
+
+/-- A lone `break` block checkpoints the state. -/
+private lemma break_block {fuel : ℕ} {evm : EVMState} {σ : VarStore} :
+    exec (fuel+1) (.Block [Stmt.Break]) (Ok evm σ) = Checkpoint (.Break evm σ) := by
+  rw [cons, nil, Break']
+  rfl
+
+/-- The per-level step, dispatching odd / even / edge. -/
+def updateStep (σ : EVMState) (ss base i idx maxN cur : UInt256) : UInt256 × EVMState :=
+  if Fin.land idx 1 = 0 then
+    (if maxN = idx then stepEdge σ ss base i idx cur else stepEven σ base i idx cur)
+  else stepOdd σ base i idx cur
+
+/-- The full walk state after `j` levels: `(evm, i, idx, maxN, cur)`. -/
+def updateWalk (ss base : UInt256) :
+    ℕ → EVMState → UInt256 → UInt256 → UInt256 → UInt256
+      → EVMState × UInt256 × UInt256 × UInt256 × UInt256
+  | 0, σ, i, idx, maxN, cur => (σ, i, idx, maxN, cur)
+  | (j+1), σ, i, idx, maxN, cur =>
+      updateWalk ss base j (updateStep σ ss base i idx maxN cur).2 (i + 1)
+        (Fin.shiftRight idx 1) (Fin.shiftRight maxN 1)
+        (updateStep σ ss base i idx maxN cur).1
+
+/-- **The break pass**: when the level counter has reached the level count,
+the body breaks out immediately (only the two probe lets execute). -/
+lemma updateBody_break
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {ss i : Literal}
+    (hss : (Ok evm σ)["var_self_slot"]!! = ss)
+    (hi : (Ok evm σ)["var_i"]!! = i)
+    (hstop : ¬ (i < evm.sload ss)) :
+    exec (fuel+1) (.Block L2InteropCommitmentTree.Common.for_4843491680166179088_body)
+        (Ok evm σ)
+      = Checkpoint (.Break evm
+          (Finmap.insert "split_expr_5" 0
+            (Finmap.insert "split_expr_4" (evm.sload ss) σ))) := by
+  have hie : ∀ e : EVMState, (Ok e σ)["var_i"]!! = i := fun _ => hi
+  unfold _root_.L2InteropCommitmentTree.Common.for_4843491680166179088_body
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMSload', multifill_cons, multifill_nil]
+  rw [hss]
+  simp only [insert_Ok]
+  rw [show ∀ σ' : VarStore, (Ok evm σ').evm = evm from fun _ => rfl]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append,
+             EVMLt', multifill_cons, multifill_nil]
+  rw [lookup_insert_ne_fin (by decide), hie, lookup_insert_self_fin]
+  rw [show fromBool (i < evm.sload ss) = (0 : UInt256) from by
+    rw [decide_eq_false hstop]; rfl]
+  simp only [insert_Ok]
+  -- the break-if fires
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [head', List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [break_block]
+  -- the remaining statements pass the checkpoint through
+  rw [cons, exec_checkpoint, cons, exec_checkpoint, cons, exec_checkpoint,
+      cons, nil, exec_checkpoint]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
