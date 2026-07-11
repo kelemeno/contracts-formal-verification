@@ -564,6 +564,25 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   commit-value check) is not re-derived. Assumes the `calculateRootMemory` success-path guards; if
   those fail the inner call itself reverts, so no delivery happens on either branch.
 
+### 26. Atomic interop — the reclaim arm's absence witness is a pure fold  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../noninclusion_gate_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`verifyNonInclusion_call`):** the WHOLE of `fun_verifyNonInclusion` (success path) has the
+  closed form: given a well-formed IMT adjacency window — `lowLeaf.key < value` and
+  (`lowLeaf.nextKey = 0` ∨ `value < lowLeaf.nextKey`), both window shapes proven — the function
+  returns exactly `eq(foldRoot(proof, index, hashLeaf(lowLeaf)), root)`. The absence witness is
+  accepted **iff the adjacency leaf genuinely folds to the authenticated root**. Covers all three
+  require-guards, both branches of the conditional window check (`window_body`), and the full
+  call wire-up; the `fun_hashLeaf` step is abstracted as a pure-call hypothesis `hhl` (its closed
+  form is proven for the byte-identical L2InteropCommitmentTree copy and ports next).
+- **Why it matters (spec points 3 and 4):** a reclaim (timeout/refund) is authorized only against a
+  *non-inclusion* proof — this theorem reduces that gate to the same pure `foldRoot` as the delivery
+  gate (#25). Both arms of delivered-XOR-reclaimed now sit on one mathematical object: exclusivity
+  becomes "no leaf can fold to the root both as present (inclusion) and inside an adjacency gap
+  (absence)" — an IMT statement, with the interpreter fully discharged.
+- **Caveat / trusted base:** **axiom-free** (`#print axioms` = `[propext, Quot.sound,
+  Classical.choice]`). Success-path form: the revert directions of the three witness guards are
+  not yet stated (each is a small `gate_if_reverts`-style corollary if needed).
+
 ---
 
 ## Part C — What a reviewer should do
