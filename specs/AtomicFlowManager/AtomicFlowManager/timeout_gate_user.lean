@@ -439,6 +439,223 @@ theorem adjacency_gap_reverts
   rw [lookup_insert_self_fin]
   rfl
 
+/-! ### The DELIVERY side — `verifyInclusion`'s deadline and value guards
+
+The delivery gate's `t i ≤ D` premise of #34, and the leaf-field binding the
+commit-value chain (#33) hooks into, quoted verbatim from
+`fun_verifyInclusion`'s compiled body. -/
+
+/-- The delivery-deadline guard: mask the deadline to `uint64`, revert if the
+membership batch settled past it. -/
+private def delGuard : Stmt := <s
+  {
+    let split_expr_2 := and(var_deadline, 18446744073709551615)
+    if gt(expr_component_2, split_expr_2)
+    {
+        let split_expr_3 := shl(227, 86127855)
+        mstore(0, split_expr_3)
+        let split_expr_4 := abi_encode_uint256_uint64(expr_component_2, var_deadline)
+        revert(0, split_expr_4)
+    }
+}
+>
+
+/-- The commit-value guard: the proof's leaf field 0 must BE the leg's commit
+value, else revert. -/
+private def valGuard : Stmt := <s
+  {
+    let split_expr_11 := eq(_1, var_commitValue)
+    if iszero(split_expr_11)
+    {
+        let split_expr_12 := shl(225, 830242801)
+        mstore(0, split_expr_12)
+        mstore(4, var_commitValue)
+        mstore(36, _1)
+        revert(0, 68)
+    }
+}
+>
+
+/-! ### Guard 4 — the delivery batch is on time -/
+
+/-- **PASS**: `t ≤ D̂` — the membership batch settled on time; the pair
+records the masked deadline and falls through. -/
+theorem delivery_ontime_pass
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {t D : Literal}
+    (ht : (Ok evm store)["expr_component_2"]!! = t)
+    (hD : (Ok evm store)["var_deadline"]!! = D)
+    (hle : ¬ (Fin.land D 18446744073709551615 < t)) :
+    exec (fuel+1) delGuard (Ok evm store)
+      = Ok evm (store.insert "split_expr_2" (Fin.land D 18446744073709551615)) := by
+  unfold delGuard
+  simp only [cons, nil]
+  rw [LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAnd']
+  rw [hD]
+  simp only [insert_Ok]
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMGt']
+  rw [lookup_insert_ne_fin (by decide), ht, lookup_insert_self_fin]
+  rw [show fromBool (t > Fin.land D 18446744073709551615) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hle, if_false]]
+  simp only [List.head!]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **REVERT**: `D̂ < t` — the membership batch is late; delivery evidence
+cannot be back-dated past the deadline. -/
+theorem delivery_late_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {t D : Literal}
+    (ht : (Ok evm store)["expr_component_2"]!! = t)
+    (hD : (Ok evm store)["var_deadline"]!! = D)
+    (hlt : Fin.land D 18446744073709551615 < t) :
+    (exec (fuel+1) delGuard (Ok evm store)).evm.reverted = true := by
+  unfold delGuard
+  simp only [cons, nil]
+  rw [LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAnd']
+  rw [hD]
+  simp only [insert_Ok]
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMGt']
+  rw [lookup_insert_ne_fin (by decide), ht, lookup_insert_self_fin]
+  rw [show fromBool (t > Fin.land D 18446744073709551615) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true hlt, if_true]]
+  simp only [List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [abi64_call]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMRevert',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rfl
+
+/-! ### Guard 5 — the proven leaf IS the leg's commit value -/
+
+/-- **PASS**: leaf field 0 equals the commit value; the pair records the
+(true) comparison and falls through. -/
+theorem value_match_pass
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {l0 cv : Literal}
+    (h1 : (Ok evm store)["_1"]!! = l0)
+    (hcv : (Ok evm store)["var_commitValue"]!! = cv)
+    (heq : l0 = cv) :
+    exec (fuel+1) valGuard (Ok evm store)
+      = Ok evm (store.insert "split_expr_11" 1) := by
+  unfold valGuard
+  simp only [cons, nil]
+  rw [LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMEq']
+  rw [h1, hcv]
+  rw [show fromBool (l0 = cv) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true heq, if_true]]
+  simp only [insert_Ok]
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  simp only [List.head!]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **REVERT**: the proof carries a DIFFERENT leaf than the leg's commit
+value — no substitution of what is being delivered. -/
+theorem value_mismatch_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {l0 cv : Literal}
+    (h1 : (Ok evm store)["_1"]!! = l0)
+    (hcv : (Ok evm store)["var_commitValue"]!! = cv)
+    (hne : l0 ≠ cv) :
+    (exec (fuel+1) valGuard (Ok evm store)).evm.reverted = true := by
+  unfold valGuard
+  simp only [cons, nil]
+  rw [LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMEq']
+  rw [h1, hcv]
+  rw [show fromBool (l0 = cv) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hne, if_false]]
+  simp only [insert_Ok]
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  simp only [List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMRevert',
+             evm_Ok, setEvm_Ok]
+  rfl
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager
