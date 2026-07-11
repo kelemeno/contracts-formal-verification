@@ -636,6 +636,27 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   only `GapSound` leaf sets (#30), which discharges the exclusivity capstone's one hypothesis.
 - **Caveat / trusted base:** axiom-free (`#print axioms update_loop` = standard three, no
   `sorryAx`, no keccak axioms).
+- **Update (same day) — the discharge layer:** the walks' slot-stability packs are DISCHARGED
+  (`imt_walk_discharge_user.lean`): memory writes and keccak steps provably never touch storage
+  (frame lemmas over the model), and every per-level store lands at `keccak(…)+j` which misses all
+  reserved low slots by the A6″ spread axiom (`keccak256_add_ne_lowSlot`, added to the sanctioned
+  family). `updateWalk_sload_low` + `padWalk_sload_low`: both builder walks preserve every low
+  slot, given only collision-freeness flags and `2³²` offset bounds.
+- **The remaining distance to the capstone (delivered-XOR-reclaimed), precisely:** the capstone
+  (#29 file) needs "committed leaves abstract into a `GapSound` set". With the builder now fully
+  closed-form, this decomposes into exactly two obligations:
+  **(A) builder–verifier agreement** *(in-corpus, provable)*: after a walk, the stored root
+  verifies the written leaf — `foldRoot` over the walk's sibling values reproduces the walk root.
+  Both sides iterate the same pair hash with the same orientation; the proof needs the
+  keccak-determinism replay machinery (cache coherence across the two evms), which exists
+  (`efficientHash_deterministic`) and must be threaded through the induction.
+  **(B) the insert protocol** *(outside the compiled corpus — an explicit hypothesis)*: the
+  caller composing `updateLeaf`+`pushNewLeaf` performs the IMT insert (retarget the low leaf,
+  append `⟨v, oldNext⟩`). No compiled function in the corpus calls the builder (checked: nothing
+  references `fun_pushNewLeaf`/`fun_updateLeaf`); the composition lives in the calling contract
+  outside the verified subset. Under (B), #30's `imtInsert_gapSound` gives the invariant by
+  induction from the empty tree, and with (A) + #27/#28 the capstone's `habs` hypothesis is
+  satisfied — completing spec point 4.
 
 ### 30. Atomic interop — ABSTRACT IMT INVARIANT: gap soundness, exclusion, and insert preservation  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-11; contract-independent)*
