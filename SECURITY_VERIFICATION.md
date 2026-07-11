@@ -564,6 +564,26 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   commit-value check) is not re-derived. Assumes the `calculateRootMemory` success-path guards; if
   those fail the inner call itself reverts, so no delivery happens on either branch.
 
+### 27. Atomic interop — MERKLE PATH BINDING: the committed root pins every position  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../merkle_binding_user.lean` *(added 2026-07-11; PR #2218 contracts)*
+- **Claim (`foldRoot_binding`):** two collision-free `foldRoot` computations at the SAME index that
+  reach the SAME root carry the SAME leaf — the proof arrays, memory states and level counters may
+  all differ; only index and root are shared. Supporting results: `accOut_inj` (the pair hash
+  `keccak(a‖b)` pins BOTH children — equal outputs force equal 64-byte preimages, extracted at
+  words 0 and 32), and `foldRoot_clean_backward` (the collision flag is monotone through the fold,
+  so end-state cleanliness certifies every step).
+- **Why it matters (spec points 2 and 4):** with #24–#26 the two verification gates are pure
+  `foldRoot` statements; this theorem makes the committed root a BINDING commitment: each tree
+  position holds exactly one leaf value, so a delivery cannot smuggle a substituted leaf through a
+  valid-looking proof at the same position. It is the per-position half of delivered-XOR-reclaimed;
+  the remaining cross-position half (an inclusion leaf for `value` vs an adjacency window
+  straddling `value` cannot coexist in one root) sits on top of this plus the IMT sortedness
+  invariant of the tree-builder.
+- **Caveat / trusted base:** uses **A6′** (`#print axioms` = `[propext, Quot.sound,
+  Classical.choice, keccak256_inj]`, no `sorryAx`) — collision resistance idealized as injectivity,
+  the standard assumption for Merkle binding. Cleanliness (no recorded hash collision in the final
+  evm) is a hypothesis, discharged in practice by the model's collision flag staying `false`.
+
 ### 26. Atomic interop — the reclaim arm's absence witness is a pure fold  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../noninclusion_gate_user.lean` *(added 2026-07-11; PR #2218 contracts)*
 - **Claim (`verifyNonInclusion_call`):** the WHOLE of `fun_verifyNonInclusion` (success path) has the
