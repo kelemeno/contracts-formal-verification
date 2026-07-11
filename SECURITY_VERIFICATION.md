@@ -49,9 +49,11 @@ story:**
   `foldRoot` (*#24*), delivery accepts only proofs folding to the authenticated root (*#25*), and
   the reclaim absence-witness verifier is fully characterized (*#26*).
 - **The committed root binds everything** — same position + same root ⇒ same leaf hash (*#27*, A6′)
-  ⇒ same leaf fields (*#28*, A6′); a delivered member and a reclaim gap cannot share a position
-  (*#29*) nor coexist in any `GapSound` tree (*#30* abstract invariant + insert preservation;
-  capstone `committed_member_gap_impossible`).
+  ⇒ same leaf fields (*#28*, A6′) ⇒ same `(flowId, bundleHash)` leg identity (*#33*, A6′; the
+  commit value the tree stores is injective in the leg, and its closed form is axiom-free); a
+  delivered member and a reclaim gap cannot share a position (*#29*) nor coexist in any `GapSound`
+  tree (*#30* abstract invariant + insert preservation; capstone
+  `committed_member_gap_impossible`).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -61,7 +63,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-32 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+33 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -612,6 +614,28 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 33. Atomic interop — COMMIT-VALUE BINDING: the tree leaf value pins the flow leg  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../commit_binding_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** (i) `commitValue_call_acc` — `fun_commitValue(flowId, specHash)` is the pure
+  `commitValueOut`: a keccak over the 3-word scratch `TAG ‖ flowId ‖ specHash` written at the free
+  pointer (domain tag `ATOMIC_COMMIT_LEAF_TAG = shl(226, 0x0d114153)`), proven chunk-wise over the
+  three generated body blocks with the length word round-tripped (`mload(P) = 96`). Axiom-free.
+  (ii) `commitValueOut_inj` (A6′) — two collision-free commit values that are EQUAL carry the same
+  `flowId` AND the same `specHash` (bundle hash), extracted from the keccak preimage at region
+  offsets 32/64.
+- **Why it matters (spec points 1, 2, 3):** the commit value is the ONLY thing the interop
+  commitment tree stores per flow leg — `append` inserts it on deposit, `requireFlowFinalized`
+  proves its membership for delivery, `authorizeRefund` proves its absence for reclaim. Injectivity
+  closes the last identification link: root —(#27)→ leaf hash —(#28)→ leaf fields —(#33)→
+  `(flowId, bundleHash)`. A membership proof or absence witness for one leg can never be repurposed
+  for another flow or another bundle; the deposit-side claim (point 1) and the delivery/reclaim
+  gates (points 2–3) all speak about the SAME uniquely-identified leg. The domain tag also
+  separates commit leaves from every other keccak-encoding domain in the protocol.
+- **Caveat / trusted base:** closed form **axiom-free**; injectivity **A6′** (standard three +
+  `keccak256_inj`). The dispatcher glue calling `commitValue` from `append`/the gates is the same
+  (B)-boundary as #31's insert protocol (named functions verified; dispatcher inlining by source
+  inspection).
 
 ### 32. Atomic interop — THE VERIFIER FOLD REPLAYS THE BUILDER WALK  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_replay_user.lean` *(added 2026-07-11; PR #2218 contracts)*
