@@ -756,6 +756,14 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   RESULT is a hypothesis (the message-verification system contract is a protocol trust anchor, like
   A1's compiler trust); the metadata-extraction tail (`ProofData` fields via `getProofData`) and the
   failed-staticcall `revert_forward` branch are outside these lemmas.
+- **Update (same day) — the decode boundary (`authroot_decode_user.lean`):** a load-bearing MODEL
+  fact made explicit: Clear's `staticcall` PRIMOP returns no values (`EVMStaticcall'` = `(s, [])`)
+  — external calls are opaque, so the message-verification RESULT is inherently a hypothesis, and
+  the #38 guard-level decomposition is the ONLY sound treatment (a success-path closed form of the
+  whole function is not expressible in the model). What IS verified around the boundary:
+  `validator_bool_pass`/`validator_nonbool_reverts` — the return-data validator accepts exactly
+  the boolean words `{0, 1}` and reverts anything else, so #38's `expr_2 ≠ 0` hypothesis is
+  precisely "the verifier returned true", with no third value. Axiom-free.
 - **Update (same day) — the prelude alphabet (`authroot_prelims_user.lean`):** seven closed forms
   for the L2Message-construction helpers the function runs before the staticcall — the size-96
   generic finalizer (rounding is the identity), the uint16/address masked memory writers, the
