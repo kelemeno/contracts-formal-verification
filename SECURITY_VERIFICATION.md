@@ -648,6 +648,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   (`calldatacopy` kept as the model's opaque state constructor), tail returned as
   `pos + 32·length + 32`. With the outer encoder's head writes this pins the full memory layout
   the flowId hashes. Axiom-free.
+- **Update (same day) — the leg-count word (`flowid_pins_legcount`, A6′):** the frame composed:
+  the full flow-encode tower reads the first array's LENGTH word back at `h+128` through six
+  frame steps — both element copies crossed via the calldatacopy frame (with `calldatacopy`'s
+  env-preservation making the calldata-size bounds well-stated). Equal flowIds now pin the
+  deadline, the settlement layer, the total encoding length, AND the leg count: a flow cannot
+  gain or lose legs under the same flowId at the word level, independently of the total-length
+  argument.
 - **Update (same day) — the copy frame (`specs/CalldatacopyFrame.lean`):** the deferred induction
   bridge, closed: `lookupMemory_calldatacopy_below` — Clear's `calldatacopy` (a byte-wise
   `updateMemory` fold over extracted calldata) leaves every word STRICTLY BELOW its target
