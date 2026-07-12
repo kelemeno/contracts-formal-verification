@@ -68,9 +68,29 @@ story:**
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
   window, `foldRoot` recomputes exactly the stored root (*#32*, axiom-free), and **the stored root
   admits ONLY the written leaf** — any collision-free fold reaching it at that position carries
-  the builder's leaf (`root_pins_written_leaf`, *#32* + *#27*, A6′). Remaining for the full
-  capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
-  (source-level inspection; outside the generated corpus).
+  the builder's leaf (`root_pins_written_leaf`, *#32* + *#27*, A6′).
+- **The insert protocol is machine-checked down to its storage writes** — the three
+  leaves-mapping primitives have closed forms (*#39*: slot accessor `keccak(i‖4)`, struct
+  read/write); the pointwise write effect is discharged against the real storage model (*#41*,
+  `[propext, Quot.sound]` only); distinct keys give keccak-separated slot triples (A6″); and the
+  abstract insert-effect bridge (*#40*) turns those pointwise facts into `imtInsert` with ALL
+  FOUR invariants (`GapSound`/`KeyInj`/`RepKeyInj` + effect) carried inductively — uniqueness and
+  value-freshness are DERIVED (from `RepKeyInj` and the gap window), not assumed. Capstone: any
+  concrete storage history of such steps — growth inserts and node-only writes included via the
+  pointwise formulation — is an `Evolution` with every invariant at every snapshot (*#42*), so
+  never-both (#34) and never-neither (#35) apply to the real tree directly.
+- **The flow identity binds its own terms** — equal keccak outputs pin the preimage interval,
+  every fixed-offset word, and the LENGTH (*#43*, the pinning principle); instantiated: equal
+  flowIds carry equal deadlines, settlement-layer clocks, encoding lengths, and leg counts
+  (*#44*, through the compiled encoder's layout, with the `calldatacopy` frame proving the heads
+  survive the dynamic-array copies). With #33 (commit values bake the flowId in) and #37: the
+  deadline every guard compares against is the one fixed at deposit time, per leg, through the
+  tree commitment.
+- **Model boundaries, made explicit** — external calls are opaque in Clear (`staticcall` returns
+  no values), so the message-verification RESULT is inherently a hypothesis; the decode boundary
+  around it is machine-checked (the flag is the verifier's word, boolean-or-revert, #38 update).
+  The remaining non-mechanized step is the dispatcher-inlined insert glue → `imtInsert`
+  correspondence (source-level inspection; the generator does not extract dispatcher bodies).
 
 44 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
