@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-43 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+44 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,26 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 44. Atomic interop — FLOW-ID BINDING: the flowId pins the deadline and the clock  ★ NEW  ⚠ uses A6′
+`AtomicFlowManager/.../flowid_binding_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim (`flowid_pins_deadline_sl`):** two flow encodings of the compiled shape — the encoder
+  writes the masked `deadline` at `headStart+64` and the `settlementLayerChainId` at
+  `headStart+96` as its FINAL two writes, and `checkFlowId` keccaks from `headStart` — that hash
+  to the SAME flowId carry the same deadline word, the same settlement layer, and the same
+  encoding length (hence the same leg count). First concrete instantiation of the pinning
+  principle (#43): the static heads are the last writes, so the extraction needs NO reasoning
+  about the variable-length leg tails.
+- **Why it matters (spec points 3, 4):** closes the loop on the deadline's provenance. The chain
+  now reads: the commit value bakes in the flowId (#33) → the gates recompute and match the
+  flowId before anything else (#37) → equal flowIds force equal deadlines and clocks (#44) → the
+  temporal guards compare against exactly that deadline on exactly that settlement-layer clock
+  (#36) → never-both/never-neither (#34/#35). A flow cannot be re-presented with a stretched or
+  shortened deadline, a different settlement clock, or a padded leg list: any such variant has a
+  different flowId, whose commit values are different leaves entirely (#33).
+- **Caveat / trusted base:** A6′ only. The encoder-shape hypothesis (final state =
+  `…mstore (h+64) D̂ |>.mstore (h+96) sl`) is read off the compiled encoder verbatim (its last two
+  statements); the leg-array heads (offsets 0/32) and tails are not needed for this claim.
 
 ### 43. Keccak PINNING: equal outputs pin the interval, every word, and the LENGTH  ★ NEW  ⚠ uses A6′
 `specs/KeccakInjective.lean` *(added 2026-07-12; protocol-wide)*
