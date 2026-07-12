@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-41 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+42 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,30 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 42. Atomic interop — THE CONCRETE INSERT STEP: storage writes to `imtInsert`, end to end  ★ NEW  ✅ axiom-clean
+`L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim (`leaves_insert_step`):** under the deployed-contract fact, pairwise triple-separation of
+  the grown base set (dischargeable per pair by `leafBase_sep` from key distinctness alone), and
+  uniqueness of the low leaf's representation: the insert glue's two struct writes — the retargeted
+  low leaf `(sload lowB, ni, v)` at `lowB` and the new leaf `(v, oi, sload (lowB+2))` at `newB`,
+  exactly the shapes `read_leaf_call`+`copy_leaf_call` produce — transform the REPRESENTED LEAF SET
+  over the grown base set into exactly `imtInsert`, and it remains `GapSound`/`KeyInj`. One
+  `Evolution` step, stated directly over the storage model.
+- **Why it matters (spec points 1, 4):** this is the insert chain ASSEMBLED. From the compiled
+  primitives (#39) through the pointwise effect (#41) and base separation (A6″) into the abstract
+  bridge (#40), landing on the `Evolution` step that the temporal theorems consume: every tree
+  history built from such steps satisfies never-both (#34) and never-neither (#35). The field
+  alignment is definitional — the retarget keeps `sload lowB` (the low leaf's own key) and the new
+  leaf inherits `sload (lowB+2)` (the old gap end), matching the Solidity
+  `IMTLeaf({value: lowLeaf.value, nextIndex: newIndex, nextValue: _value})` /
+  `IMTLeaf({value: _value, ...nextValue: oldNextValue})` verbatim.
+- **Caveat / trusted base:** **axiom-free** as stated (separation is a hypothesis here; its
+  per-pair discharge uses A6″ `slot_sep`). What remains outside the machine-checked chain is the
+  glue SEQUENCING (that the dispatcher calls these primitives in this order with these arguments —
+  source-level inspection, documented at #31/(B)) and the guard-derived hypotheses (freshness of
+  `v` and the window checks — enforced by the compiled guards per #26/#37 and the insert's own
+  reverts).
 
 ### 41. Atomic interop — THE INSERT WRITES, pointwise: readback and frame discharged  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
