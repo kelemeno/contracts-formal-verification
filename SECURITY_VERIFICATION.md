@@ -643,6 +643,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **Caveat / trusted base:** A6′ only. The encoder-shape hypothesis (final state =
   `…mstore (h+64) D̂ |>.mstore (h+96) sl`) is read off the compiled encoder verbatim (its last two
   statements); the leg-array heads (offsets 0/32) and tails are not needed for this claim.
+- **Update (same day) — the leg-array encoder (`abienc_array_call`):** the inner array encoder's
+  closed form — length word at `pos`, `length < 2²⁵¹` guard, element bytes copied to `pos+32`
+  (`calldatacopy` kept as the model's opaque state constructor), tail returned as
+  `pos + 32·length + 32`. With the outer encoder's head writes this pins the full memory layout
+  the flowId hashes. The copy FRAME (words below the target unchanged — needed to read the leg
+  COUNT back through the copies) awaits an induction bridge for `ByteArray.foldl`'s index loop.
+  Axiom-free.
 
 ### 43. Keccak PINNING: equal outputs pin the interval, every word, and the LENGTH  ★ NEW  ⚠ uses A6′
 `specs/KeccakInjective.lean` *(added 2026-07-12; protocol-wide)*
