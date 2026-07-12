@@ -406,4 +406,54 @@ slot-equality) — in `specs/KeccakDeterminism.lean`. That file is deliberately
 AXIOM-FREE and does not import this one, so the trusted-base axioms above are
 not even transitively in its scope. -/
 
+
+/-! ## The pinning principle — equal outputs pin the WHOLE preimage
+
+Every dynamic-encoding binding in the protocol (the flowId over
+`(legBundleHashes, legSourceChainIds, deadline, slChainId)`, the L1
+deposit-hash over `(depositor, assetId, transferData)`, the bundle hash over
+the bundle bytes) is an instance of one principle: a keccak output pins the
+byte interval it was computed over — its LENGTH and every FIXED-OFFSET word.
+The fixed-offset heads of an `abi.encode` (static fields, dynamic-tail
+pointers) are therefore bound by the hash even when the tails are
+variable-length; and encodings of different lengths can never collide
+(the domain-separation fact behind the legacy-format comment in
+`DataEncoding.sol` and the tag word of #33). -/
+
+/-- **Equal outputs, equal intervals** — the usable contrapositive of A6′. -/
+theorem keccak256_same_out_interval_eq
+    {σ₁ σ₂ σ₁' σ₂' : EVMState} {p₁ n₁ p₂ n₂ r : UInt256}
+    (h₁ : σ₁.keccak256 p₁ n₁ = some (r, σ₁'))
+    (h₂ : σ₂.keccak256 p₂ n₂ = some (r, σ₂')) :
+    mkInterval σ₁.machine_state p₁ n₁ = mkInterval σ₂.machine_state p₂ n₂ := by
+  by_contra hne
+  exact keccak256_inj h₁ h₂ hne rfl
+
+/-- **Equal outputs pin every fixed-offset word** of the two preimages. -/
+theorem keccak256_same_out_word_eq
+    {σ₁ σ₂ σ₁' σ₂' : EVMState} {p₁ n₁ p₂ n₂ r : UInt256}
+    (h₁ : σ₁.keccak256 p₁ n₁ = some (r, σ₁'))
+    (h₂ : σ₂.keccak256 p₂ n₂ = some (r, σ₂')) (j : ℕ) :
+    (mkInterval σ₁.machine_state p₁ n₁).get? j
+      = (mkInterval σ₂.machine_state p₂ n₂).get? j := by
+  rw [keccak256_same_out_interval_eq h₁ h₂]
+
+/-- The interval's length is the byte count. -/
+theorem mkInterval_length (ms : MachineState) (p n : UInt256) :
+    (mkInterval ms p n).length = n.val := by
+  unfold mkInterval
+  simp only [List.length_map, List.length_range']
+
+/-- **Equal outputs pin the preimage LENGTH**: encodings of different byte
+lengths never hash alike — cross-domain confusion (a 96-byte commit leaf vs
+a 97-byte tagged tx-data, a legacy vs new deposit encoding) is impossible. -/
+theorem keccak256_same_out_length_eq
+    {σ₁ σ₂ σ₁' σ₂' : EVMState} {p₁ n₁ p₂ n₂ r : UInt256}
+    (h₁ : σ₁.keccak256 p₁ n₁ = some (r, σ₁'))
+    (h₂ : σ₂.keccak256 p₂ n₂ = some (r, σ₂')) :
+    n₁ = n₂ := by
+  have h := congrArg List.length (keccak256_same_out_interval_eq h₁ h₂)
+  rw [mkInterval_length, mkInterval_length] at h
+  exact Fin.ext h
+
 end Clear.KeccakInjective
