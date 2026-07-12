@@ -6,6 +6,7 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.copy_struct_to_
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.read_from_storage_reference_type_struct_IMTLeaf
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.finalize_allocation_5187
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_walk_discharge_user
+import specs.IMTAbstract
 
 /-
   THE LEAVES-MAPPING STORAGE PRIMITIVES — the insert glue's alphabet.
@@ -696,6 +697,156 @@ lemma read_leaf_call
   rw [setStore_ok]
   simp only [multifill_cons, multifill_nil, insert_Ok]
   rfl
+
+
+/-! ### `sload` after `sstore` — the pointwise frame algebra
+
+The general storage round-trip laws of the model.  `sload_sstore_ne` is
+unconditional; the self law needs only the standard deployed-contract fact
+(the executing account exists) — it holds even for zero values, because the
+model's `updateStorage 0` erases the key and a missing key reads as 0. -/
+
+/-- `sstore` does not change the execution environment. -/
+private lemma execution_env_sstore (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).execution_env = σ.execution_env := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- The executing account survives an `sstore` (it is re-inserted updated). -/
+lemma acct_sstore {σ : EVMState} {a v : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome) :
+    ((σ.sstore a v).lookupAccount
+        ((σ.sstore a v).execution_env.code_owner)).isSome := by
+  rw [execution_env_sstore]
+  unfold EVMState.sstore
+  cases h : σ.lookupAccount σ.execution_env.code_owner with
+  | none => exact hacc
+  | some act =>
+    show ((σ.updateAccount σ.execution_env.code_owner
+        (act.updateStorage a v)).lookupAccount σ.execution_env.code_owner).isSome
+    unfold EVMState.lookupAccount EVMState.updateAccount
+    simp only [Finmap.lookup_insert]
+    rfl
+
+/-- **Self round-trip**: re-reading the slot just written returns the stored
+value (any value — the zero case erases and reads back 0). -/
+lemma sload_sstore_self {σ : EVMState} {a v : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome) :
+    (σ.sstore a v).sload a = v := by
+  unfold EVMState.sstore EVMState.sload
+  cases h : σ.lookupAccount σ.execution_env.code_owner with
+  | none => rw [h] at hacc; simp at hacc
+  | some act =>
+    simp only [h]
+    show (match ((σ.updateAccount σ.execution_env.code_owner
+        (act.updateStorage a v)).lookupAccount σ.execution_env.code_owner) with
+      | .some act => act.lookupStorage a
+      | .none => 0) = v
+    unfold EVMState.lookupAccount EVMState.updateAccount
+    simp only [Finmap.lookup_insert]
+    unfold Account.updateStorage Account.lookupStorage
+    by_cases hv : v = 0
+    · rw [if_pos (by simpa using hv)]
+      simp only [Finmap.lookup_erase]
+      exact hv.symm
+    · rw [if_neg (by simpa using hv), Finmap.lookup_insert]
+
+/-- **Distinct-slot frame**: writing one slot leaves every other slot's read
+unchanged (unconditional — a missing account makes `sstore` a no-op). -/
+lemma sload_sstore_ne {σ : EVMState} {a v r : UInt256}
+    (hne : a ≠ r) :
+    (σ.sstore a v).sload r = σ.sload r := by
+  unfold EVMState.sstore EVMState.sload
+  cases h : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simp only [h]
+  | some act =>
+    simp only [h]
+    show (match ((σ.updateAccount σ.execution_env.code_owner
+        (act.updateStorage a v)).lookupAccount σ.execution_env.code_owner) with
+      | .some act => act.lookupStorage r
+      | .none => 0) = act.lookupStorage r
+    unfold EVMState.lookupAccount EVMState.updateAccount
+    simp only [Finmap.lookup_insert]
+    unfold Account.updateStorage Account.lookupStorage
+    by_cases hv : v = 0
+    · rw [if_pos (by simpa using hv)]
+      rw [Finmap.lookup_erase_ne (Ne.symm hne)]
+    · rw [if_neg (by simpa using hv), Finmap.lookup_insert_of_ne _ (Ne.symm hne)]
+
+/-! ### The leaf abstraction and the insert writes' pointwise effect -/
+
+/-- The abstract leaf represented at base slot `b`: field 0 is the key
+(`value`), field 2 the gap witness (`nextValue`). -/
+def leafAt (σ : EVMState) (b : UInt256) : IMTAbstract.AbsLeaf :=
+  ⟨σ.sload b, σ.sload (b + 2)⟩
+
+/-- The three-word leaf-struct write (the evm `copy_leaf_call` produces, with
+the memory fields instantiated). -/
+def writeLeafEvm (σ : EVMState) (b m0 m1 m2 : UInt256) : EVMState :=
+  ((σ.sstore b m0).sstore (b + 1) m1).sstore (b + 2) m2
+
+/-- **Self readback**: after writing a leaf struct at `b`, the represented
+leaf at `b` is exactly `⟨m0, m2⟩`. -/
+theorem leafAt_write_self
+    {σ : EVMState} {b m0 m1 m2 : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (h01 : b ≠ b + 1) (h02 : b ≠ b + 2) (h12 : b + 1 ≠ b + 2) :
+    leafAt (writeLeafEvm σ b m0 m1 m2) b = ⟨m0, m2⟩ := by
+  unfold leafAt writeLeafEvm
+  have f0 : (((σ.sstore b m0).sstore (b + 1) m1).sstore (b + 2) m2).sload b = m0 := by
+    rw [sload_sstore_ne (Ne.symm h02), sload_sstore_ne (Ne.symm h01)]
+    exact sload_sstore_self hacc
+  have f2 : (((σ.sstore b m0).sstore (b + 1) m1).sstore (b + 2) m2).sload (b + 2) = m2 :=
+    sload_sstore_self (acct_sstore (acct_sstore hacc))
+  rw [f0, f2]
+
+/-- **Frame**: a leaf-struct write at `b` leaves the represented leaf at any
+slot-disjoint base `c` unchanged. -/
+theorem leafAt_write_frame
+    {σ : EVMState} {b m0 m1 m2 c : UInt256}
+    (hb0 : b ≠ c) (hb1 : b + 1 ≠ c) (hb2 : b + 2 ≠ c)
+    (hb0' : b ≠ c + 2) (hb1' : b + 1 ≠ c + 2) (hb2' : b + 2 ≠ c + 2) :
+    leafAt (writeLeafEvm σ b m0 m1 m2) c = leafAt σ c := by
+  unfold leafAt writeLeafEvm
+  rw [sload_sstore_ne hb2, sload_sstore_ne hb1, sload_sstore_ne hb0,
+      sload_sstore_ne hb2', sload_sstore_ne hb1', sload_sstore_ne hb0']
+
+/-- **THE INSERT WRITES, pointwise.**  After the glue's two struct writes —
+the retargeted low leaf `(lv, ni, v)` at `lowB`, then the new leaf
+`(v, oi, ov)` at `newB` — the represented leaves are exactly the retarget
+`⟨lv, v⟩` at `lowB`, the new leaf `⟨v, ov⟩` at `newB`, and unchanged
+everywhere slot-disjoint: precisely hypotheses (i)–(iii) of the abstract
+insert-effect bridge (`IMTAbstract.image_insert_effect`, #40). -/
+theorem insert_writes_readback
+    {σ : EVMState} {lowB newB lv ni v oi ov : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    -- in-triple distinctness (no wraparound of the two bases)
+    (hl01 : lowB ≠ lowB + 1) (hl02 : lowB ≠ lowB + 2) (hl12 : lowB + 1 ≠ lowB + 2)
+    (hn01 : newB ≠ newB + 1) (hn02 : newB ≠ newB + 2) (hn12 : newB + 1 ≠ newB + 2)
+    -- cross-triple disjointness (distinct keccak-separated bases)
+    (hx0 : newB ≠ lowB) (hx1 : newB + 1 ≠ lowB) (hx2 : newB + 2 ≠ lowB)
+    (hx0' : newB ≠ lowB + 2) (hx1' : newB + 1 ≠ lowB + 2) (hx2' : newB + 2 ≠ lowB + 2) :
+    leafAt (writeLeafEvm (writeLeafEvm σ lowB lv ni v) newB v oi ov) lowB
+        = ⟨lv, v⟩
+      ∧ leafAt (writeLeafEvm (writeLeafEvm σ lowB lv ni v) newB v oi ov) newB
+        = ⟨v, ov⟩
+      ∧ ∀ c : UInt256,
+          lowB ≠ c → lowB + 1 ≠ c → lowB + 2 ≠ c →
+          lowB ≠ c + 2 → lowB + 1 ≠ c + 2 → lowB + 2 ≠ c + 2 →
+          newB ≠ c → newB + 1 ≠ c → newB + 2 ≠ c →
+          newB ≠ c + 2 → newB + 1 ≠ c + 2 → newB + 2 ≠ c + 2 →
+          leafAt (writeLeafEvm (writeLeafEvm σ lowB lv ni v) newB v oi ov) c
+            = leafAt σ c := by
+  refine ⟨?_, ?_, ?_⟩
+  · rw [leafAt_write_frame hx0 hx1 hx2 hx0' hx1' hx2']
+    exact leafAt_write_self hacc hl01 hl02 hl12
+  · exact leafAt_write_self (acct_sstore (acct_sstore (acct_sstore hacc)))
+      hn01 hn02 hn12
+  · intro c hc0 hc1 hc2 hc0' hc1' hc2' hd0 hd1 hd2 hd0' hd1' hd2'
+    rw [leafAt_write_frame hd0 hd1 hd2 hd0' hd1' hd2',
+        leafAt_write_frame hc0 hc1 hc2 hc0' hc1' hc2']
 
 end
 
