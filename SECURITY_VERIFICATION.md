@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-42 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+43 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,22 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 43. Keccak PINNING: equal outputs pin the interval, every word, and the LENGTH  ★ NEW  ⚠ uses A6′
+`specs/KeccakInjective.lean` *(added 2026-07-12; protocol-wide)*
+- **Claim:** the usable contrapositives of A6′, packaged: `keccak256_same_out_interval_eq` (equal
+  outputs ⇒ equal preimage byte-intervals), `keccak256_same_out_word_eq` (⇒ every fixed-offset
+  word of the two preimages agrees), and `keccak256_same_out_length_eq` (⇒ the preimages have the
+  SAME byte length; via the axiom-free `mkInterval_length`).
+- **Why it matters (spec points 1, 2, 3):** this is the common core of every dynamic-encoding
+  binding in the protocol. The `abi.encode` HEADS — static fields like the flow's `deadline` and
+  `settlementLayerChainId`, or the L1 deposit's `originalCaller` — sit at fixed offsets, so they
+  are hash-bound by `word_eq` even when the encodings carry variable-length tails; concrete
+  instantiations reduce to per-encoder head readbacks (the #28/#33 technique). And `length_eq`
+  is the domain-separation backbone: encodings of different byte lengths never hash alike —
+  the 97-byte tagged tx-data vs any 96-byte struct hash, the legacy vs new deposit formats
+  (`DataEncoding.sol`'s collision comment), the tag word of #33.
+- **Caveat / trusted base:** A6′ (`keccak256_inj`) only; `mkInterval_length` is axiom-free.
 
 ### 42. Atomic interop — THE CONCRETE INSERT STEP: storage writes to `imtInsert`, end to end  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
