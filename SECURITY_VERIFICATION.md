@@ -647,9 +647,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   closed form — length word at `pos`, `length < 2²⁵¹` guard, element bytes copied to `pos+32`
   (`calldatacopy` kept as the model's opaque state constructor), tail returned as
   `pos + 32·length + 32`. With the outer encoder's head writes this pins the full memory layout
-  the flowId hashes. The copy FRAME (words below the target unchanged — needed to read the leg
-  COUNT back through the copies) awaits an induction bridge for `ByteArray.foldl`'s index loop.
-  Axiom-free.
+  the flowId hashes. Axiom-free.
+- **Update (same day) — the copy frame (`specs/CalldatacopyFrame.lean`):** the deferred induction
+  bridge, closed: `lookupMemory_calldatacopy_below` — Clear's `calldatacopy` (a byte-wise
+  `updateMemory` fold over extracted calldata) leaves every word STRICTLY BELOW its target
+  unchanged, by structural induction on `ByteArray.foldlM.loop`'s countdown argument. Length words
+  and heads written before an abi-encode's element copies provably survive them: the pinning
+  readbacks (#43/#44) now pass through dynamic-array tails. Axiom-free.
 
 ### 43. Keccak PINNING: equal outputs pin the interval, every word, and the LENGTH  ★ NEW  ⚠ uses A6′
 `specs/KeccakInjective.lean` *(added 2026-07-12; protocol-wide)*
