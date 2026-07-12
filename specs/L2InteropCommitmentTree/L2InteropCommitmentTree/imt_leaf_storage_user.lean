@@ -7,6 +7,7 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.read_from_stora
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.finalize_allocation_5187
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_walk_discharge_user
 import specs.IMTAbstract
+import specs.KeccakInjective
 
 /-
   THE LEAVES-MAPPING STORAGE PRIMITIVES — the insert glue's alphabet.
@@ -847,6 +848,116 @@ theorem insert_writes_readback
   · intro c hc0 hc1 hc2 hc0' hc1' hc2' hd0 hd1 hd2 hd0' hd1' hd2'
     rw [leafAt_write_frame hd0 hd1 hd2 hd0' hd1' hd2',
         leafAt_write_frame hc0 hc1 hc2 hc0' hc1' hc2']
+
+
+/-! ### Keccak base separation — distinct keys give disjoint slot triples
+
+The two remaining arithmetic inputs to the insert chain: the leaf bases of
+DISTINCT indices are separated beyond any small offset (A6″ `slot_sep`), and
+a base's own triple is internally distinct.  Together with #41's pointwise
+readback these discharge every slot-side hypothesis of the insert-effect
+bridge (#40). -/
+
+/-- Element 0 of a `[0,64)` interval is the word at address 0 — two intervals
+differ if their key words differ. -/
+private lemma mkInterval_0_64_ne_of_word0_ne
+    {ms_v ms_i : MachineState}
+    (h0 : ms_v.lookupMemory (0 : UInt256) ≠ ms_i.lookupMemory (0 : UInt256)) :
+    EVMState.mkInterval ms_v 0 64 ≠ EVMState.mkInterval ms_i 0 64 := by
+  intro heq
+  apply h0
+  have ev : ∀ ms : MachineState,
+      (EVMState.mkInterval ms 0 64).get? 0 = some (ms.lookupMemory (0 : UInt256)) := by
+    intro ms
+    unfold EVMState.mkInterval
+    simp only [List.get?_map]
+    have hidx : (List.range' (↑(0 : UInt256)) (↑(64 : UInt256))).get? 0 = some 0 := by
+      decide
+    rw [hidx]
+    rfl
+  have h := ev ms_v
+  rw [heq, ev ms_i] at h
+  exact (Option.some.inj h).symm
+
+/-- The mapping accessor's scratch reads the key back at address 0 (the base
+word at 32 does not touch `[0, 32)`). -/
+private lemma accessor_key_readback (σ : EVMState) (k b : UInt256) :
+    ((σ.mstore 0 k).mstore 32 b).machine_state.lookupMemory (0 : UInt256) = k := by
+  show ((σ.machine_state.updateMemory 0 k).updateMemory 32 b).lookupMemory (0 : UInt256) = k
+  have h32v : ((32 : UInt256)).val = 32 := by decide
+  have h0v : ((0 : UInt256)).val = 0 := by decide
+  rw [lookupMemory_updateMemory_outside _ 32 b 0
+      (by rw [h32v]; norm_num) (by rw [h0v]; norm_num)
+      (by left; rw [h0v, h32v])]
+  exact lookupMemory_updateMemory_self' _ 0 k (by rw [h0v]; norm_num)
+
+/-- An offset never aliases a different offset over the same base. -/
+lemma base_offset_ne {b i j : UInt256} (hij : i ≠ j) : b + i ≠ b + j :=
+  fun h => hij (add_left_cancel h)
+
+/-- **KECCAK BASE SEPARATION (A6″).**  The leaf-slot bases of two DISTINCT
+keys — both computed by the mapping accessor `keccak256(key ‖ base)` over
+the same mapping base word — never collide at any pair of small offsets:
+`b₁ + i ≠ b₂ + j` for `i, j < 2³²`.  This is the slot-disjointness the
+insert writes (#41) and the walk stores rely on. -/
+theorem leafBase_sep
+    {σ₁ σ₂ σ₁' σ₂' : EVMState} {k₁ k₂ bs b₁ b₂ : UInt256} (i j : UInt256)
+    (h₁ : ((σ₁.mstore 0 k₁).mstore 32 bs).keccak256 0 64 = some (b₁, σ₁'))
+    (h₂ : ((σ₂.mstore 0 k₂).mstore 32 bs).keccak256 0 64 = some (b₂, σ₂'))
+    (hk : k₁ ≠ k₂)
+    (hi : i.val < Clear.KeccakInjective.lowSlotBound)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    b₁ + i ≠ b₂ + j := by
+  have hint : EVMState.mkInterval ((σ₁.mstore 0 k₁).mstore 32 bs).machine_state 0 64
+      ≠ EVMState.mkInterval ((σ₂.mstore 0 k₂).mstore 32 bs).machine_state 0 64 := by
+    apply mkInterval_0_64_ne_of_word0_ne
+    rw [accessor_key_readback, accessor_key_readback]
+    exact hk
+  have hbound : Clear.KeccakInjective.lowSlotBound = 2 ^ 32 := rfl
+  have hsz : UInt256.size = 2 ^ 256 := by norm_num
+  intro heq
+  rcases le_or_lt j.val i.val with hle | hlt
+  · -- shift the difference onto b₁'s side
+    set d := i - j with hd
+    have hjd : j + d = i := by
+      rw [hd, add_comm]
+      exact sub_add_cancel i j
+    have hdval : d.val = i.val - j.val := by
+      have h : d.val = (i.val + (UInt256.size - j.val)) % UInt256.size := rfl
+      have hjs : j.val ≤ UInt256.size := le_of_lt j.isLt
+      have his := i.isLt
+      have hrw : i.val + (UInt256.size - j.val) = UInt256.size + (i.val - j.val) := by
+        omega
+      rw [h, hrw, Nat.add_mod_left]
+      exact Nat.mod_eq_of_lt (by omega)
+
+    have hstep : b₁ + d = b₂ := by
+      have h' : (b₁ + d) + j = b₂ + j := by
+        rw [add_assoc, add_comm d j, hjd]
+        exact heq
+      exact add_right_cancel h'
+    exact Clear.KeccakInjective.keccak256_slot_sep h₁ h₂ hint
+      (by rw [hbound, hdval]; omega) hstep
+  · -- symmetric: shift onto b₂'s side
+    set e := j - i with he
+    have hie : i + e = j := by
+      rw [he, add_comm]
+      exact sub_add_cancel j i
+    have heval : e.val = j.val - i.val := by
+      have h : e.val = (j.val + (UInt256.size - i.val)) % UInt256.size := rfl
+      have his : i.val ≤ UInt256.size := le_of_lt i.isLt
+      have hjs := j.isLt
+      have hrw : j.val + (UInt256.size - i.val) = UInt256.size + (j.val - i.val) := by
+        omega
+      rw [h, hrw, Nat.add_mod_left]
+      exact Nat.mod_eq_of_lt (by omega)
+    have hstep : b₂ + e = b₁ := by
+      have h' : (b₂ + e) + i = b₁ + i := by
+        rw [add_assoc, add_comm e i, hie]
+        exact heq.symm
+      exact add_right_cancel h'
+    exact Clear.KeccakInjective.keccak256_slot_sep h₂ h₁ hint.symm
+      (by rw [hbound, heval]; omega) hstep
 
 end
 
