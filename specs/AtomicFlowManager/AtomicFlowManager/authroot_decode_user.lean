@@ -192,6 +192,81 @@ theorem validator_nonbool_reverts
              evm_Ok, setEvm_Ok]
   rfl
 
+
+/-! ### The decoder: length-checked, validated read -/
+
+/-- **Closed form of `abi_decode_bool_fromMemory` (pass path)**: under the
+length check and a boolean return word, the decoded flag is exactly
+`mload headStart` — the word the verifier wrote. -/
+theorem abi_decode_bool_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {headStart dataEnd : Literal}
+    {v : Identifier}
+    (hlen : UInt256.slt (dataEnd - headStart) 32 = false)
+    (hb : evm.mload headStart = 0 ∨ evm.mload headStart = 1) :
+    execCall (fuel+1) abi_decode_bool_fromMemory [v] (Ok evm store, [headStart, dataEnd])
+      = Ok evm (store.insert v (evm.mload headStart)) := by
+  unfold execCall call abi_decode_bool_fromMemory
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, cons, cons, nil]
+  simp only [If', LetPrimCall', AssignPrimCall', ExprStmtPrimCall', ExprStmtCall',
+             Assign', LetCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMSub', EVMSlt', EVMMload']
+  simp only [multifill_cons, multifill_nil]
+  have hok0 : isOk ((Ok evm store)☎️⟦["headStart", "dataEnd"], [headStart, dataEnd]⟧) :=
+    isOk_initcall_of_isOk trivial
+  obtain ⟨e0, σ0, h0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have hq := congrArg State.evm h0
+    rw [show (((Ok evm store)☎️⟦["headStart", "dataEnd"], [headStart, dataEnd]⟧)).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at hq
+    exact hq.symm
+  have hh : ((Ok evm store)☎️⟦["headStart", "dataEnd"], [headStart, dataEnd]⟧)["headStart"]!!
+      = headStart := lookup_initcall_1
+  have hd : ((Ok evm store)☎️⟦["headStart", "dataEnd"], [headStart, dataEnd]⟧)["dataEnd"]!!
+      = dataEnd := lookup_initcall_2 (by decide)
+  rw [h0, he0] at hh hd
+  simp only [h0, he0, insert_Ok, evm_Ok]
+  simp only [hh, hd]
+  -- the length-check comparison
+  have e1 : (Ok evm (Finmap.insert "split_expr_0" (dataEnd - headStart) σ0))["split_expr_0"]!!
+      = dataEnd - headStart := lookup_insert_self_fin
+  simp only [e1, hlen]
+  try simp only [List.head!]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- the return-word read
+  have e2 : (Ok evm (Finmap.insert "split_expr_0" (dataEnd - headStart) σ0))["headStart"]!!
+      = headStart := by
+    rw [lookup_insert_ne_fin (by decide)]
+    exact hh
+  simp only [e2]
+  -- the validator call on the read word
+  have e3 : (Ok evm (Finmap.insert "value" (evm.mload headStart)
+      (Finmap.insert "split_expr_0" (dataEnd - headStart) σ0)))["value"]!!
+      = evm.mload headStart := lookup_insert_self_fin
+  simp only [insert_Ok, evm_Ok]
+  simp only [e3]
+  rw [validator_bool_pass hb]
+  -- value0 := value, and the ret lookup
+  have e4 : (Ok evm (Finmap.insert "value" (evm.mload headStart)
+      (Finmap.insert "split_expr_0" (dataEnd - headStart) σ0)))["value"]!!
+      = evm.mload headStart := lookup_insert_self_fin
+  try simp only [e4]
+  have e5 : (Ok evm (Finmap.insert "value0" (evm.mload headStart)
+      (Finmap.insert "value" (evm.mload headStart)
+        (Finmap.insert "split_expr_0" (dataEnd - headStart) σ0))))["value0"]!!
+      = evm.mload headStart := lookup_insert_self_fin
+  try simp only [insert_Ok, evm_Ok]
+  try simp only [e5]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [multifill_cons, multifill_nil, insert_Ok]
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager
