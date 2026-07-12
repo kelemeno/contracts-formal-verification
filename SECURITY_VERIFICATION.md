@@ -92,7 +92,7 @@ story:**
   The remaining non-mechanized step is the dispatcher-inlined insert glue → `imtInsert`
   correspondence (source-level inspection; the generator does not extract dispatcher bodies).
 
-44 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+45 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -653,6 +653,26 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 45. Atomic interop — NO DOUBLE DELIVERY: the executed-once core  ★ NEW  ✅ axiom-clean
+`InteropHandler/InteropHandler/no_double_delivery_user.lean` *(added 2026-07-12; InteropHandler
+newly compiled into the corpus — 632 VC files, `fun_markFullyExecutedAndRun` is a named function)*
+- **Claim:** the delivery-side mirror of #22's no-double-refund, over the verbatim compiled
+  prologue blocks of `fun_markFullyExecutedAndRun`: the bundle-status slot is one `accOut` step at
+  `(bundleHash, 1)` (`mark_slot_block`); the write stores `(old &&& ~255) ||| 2` there
+  (`mark_write_block`); the stored word's low byte is exactly `2 = BundleStatus.FullyExecuted` and
+  nonzero (`fin_mask_two`); and re-reading the slot the way `fun_getBundleData` does —
+  `and(sload(slot), 0xff)` — returns `2` (`delivered_status_reads_two`).
+- **Why it matters (spec points 2, 4):** the execute/receive paths process a bundle only when its
+  status is `Unreceived` or `Verified`, and `_markFullyExecutedAndRun` sets `FullyExecuted`
+  BEFORE running any bundle call (CEI — even a reentrant re-delivery of the same bundle hits the
+  already-written status). With this, "paid out at most once" is machine-checked on BOTH sides of
+  the bridge: refunds (#22) and deliveries (#45). Together with never-both (#34) and never-neither
+  (#35), spec point 4's full shape — exactly one outcome, each side at most once — is covered.
+- **Caveat / trusted base:** **axiom-free**. The status-slot equality across calls (the re-check
+  recomputes `keccak(bundleHash ‖ 1)` on a later state) is the same `accOut` determinism as #22's
+  `check_set_slots_eq`; the status-check comparison itself sits in the dispatcher (same (B)-class
+  boundary as `append`), with the check VALUE computed in the named `fun_getBundleData`.
 
 ### 44. Atomic interop — FLOW-ID BINDING: the flowId pins the deadline and the clock  ★ NEW  ⚠ uses A6′
 `AtomicFlowManager/.../flowid_binding_user.lean` *(added 2026-07-12; PR #2218 contracts)*
