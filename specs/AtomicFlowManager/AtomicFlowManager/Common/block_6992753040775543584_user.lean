@@ -1,0 +1,24 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_uint256_dyn_calldata
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6992753040775543584_gen
+
+
+namespace AtomicFlowManager.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.AtomicFlowManager AtomicFlowManager
+
+def A_block_6992753040775543584 (s₀ s₉ : State) : Prop := block_6992753040775543584_concrete_of_code.1 s₀ s₉
+
+lemma block_6992753040775543584_abs_of_concrete {s₀ s₉ : State} :
+  Spec block_6992753040775543584_concrete_of_code s₀ s₉ →
+  Spec A_block_6992753040775543584 s₀ s₉ := by
+  intro h
+  simpa [A_block_6992753040775543584] using h
+
+end
+
+end AtomicFlowManager.Common

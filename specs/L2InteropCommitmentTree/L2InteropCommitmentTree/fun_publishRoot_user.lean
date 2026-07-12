@@ -1,0 +1,36 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_8643407724445593163
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.finalize_allocation
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1463104602859546367
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1086685811291394845
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_5713509482863168679
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mcopy
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7979023402470126894
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_4565194402532296446
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_3111702019470515579
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_9097063384830582942
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.revert_forward
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4146005016855713058
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_decode_bytes32_fromMemory
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_publishRoot_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_fun_publishRoot  (var_root : Literal) (s₀ s₉ : State) : Prop := fun_publishRoot_concrete_of_code.1  var_root s₀ s₉
+
+lemma fun_publishRoot_abs_of_concrete {s₀ s₉ : State} { var_root} :
+  Spec (fun_publishRoot_concrete_of_code.1  var_root) s₀ s₉ →
+  Spec (A_fun_publishRoot  var_root) s₀ s₉ := by
+  intro h
+  simpa [A_fun_publishRoot] using h
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

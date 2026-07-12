@@ -1,0 +1,31 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_3834594906904189566
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1432253982873054235
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.switch_8987501505216042171
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_add_uint256
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.switch_7836749200582770074_gen
+
+
+namespace L2InteropCommitmentTree.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_switch_7836749200582770074 (s₀ s₉ : State) : Prop := switch_7836749200582770074_concrete_of_code.1 s₀ s₉
+
+lemma switch_7836749200582770074_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_7836749200582770074_concrete_of_code s₀ s₉ →
+  Spec A_switch_7836749200582770074 s₀ s₉ := by
+  intro h
+  simpa [A_switch_7836749200582770074] using h
+
+end
+
+end L2InteropCommitmentTree.Common

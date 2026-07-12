@@ -1,0 +1,49 @@
+import Clear.ReasoningPrinciple
+
+import generated.InteropHandler.InteropHandler.Common.block_2731350847861160598
+import generated.InteropHandler.InteropHandler.Common.block_6357692007766190094
+import generated.InteropHandler.InteropHandler.Common.block_2808946740468959641
+import generated.InteropHandler.InteropHandler.Common.if_4527419366897270229
+import generated.InteropHandler.InteropHandler.Common.block_8261716617869206867
+import generated.InteropHandler.InteropHandler.Common.block_3486721318462544172
+import generated.InteropHandler.InteropHandler.mcopy
+import generated.InteropHandler.InteropHandler.Common.block_5291704544479297361
+import generated.InteropHandler.InteropHandler.Common.block_795419607175387125
+import generated.InteropHandler.InteropHandler.finalize_allocation
+import generated.InteropHandler.InteropHandler.Common.block_2448294379448399750
+import generated.InteropHandler.InteropHandler.Common.block_7302561134372012767
+import generated.InteropHandler.InteropHandler.Common.block_5575682281217382298
+import generated.InteropHandler.InteropHandler.Common.block_9222930811073581434
+import generated.InteropHandler.InteropHandler.Common.block_1831590622027002072
+import generated.InteropHandler.InteropHandler.abi_encode_struct_L2Message
+import generated.InteropHandler.InteropHandler.Common.block_967087758813847086
+import generated.InteropHandler.InteropHandler.Common.block_6981637902326639646
+import generated.InteropHandler.InteropHandler.abi_encode_array_bytes32_dyn
+import generated.InteropHandler.InteropHandler.Common.if_4897189129566826754
+import generated.InteropHandler.InteropHandler.Common.if_4387370399091499927
+import generated.InteropHandler.InteropHandler.abi_decode_bool_fromMemory
+import generated.InteropHandler.InteropHandler.Common.if_7459957530221088163
+import generated.InteropHandler.InteropHandler.Common.block_8249276522053995858
+import generated.InteropHandler.InteropHandler.Common.block_4779748611206726122
+import generated.InteropHandler.InteropHandler.Common.block_3157764704621451027
+
+import generated.InteropHandler.InteropHandler.fun_verifyBundle_gen
+
+
+namespace generated.InteropHandler.InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities InteropHandler.Common generated.InteropHandler InteropHandler
+
+def A_fun_verifyBundle  (var_bundle_mpos var_proof_mpos var__bundleHash : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_verifyBundle_abs_of_concrete {s₀ s₉ : State} { var_bundle_mpos var_proof_mpos var__bundleHash} :
+  Spec (fun_verifyBundle_concrete_of_code.1  var_bundle_mpos var_proof_mpos var__bundleHash) s₀ s₉ →
+  Spec (A_fun_verifyBundle  var_bundle_mpos var_proof_mpos var__bundleHash) s₀ s₉ := by
+  unfold fun_verifyBundle_concrete_of_code A_fun_verifyBundle
+  sorry
+
+end
+
+end generated.InteropHandler.InteropHandler

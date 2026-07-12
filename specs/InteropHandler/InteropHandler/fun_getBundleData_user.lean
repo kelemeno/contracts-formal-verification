@@ -1,0 +1,65 @@
+import Clear.ReasoningPrinciple
+
+import generated.InteropHandler.InteropHandler.Common.block_9130601405978407148
+import generated.InteropHandler.InteropHandler.finalize_allocation_21323
+import generated.InteropHandler.InteropHandler.Common.block_8661778330522264700
+import generated.InteropHandler.InteropHandler.Common.block_85155899022391193
+import generated.InteropHandler.InteropHandler.finalize_allocation_21324
+import generated.InteropHandler.InteropHandler.Common.block_1667079152629883432
+import generated.InteropHandler.InteropHandler.Common.block_7516467918031518505
+import generated.InteropHandler.InteropHandler.Common.block_2399382195940757752
+import generated.InteropHandler.InteropHandler.Common.if_7786919798478059137
+import generated.InteropHandler.InteropHandler.Common.if_3680740834951988335
+import generated.InteropHandler.InteropHandler.Common.if_2061219921804195546
+import generated.InteropHandler.InteropHandler.Common.block_6950284447978458371
+import generated.InteropHandler.InteropHandler.abi_decode_bytes1_fromMemory
+import generated.InteropHandler.InteropHandler.Common.block_7705475965879126162
+import generated.InteropHandler.InteropHandler.Common.block_2640526510657236411
+import generated.InteropHandler.InteropHandler.Common.block_4886309943594890699
+import generated.InteropHandler.InteropHandler.Common.block_3266888615877513900
+import generated.InteropHandler.InteropHandler.Common.if_9170628658314157403
+import generated.InteropHandler.InteropHandler.Common.if_1238567489785743818
+import generated.InteropHandler.InteropHandler.Common.block_9202511772071282510
+import generated.InteropHandler.InteropHandler.array_allocation_size_array_bytes32_dyn
+import generated.InteropHandler.InteropHandler.finalize_allocation
+import generated.InteropHandler.InteropHandler.Common.block_6141593266782304204
+import generated.InteropHandler.InteropHandler.Common.if_3509265402194435942
+import generated.InteropHandler.InteropHandler.Common.for_4936625126437712955
+import generated.InteropHandler.InteropHandler.abi_decode_bool_fromMemory
+import generated.InteropHandler.InteropHandler.abi_decode_address_fromMemory
+import generated.InteropHandler.InteropHandler.abi_decode_bytes_fromMemory
+import generated.InteropHandler.InteropHandler.Common.if_7588631513388927157
+import generated.InteropHandler.InteropHandler.Common.if_5474211939461848641
+import generated.InteropHandler.InteropHandler.Common.if_1225897396759969455
+import generated.InteropHandler.InteropHandler.Common.if_4462417577600132835
+import generated.InteropHandler.InteropHandler.Common.block_3627330424716843266
+import generated.InteropHandler.InteropHandler.Common.block_3239525133589768596
+import generated.InteropHandler.InteropHandler.Common.block_1225898565421389821
+import generated.InteropHandler.InteropHandler.Common.block_8214996133143818430
+import generated.InteropHandler.InteropHandler.Common.if_7352871019323686593
+import generated.InteropHandler.InteropHandler.Common.block_3102284747034715823
+import generated.InteropHandler.InteropHandler.Common.block_3211397905905474940
+import generated.InteropHandler.InteropHandler.abi_encode_bytes
+import generated.InteropHandler.InteropHandler.Common.block_2449311378055125308
+import generated.InteropHandler.InteropHandler.Common.block_981281138320897691
+
+import generated.InteropHandler.InteropHandler.fun_getBundleData_gen
+
+
+namespace generated.InteropHandler.InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities InteropHandler.Common generated.InteropHandler InteropHandler
+
+def A_fun_getBundleData (var_interopBundle_684_mpos var_bundleHash var_currentStatus : Identifier) (var_bundle_680_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_getBundleData_abs_of_concrete {s₀ s₉ : State} {var_interopBundle_684_mpos var_bundleHash var_currentStatus var_bundle_680_mpos} :
+  Spec (fun_getBundleData_concrete_of_code.1 var_interopBundle_684_mpos var_bundleHash var_currentStatus var_bundle_680_mpos) s₀ s₉ →
+  Spec (A_fun_getBundleData var_interopBundle_684_mpos var_bundleHash var_currentStatus var_bundle_680_mpos) s₀ s₉ := by
+  unfold fun_getBundleData_concrete_of_code A_fun_getBundleData
+  sorry
+
+end
+
+end generated.InteropHandler.InteropHandler

@@ -1,0 +1,35 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_6355659747013642313
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3589751603909547312
+import generated.AtomicFlowManager.AtomicFlowManager.array_allocation_size_array_struct_InteropCall_dyn
+import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7532467910524889501
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_4884626539333129882
+import generated.AtomicFlowManager.AtomicFlowManager.Common.for_4235363600625143222
+import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation_7425
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_bytes1
+import generated.AtomicFlowManager.AtomicFlowManager.validator_revert_bool
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_address
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_bytes
+
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_array_struct_InteropCall_dyn_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_abi_decode_array_struct_InteropCall_dyn (array : Identifier) (offset end_clear_sanitised_hrafn : Literal) (s₀ s₉ : State) : Prop := abi_decode_array_struct_InteropCall_dyn_concrete_of_code.1 array offset end_clear_sanitised_hrafn s₀ s₉
+
+lemma abi_decode_array_struct_InteropCall_dyn_abs_of_concrete {s₀ s₉ : State} {array offset end_clear_sanitised_hrafn} :
+  Spec (abi_decode_array_struct_InteropCall_dyn_concrete_of_code.1 array offset end_clear_sanitised_hrafn) s₀ s₉ →
+  Spec (A_abi_decode_array_struct_InteropCall_dyn array offset end_clear_sanitised_hrafn) s₀ s₉ := by
+  intro h
+  simpa [A_abi_decode_array_struct_InteropCall_dyn] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

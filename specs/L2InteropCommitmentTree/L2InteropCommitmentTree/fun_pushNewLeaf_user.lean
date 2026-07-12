@@ -1,0 +1,36 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1084122831851539501
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_3948411532618903895
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_fun_pushNewLeaf (var_newRoot : Identifier) (var_leaf : Literal) (s₀ s₉ : State) : Prop := fun_pushNewLeaf_concrete_of_code.1 var_newRoot var_leaf s₀ s₉
+
+lemma fun_pushNewLeaf_abs_of_concrete {s₀ s₉ : State} {var_newRoot var_leaf} :
+  Spec (fun_pushNewLeaf_concrete_of_code.1 var_newRoot var_leaf) s₀ s₉ →
+  Spec (A_fun_pushNewLeaf var_newRoot var_leaf) s₀ s₉ := by
+  intro h
+  simpa [A_fun_pushNewLeaf] using h
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

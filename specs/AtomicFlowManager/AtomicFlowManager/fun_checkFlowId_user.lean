@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.access_calldata_tail_array_uint256_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.for_9042030553971780173
+import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_uint256_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.checked_sub_uint256
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_5553201905606204736
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_7396
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_775784431816452814
+import generated.AtomicFlowManager.AtomicFlowManager.read_from_calldatat_uint64
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1906107636293936688
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_array_bytes32_dyn_calldata_array_uint256_dyn_calldata_uint64_uint256
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1488849941548238150
+import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_117523669750829333
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_1787453538047711873
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_checkFlowId_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_checkFlowId  (var_flow_offset : Literal) (s₀ s₉ : State) : Prop := fun_checkFlowId_concrete_of_code.1  var_flow_offset s₀ s₉
+
+lemma fun_checkFlowId_abs_of_concrete {s₀ s₉ : State} { var_flow_offset} :
+  Spec (fun_checkFlowId_concrete_of_code.1  var_flow_offset) s₀ s₉ →
+  Spec (A_fun_checkFlowId  var_flow_offset) s₀ s₉ := by
+  intro h
+  simpa [A_fun_checkFlowId] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

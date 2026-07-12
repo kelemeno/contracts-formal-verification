@@ -82,4 +82,44 @@ theorem lookupMemory_calldatacopy_below
     have := hnw
     omega)
 
+
+/-- The copy loop never touches the execution environment. -/
+private lemma loop_env :
+    ∀ (i : ℕ) (as : ByteArray) (stop : ℕ) (h : stop ≤ as.size) (j : ℕ)
+      (σa : EVMState) (jj : UInt256),
+    ((ByteArray.foldlM.loop (m := Id) copyStep as stop h i j (σa, jj)).1).execution_env
+      = σa.execution_env := by
+  intro i
+  induction i with
+  | zero =>
+    intro as stop h j σa jj
+    unfold ByteArray.foldlM.loop
+    split <;> rfl
+  | succ i' ih =>
+    intro as stop h j σa jj
+    unfold ByteArray.foldlM.loop
+    split
+    · show ((ByteArray.foldlM.loop (m := Id) copyStep as stop h i' (j+1)
+          (copyStep (σa, jj) _)).1).execution_env = _
+      rw [ih]
+      rfl
+    · rfl
+
+/-- `calldatacopy` preserves the execution environment (in particular the
+calldata itself). -/
+theorem execution_env_calldatacopy
+    (σ : EVMState) (mstart datastart s : UInt256) :
+    (σ.calldatacopy mstart datastart s).execution_env = σ.execution_env := by
+  unfold EVMState.calldatacopy
+  show ((ByteArray.foldl
+      (fun (p : EVMState × UInt256) i => (EVMState.updateMemory p.1 p.2 i.val, p.2 + 1))
+      (σ, mstart) _).1).execution_env = σ.execution_env
+  unfold ByteArray.foldl ByteArray.foldlM
+  simp only [dif_pos (Nat.le_refl _)]
+  exact loop_env _ _ _ _ _ σ mstart
+
+/-- `mstore` preserves the execution environment. -/
+theorem execution_env_mstore (σ : EVMState) (a v : UInt256) :
+    (σ.mstore a v).execution_env = σ.execution_env := rfl
+
 end Clear.CalldatacopyFrame

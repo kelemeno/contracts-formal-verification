@@ -1,0 +1,25 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.constant_L2_MESSAGE_VERIFICATION_ADDR
+import generated.AtomicFlowManager.AtomicFlowManager.cleanup_address
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_4797898834119625249_gen
+
+
+namespace AtomicFlowManager.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.AtomicFlowManager AtomicFlowManager
+
+def A_block_4797898834119625249 (s₀ s₉ : State) : Prop := block_4797898834119625249_concrete_of_code.1 s₀ s₉
+
+lemma block_4797898834119625249_abs_of_concrete {s₀ s₉ : State} :
+  Spec block_4797898834119625249_concrete_of_code s₀ s₉ →
+  Spec A_block_4797898834119625249 s₀ s₉ := by
+  intro h
+  simpa [A_block_4797898834119625249] using h
+
+end
+
+end AtomicFlowManager.Common

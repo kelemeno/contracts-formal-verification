@@ -1,0 +1,30 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x41
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_228369243124659344
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_3779316958150250372
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_dataslot_array_array_bytes32_dyn_storage_dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_6561856544793224737
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210  (value0 : Literal) (s₀ s₉ : State) : Prop := array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210_concrete_of_code.1  value0 s₀ s₉
+
+lemma array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210_abs_of_concrete {s₀ s₉ : State} { value0} :
+  Spec (array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210_concrete_of_code.1  value0) s₀ s₉ →
+  Spec (A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210  value0) s₀ s₉ := by
+  intro h
+  simpa [A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr_5210] using h
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

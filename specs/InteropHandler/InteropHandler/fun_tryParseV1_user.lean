@@ -1,0 +1,44 @@
+import Clear.ReasoningPrinciple
+
+import generated.InteropHandler.InteropHandler.Common.if_1273033159834355241
+import generated.InteropHandler.InteropHandler.Common.block_8098612253975777311
+import generated.InteropHandler.InteropHandler.Common.block_1211529586809466322
+import generated.InteropHandler.InteropHandler.Common.if_6938822434086358619
+import generated.InteropHandler.InteropHandler.Common.if_2709084074454057459
+import generated.InteropHandler.InteropHandler.Common.if_3384444538551224921
+import generated.InteropHandler.InteropHandler.Common.switch_5192518044804447739
+import generated.InteropHandler.InteropHandler.Common.switch_8523945878344766818
+import generated.InteropHandler.InteropHandler.Common.block_181012933440567358
+import generated.InteropHandler.InteropHandler.checked_sub_uint256
+import generated.InteropHandler.InteropHandler.array_allocation_size_bytes
+import generated.InteropHandler.InteropHandler.finalize_allocation
+import generated.InteropHandler.InteropHandler.Common.block_8683506694894205076
+import generated.InteropHandler.InteropHandler.Common.block_7547743907366374244
+import generated.InteropHandler.InteropHandler.mcopy
+import generated.InteropHandler.InteropHandler.Common.block_8289115711265200282
+import generated.InteropHandler.InteropHandler.Common.if_4515461804101554459
+import generated.InteropHandler.InteropHandler.Common.block_7014565086347997384
+import generated.InteropHandler.InteropHandler.Common.block_7356270655256221062
+import generated.InteropHandler.InteropHandler.Common.if_5778481415897612946
+import generated.InteropHandler.InteropHandler.fun_slice
+
+import generated.InteropHandler.InteropHandler.fun_tryParseV1_gen
+
+
+namespace generated.InteropHandler.InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities InteropHandler.Common generated.InteropHandler InteropHandler
+
+def A_fun_tryParseV1 (var_success var_chainType var_chainReference_mpos var_addr_mpos : Identifier) (var_self_3703_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_tryParseV1_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_3703_mpos} :
+  Spec (fun_tryParseV1_concrete_of_code.1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_3703_mpos) s₀ s₉ →
+  Spec (A_fun_tryParseV1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_3703_mpos) s₀ s₉ := by
+  unfold fun_tryParseV1_concrete_of_code A_fun_tryParseV1
+  sorry
+
+end
+
+end generated.InteropHandler.InteropHandler

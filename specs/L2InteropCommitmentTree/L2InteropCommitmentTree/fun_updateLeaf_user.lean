@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2960513488629726830
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_4511405458545096882
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn_5278
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.update_storage_value_bytes32_to_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1667634760212566376
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_4843491680166179088
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mod_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_add_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_fun_updateLeaf (var : Identifier) (var_self_slot var_index var_itemHash : Literal) (s₀ s₉ : State) : Prop := fun_updateLeaf_concrete_of_code.1 var var_self_slot var_index var_itemHash s₀ s₉
+
+lemma fun_updateLeaf_abs_of_concrete {s₀ s₉ : State} {var var_self_slot var_index var_itemHash} :
+  Spec (fun_updateLeaf_concrete_of_code.1 var var_self_slot var_index var_itemHash) s₀ s₉ →
+  Spec (A_fun_updateLeaf var var_self_slot var_index var_itemHash) s₀ s₉ := by
+  intro h
+  simpa [A_fun_updateLeaf] using h
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

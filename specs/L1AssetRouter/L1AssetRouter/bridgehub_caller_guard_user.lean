@@ -129,7 +129,7 @@ macro_rules
 
 -- The 160-bit address-cleaning mask 2^160 - 1, exactly as the Yul computes it
 --   split_expr_33 = shl(160, 1) ;  split_expr_34 = sub(split_expr_33, 1).
-def ADDRESS_MASK : UInt256 := (Fin.shiftLeft (1 : UInt256) 160) - 1
+private def ADDRESS_MASK : UInt256 := (Fin.shiftLeft (1 : UInt256) 160) - 1
 
 -- The BRIDGE_HUB immutable value as MODELED by the Clear EVM.  PrimOps treats
 -- `loadimmutable` as opaque (`EVMLoadimmutable'` yields the empty result list),

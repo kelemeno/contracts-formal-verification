@@ -1,0 +1,34 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_6787653505677561102
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_3221258955042269759
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_5267003775473151689
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1084122831851539501_gen
+
+
+namespace L2InteropCommitmentTree.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_if_1084122831851539501 (s₀ s₉ : State) : Prop := if_1084122831851539501_concrete_of_code.1 s₀ s₉
+
+lemma if_1084122831851539501_abs_of_concrete {s₀ s₉ : State} :
+  Spec if_1084122831851539501_concrete_of_code s₀ s₉ →
+  Spec A_if_1084122831851539501 s₀ s₉ := by
+  intro h
+  simpa [A_if_1084122831851539501] using h
+
+end
+
+end L2InteropCommitmentTree.Common

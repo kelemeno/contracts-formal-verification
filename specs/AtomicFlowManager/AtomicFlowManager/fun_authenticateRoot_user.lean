@@ -1,0 +1,56 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1775855203451894682
+import generated.AtomicFlowManager.AtomicFlowManager.read_from_calldatat_uint16
+import generated.AtomicFlowManager.AtomicFlowManager.constant_L2_INTEROP_COMMITMENT_TREE_ADDR
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2837555661091856426
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_bytes32
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7687268901600308264
+import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation
+import generated.AtomicFlowManager.AtomicFlowManager.allocate_memory_7476
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2538059086560911129
+import generated.AtomicFlowManager.AtomicFlowManager.write_to_memory_uint16
+import generated.AtomicFlowManager.AtomicFlowManager.write_to_memory_address
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_4797898834119625249
+import generated.AtomicFlowManager.AtomicFlowManager.constant_L2_MESSAGE_VERIFICATION_ADDR
+import generated.AtomicFlowManager.AtomicFlowManager.cleanup_address
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1653647194594514787
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3578840616426185344
+import generated.AtomicFlowManager.AtomicFlowManager.access_calldata_tail_array_uint256_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1172312306489678431
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_807605398838932269
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_9097063384830582942
+import generated.AtomicFlowManager.AtomicFlowManager.revert_forward
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_1385285198617082370
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_bool_fromMemory
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_6733515328963459721
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_7396
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6769537869963839068
+import generated.AtomicFlowManager.AtomicFlowManager.fun_l2MessageToLog
+import generated.AtomicFlowManager.AtomicFlowManager.fun_getLeafHashFromLog
+import generated.AtomicFlowManager.AtomicFlowManager.fun_getProofData
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_581182567541217851
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_8598311902261087284
+import generated.AtomicFlowManager.AtomicFlowManager.cleanup_bool
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_authenticateRoot_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_authenticateRoot (var_slBlock var_slChainId var_batchTimestamp : Identifier) (var__proof_offset : Literal) (s₀ s₉ : State) : Prop := fun_authenticateRoot_concrete_of_code.1 var_slBlock var_slChainId var_batchTimestamp var__proof_offset s₀ s₉
+
+lemma fun_authenticateRoot_abs_of_concrete {s₀ s₉ : State} {var_slBlock var_slChainId var_batchTimestamp var__proof_offset} :
+  Spec (fun_authenticateRoot_concrete_of_code.1 var_slBlock var_slChainId var_batchTimestamp var__proof_offset) s₀ s₉ →
+  Spec (A_fun_authenticateRoot var_slBlock var_slChainId var_batchTimestamp var__proof_offset) s₀ s₉ := by
+  intro h
+  simpa [A_fun_authenticateRoot] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

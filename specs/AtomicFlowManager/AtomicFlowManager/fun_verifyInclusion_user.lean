@@ -1,0 +1,40 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_authenticateRoot
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_7607925224140709764
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_6867747978864521234
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint64
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_9052407139084885368
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_4726213760676109119
+import generated.AtomicFlowManager.AtomicFlowManager.access_calldata_tail_array_uint256_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8288338994559994875
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_struct_IMTLeaf
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_available_length_array_bytes32_dyn
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2859435797614447809
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_1978115495419765380
+import generated.AtomicFlowManager.AtomicFlowManager.fun_hashLeaf
+import generated.AtomicFlowManager.AtomicFlowManager.fun_calculateRootMemory
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_5326885561126133312
+import generated.AtomicFlowManager.AtomicFlowManager.cleanup_bool
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_7396
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_verifyInclusion_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_verifyInclusion  (var_proof_offset var_commitValue var_deadline var__expectedSlChainId : Literal) (s₀ s₉ : State) : Prop := fun_verifyInclusion_concrete_of_code.1  var_proof_offset var_commitValue var_deadline var__expectedSlChainId s₀ s₉
+
+lemma fun_verifyInclusion_abs_of_concrete {s₀ s₉ : State} { var_proof_offset var_commitValue var_deadline var__expectedSlChainId} :
+  Spec (fun_verifyInclusion_concrete_of_code.1  var_proof_offset var_commitValue var_deadline var__expectedSlChainId) s₀ s₉ →
+  Spec (A_fun_verifyInclusion  var_proof_offset var_commitValue var_deadline var__expectedSlChainId) s₀ s₉ := by
+  intro h
+  simpa [A_fun_verifyInclusion] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

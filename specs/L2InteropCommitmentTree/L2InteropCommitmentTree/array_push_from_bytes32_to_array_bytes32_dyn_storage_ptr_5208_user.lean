@@ -1,0 +1,32 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x41
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1914574633540619117
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_5155580814318431587
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_8420097433966466210
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_120398878934126153
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_36999904142419793
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7120539236401575141
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208  (value0 : Literal) (s₀ s₉ : State) : Prop := array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208_concrete_of_code.1  value0 s₀ s₉
+
+lemma array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208_abs_of_concrete {s₀ s₉ : State} { value0} :
+  Spec (array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208_concrete_of_code.1  value0) s₀ s₉ →
+  Spec (A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208  value0) s₀ s₉ := by
+  intro h
+  simpa [A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5208] using h
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

@@ -7,9 +7,11 @@ import generated.L1Nullifier.L1Nullifier.read_from_storage_split_offset_bool
 import generated.L1Nullifier.L1Nullifier.cleanup_bool
 import generated.L1Nullifier.L1Nullifier.require_helper_error_WithdrawalAlreadyFinalized
 import generated.L1Nullifier.L1Nullifier.mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749
+import generated.L1Nullifier.L1Nullifier.mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
 import generated.L1Nullifier.L1Nullifier.update_storage_value_offset_bool_to_bool_17751_gen
 
 import specs.RevertModel
+import specs.KeccakDeterminism
 
 /-
   CROSS-TRANSACTION WITHDRAWAL REPLAY PROTECTION for zkSync's L1Nullifier.
@@ -407,9 +409,11 @@ theorem replay_protection_check_reverts
     so they are entirely A3-free (axioms `[propext, Quot.sound, Classical.choice]`,
     no `sorryAx`), exactly like the CHECK-side theorem above.
 
-    NOTE (future work): proving that the slot CHECKED (`split_expr_7`) equals the
-    slot SET (`split_expr_13`) requires keccak determinism/consistency across the
-    two `mapping_index_access` recomputations and is OUT OF SCOPE here.
+    NOTE: proving that the slot CHECKED (`split_expr_7`) equals the slot SET
+    (`split_expr_13`) requires keccak determinism/consistency across the two
+    `mapping_index_access` recomputations — now DISCHARGED at statement level by
+    `check_set_slots_eq` at the bottom of this file (frame-conditioned, via
+    `specs/KeccakDeterminism.lean`; axiom-free).
     ============================================================================ -/
 
 private lemma ne_01 : ("split_expr_0" : Identifier) ≠ "split_expr_1" := by decide
@@ -621,13 +625,16 @@ theorem update_storage_sets_low_byte
     the CHECK's storage are introduced — `evm₁.sload slot` is exactly the byte
     lemma 1 set.
 
-    CAVEAT (unchanged, by construction): this theorem uses `slot` as the SHARED
-    variable threaded through both the SET (lemma 1's `slot`) and the CHECK
-    (`split_expr_7 ↦ slot`).  It does NOT prove that the slot the contract SETS
-    (`split_expr_13`) equals the slot it later CHECKS (`split_expr_7`); that
-    `split_expr_7 == split_expr_13` slot-equality is a keccak-determinism fact and
-    remains OUT OF SCOPE.  Modulo that by-construction slot identification, this is
-    the genuine "a finalised withdrawal cannot be re-finalised" composition.
+    CAVEAT (by construction): this theorem uses `slot` as the SHARED variable
+    threaded through both the SET (lemma 1's `slot`) and the CHECK
+    (`split_expr_7 ↦ slot`).  It does NOT itself prove that the slot the contract
+    SETS (`split_expr_13`) equals the slot it later CHECKS (`split_expr_7`); that
+    `split_expr_7 == split_expr_13` slot-equality is a keccak-determinism fact —
+    now proven separately, at statement level, by `check_set_slots_eq` at the
+    bottom of this file (both slots are the same triple accessor chain over
+    `(_1,_2,_3)`; the re-run provably replays the cached keccak slots).  Together
+    they give the genuine "a finalised withdrawal cannot be re-finalised"
+    composition.
 
     Like its two components this touches NO `fun_verifyWithdrawal`, so it is A3-free:
     `#print axioms replay_after_set_reverts` reports `[propext, Quot.sound, Classical.choice]`.
@@ -661,6 +668,276 @@ theorem replay_after_set_reverts
     (slot := slot)
     (key := (Ok s_set.evm (store.insert "split_expr_7" slot))["_1"]!!)
     hslot rfl hbyte_ne hcheck_exec
+
+/-! ============================================================================
+    SLOT-EQUALITY — the slot CHECKED equals the slot SET (keccak determinism).
+
+    This closes the linkage flagged as OUT OF SCOPE above: that the nullifier
+    slot the modifier CHECKS (`split_expr_7`) equals the slot it later SETS
+    (`split_expr_13`).  Both are the SAME triple-nested keccak accessor chain
+    over the same arguments `(_1, _2, _3)` and base slot `208`:
+
+        split_expr_5  := mapping_index_access_…_17749(_1)              -- base 208
+        split_expr_6  := mapping_index_access_…(split_expr_5, _2)
+        split_expr_7  := mapping_index_access_…(split_expr_6, _3)      -- CHECK slot
+        …  (read / iszero / cleanup_bool / require — no memory writes,
+            no keccak-cache drops on the success path)  …
+        split_expr_11 := mapping_index_access_…_17749(_1)
+        split_expr_12 := mapping_index_access_…(split_expr_11, _2)
+        split_expr_13 := mapping_index_access_…(split_expr_12, _3)     -- SET slot
+
+    In Clear's freshness model, keccak memoizes every hashed 64-byte interval in
+    `keccak_map`, so the re-run HITS the cache at every level and returns the
+    same three slots — PROVIDED the two runs' preimages coincide.  Each accessor
+    writes `key` at word 0 and `base` at word 32 and hashes `[0, 64)`; but the
+    model's `lookupMemory` makes the interval also depend on the junk window
+    `[64, 95)`.  Hence the two honest frame hypotheses of the theorem: between
+    the CHECK chain's end and the SET chain's start (i) memory bytes `[64, 95)`
+    are unchanged and (ii) no keccak-cache entry is dropped — both TRUE of the
+    actual intervening statements (sload/iszero/cleanup/require-success touch
+    neither).  The one model-caveat hypothesis is `hclean` (no hash-collision
+    fallback fired on the CHECK side), matching the A6 caveat style of the other
+    keccak theorems.
+
+    The determinism core is `Clear.KeccakDeterminism.accessor_chain_deterministic`
+    (axiom-free); here we supply the CLOSED FORMS of the two generated accessor
+    helpers and instantiate.  `#print axioms check_set_slots_eq` reports
+    `[propext, Quot.sound, Classical.choice]` — no `sorryAx`, no keccak axioms.
+    ============================================================================ -/
+
+open Clear.KeccakDeterminism
+
+/-- The keccak PRIMOP in `keccakOut` form (fuses both branches of
+`EVMKeccak256'` into the total function `keccakOut`). -/
+lemma primCall_keccakOut {s : State} {a b : Literal} :
+    primCall s .Keccak256 [a, b]
+      = (s.setEvm (keccakOut s.evm a b).2, [(keccakOut s.evm a b).1]) := by
+  rw [EVMKeccak256']
+  unfold keccakOut
+  rcases hk : s.evm.keccak256 a b with _ | pr
+  · simp only [hk]
+  · simp only [hk]
+
+/-- Variable lookup is unaffected by `setEvm` (on an `Ok` state). -/
+private lemma lookup_setEvm_of_isOk {s : State} {e : EVMState} {k : Identifier}
+    (h : isOk s) : (s.setEvm e)[k]!! = s[k]!! := by
+  obtain ⟨evm₀, st, rfl⟩ := State_of_isOk h; rfl
+
+/--
+  Closed form for `mapping_index_access_…_17749(key)` (the base-208 level-1
+  accessor: `mstore(0, key); mstore(32, 208); dataSlot := keccak256(0, 64)`):
+  the call returns the caller state with the evm advanced by one `accOut` step
+  at `(key, 208)` and the return variable bound to the produced slot.
+-/
+lemma mapping_index_17749_call_acc
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} {v : Identifier} :
+    execCall (fuel+1) mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749
+        [v] (Ok evm store, [key])
+      = Ok (accOut evm key 208).2 (store.insert v (accOut evm key 208).1) := by
+  unfold execCall call mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, nil]
+  simp only [ExprStmtPrimCall', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMMstore']
+  simp only [multifill', multifill_nil, multifill_cons, overwrite?_of_Ok]
+  rw [primCall_keccakOut]
+  -- name the double-mstore host state (same shape as `mapping_index_preserves_reverted`)
+  have hok₀ : isOk ((Ok evm store)☎️⟦["key"], [key]⟧) := isOk_initcall_of_isOk trivial
+  have hevm₀ : ((Ok evm store)☎️⟦["key"], [key]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hkey : ((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!! = key := lookup_initcall_1
+  set host := (((Ok evm store)☎️⟦["key"], [key]⟧)
+      🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+          (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧)
+      🇪⟦(((Ok evm store)☎️⟦["key"], [key]⟧)
+          🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+              (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧).evm.mstore 32 208⟧
+      with hhost
+  have hhost_ok : isOk host := by
+    rw [hhost, isOk_setEvm, isOk_setEvm]; exact hok₀
+  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 208 := by
+    rw [hhost, evm_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok₀),
+        evm_setEvm_of_isOk hok₀, hevm₀, hkey]
+  rw [hhost_evm]
+  -- the RHS `accOut` is definitionally this keccakOut step
+  unfold accOut
+  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 208) 0 64 = out
+  -- reduce the body's `multifill` to an insert, resolve the `dataSlot` return
+  -- lookup, then peel the call wrappers
+  simp only [multifill_cons, multifill_nil]
+  have hsetEvm_ok : isOk (host.setEvm out.2) := by
+    rw [isOk_setEvm]; exact hhost_ok
+  have hin_ok : isOk ((host.setEvm out.2)⟦"dataSlot" ↦ out.1⟧) := by
+    rw [isOk_insert]; exact hsetEvm_ok
+  rw [lookup_insert' hsetEvm_ok]
+  rw [reviveJump_of_isOk hin_ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = out.2 := by
+    have h := congrArg State.evm hi
+    rw [evm_insert, evm_setEvm_of_isOk hhost_ok] at h
+    exact h.symm
+  rw [hi, setStore_ok]
+  simp only [insert_Ok]
+  rw [hi_evm]
+
+/--
+  Closed form for the level-2/3 accessor
+  `mapping_index_access_…(slot, key)` (`mstore(0, key); mstore(32, slot);
+  dataSlot := keccak256(0, 64)`): one `accOut` step at `(key, slot)`.
+-/
+lemma mapping_index_call_acc
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {slotArg key : Literal} {v : Identifier} :
+    execCall (fuel+1) mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+        [v] (Ok evm store, [slotArg, key])
+      = Ok (accOut evm key slotArg).2 (store.insert v (accOut evm key slotArg).1) := by
+  unfold execCall call mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, nil]
+  simp only [ExprStmtPrimCall', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMMstore']
+  simp only [multifill', multifill_nil, multifill_cons, overwrite?_of_Ok]
+  rw [primCall_keccakOut]
+  have hok₀ : isOk ((Ok evm store)☎️⟦["slot", "key"], [slotArg, key]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm₀ : ((Ok evm store)☎️⟦["slot", "key"], [slotArg, key]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hkey : ((Ok evm store)☎️⟦["slot", "key"], [slotArg, key]⟧)["key"]!! = key :=
+    lookup_initcall_2 (by decide)
+  have hslot : ((Ok evm store)☎️⟦["slot", "key"], [slotArg, key]⟧)["slot"]!! = slotArg :=
+    lookup_initcall_1
+  set s₀ := (Ok evm store)☎️⟦["slot", "key"], [slotArg, key]⟧ with hs₀
+  set s₁ := s₀🇪⟦s₀.evm.mstore 0 (s₀["key"]!!)⟧ with hs₁
+  have hs₁_ok : isOk s₁ := by rw [hs₁, isOk_setEvm]; exact hok₀
+  set host := s₁🇪⟦s₁.evm.mstore 32 (s₁["slot"]!!)⟧ with hhost
+  have hhost_ok : isOk host := by rw [hhost, isOk_setEvm]; exact hs₁_ok
+  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 slotArg := by
+    rw [hhost, evm_setEvm_of_isOk hs₁_ok, hs₁, evm_setEvm_of_isOk hok₀, hevm₀, hkey,
+        lookup_setEvm_of_isOk hok₀, hslot]
+  rw [hhost_evm]
+  unfold accOut
+  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 slotArg) 0 64 = out
+  simp only [multifill_cons, multifill_nil]
+  have hsetEvm_ok : isOk (host.setEvm out.2) := by
+    rw [isOk_setEvm]; exact hhost_ok
+  have hin_ok : isOk ((host.setEvm out.2)⟦"dataSlot" ↦ out.1⟧) := by
+    rw [isOk_insert]; exact hsetEvm_ok
+  rw [lookup_insert' hsetEvm_ok]
+  rw [reviveJump_of_isOk hin_ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = out.2 := by
+    have h := congrArg State.evm hi
+    rw [evm_insert, evm_setEvm_of_isOk hhost_ok] at h
+    exact h.symm
+  rw [hi, setStore_ok]
+  simp only [insert_Ok]
+  rw [hi_evm]
+
+/-- **THE SLOT-EQUALITY THEOREM** — `split_expr_13 = split_expr_7`.
+
+Running the triple accessor chain twice with the same keys `(k₁, k₂, k₃)` — the
+CHECK chain producing `v₅/v₆/v₇` from `Ok evm₀ st₀` and the SET chain producing
+`v₁₁/v₁₂/v₁₃` from `Ok evmM stM` — returns the SAME final slot, provided the
+intervening execution (i) left memory bytes `[64, 95)` unchanged (`hmem`),
+(ii) dropped no keccak-cache entry (`hmono`), and (iii) the CHECK chain ended
+hash-collision-free (`hclean`).  Hypotheses (i)–(ii) hold of the actual
+statements between the chains (sload/iszero/cleanup/require-success touch
+neither memory nor the keccak cache); (iii) is the standard A6 model caveat. -/
+theorem check_set_slots_eq
+    {evm₀ evmM : EVMState} {st₀ stM : VarStore}
+    {f₅ f₆ f₇ f₁₁ f₁₂ f₁₃ : ℕ} {k₁ k₂ k₃ b₆ b₇ b₁₂ b₁₃ : Literal}
+    {s₅ s₆ s₇ s₁₁ s₁₂ s₁₃ : State}
+    {v₅ v₆ v₇ v₁₁ v₁₂ v₁₃ : Identifier}
+    -- CHECK-side chain (split_expr_5/6/7)
+    (h₅ : execCall (f₅+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749
+        [v₅] (Ok evm₀ st₀, [k₁]) = s₅)
+    (h₆ : execCall (f₆+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+        [v₆] (s₅, [b₆, k₂]) = s₆)
+    (hb₆ : b₆ = s₅[v₅]!!)
+    (h₇ : execCall (f₇+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+        [v₇] (s₆, [b₇, k₃]) = s₇)
+    (hb₇ : b₇ = s₆[v₆]!!)
+    -- frame: the intervening execution (CHECK-chain end → SET-chain start)
+    (hmem : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i evmM.machine_state.memory
+        = Finmap.lookup i s₇.evm.machine_state.memory)
+    (hmono : ∀ (I : List UInt256) (w : UInt256),
+      Finmap.lookup I s₇.evm.keccak_map = some w
+        → Finmap.lookup I evmM.keccak_map = some w)
+    -- SET-side chain (split_expr_11/12/13)
+    (h₁₁ : execCall (f₁₁+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256_17749
+        [v₁₁] (Ok evmM stM, [k₁]) = s₁₁)
+    (h₁₂ : execCall (f₁₂+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+        [v₁₂] (s₁₁, [b₁₂, k₂]) = s₁₂)
+    (hb₁₂ : b₁₂ = s₁₁[v₁₁]!!)
+    (h₁₃ : execCall (f₁₃+1)
+        mapping_index_access_mapping_uint256_mapping_address_uint256_of_uint256
+        [v₁₃] (s₁₂, [b₁₃, k₃]) = s₁₃)
+    (hb₁₃ : b₁₃ = s₁₂[v₁₂]!!)
+    -- no keccak-collision fallback on the CHECK side (A6 model caveat)
+    (hclean : s₇.evm.hash_collision = false) :
+    s₁₃[v₁₃]!! = s₇[v₇]!! := by
+  -- Rewrite all six calls into their `accOut` closed forms.
+  rw [mapping_index_17749_call_acc] at h₅
+  -- s₅ is now explicit; resolve its return-variable lookup.
+  have hs₅v : s₅[v₅]!! = (accOut evm₀ k₁ 208).1 := by
+    rw [← h₅, ← insert_Ok]; exact lookup_insert' (by trivial)
+  rw [hb₆, hs₅v] at h₆
+  rw [← h₅] at h₆
+  rw [mapping_index_call_acc] at h₆
+  have hs₆v : s₆[v₆]!! = (accOut (accOut evm₀ k₁ 208).2 k₂ (accOut evm₀ k₁ 208).1).1 := by
+    rw [← h₆, ← insert_Ok]; exact lookup_insert' (by trivial)
+  rw [hb₇, hs₆v] at h₇
+  rw [← h₆] at h₇
+  rw [mapping_index_call_acc] at h₇
+  have hs₇v : s₇[v₇]!!
+      = (accOut (accOut (accOut evm₀ k₁ 208).2 k₂ (accOut evm₀ k₁ 208).1).2 k₃
+          (accOut (accOut evm₀ k₁ 208).2 k₂ (accOut evm₀ k₁ 208).1).1).1 := by
+    rw [← h₇, ← insert_Ok]; exact lookup_insert' (by trivial)
+  have hs₇evm : s₇.evm
+      = (accOut (accOut (accOut evm₀ k₁ 208).2 k₂ (accOut evm₀ k₁ 208).1).2 k₃
+          (accOut (accOut evm₀ k₁ 208).2 k₂ (accOut evm₀ k₁ 208).1).1).2 := by
+    rw [← h₇]; rfl
+  -- Same for the SET-side chain.
+  rw [mapping_index_17749_call_acc] at h₁₁
+  have hs₁₁v : s₁₁[v₁₁]!! = (accOut evmM k₁ 208).1 := by
+    rw [← h₁₁, ← insert_Ok]; exact lookup_insert' (by trivial)
+  rw [hb₁₂, hs₁₁v] at h₁₂
+  rw [← h₁₁] at h₁₂
+  rw [mapping_index_call_acc] at h₁₂
+  have hs₁₂v : s₁₂[v₁₂]!! = (accOut (accOut evmM k₁ 208).2 k₂ (accOut evmM k₁ 208).1).1 := by
+    rw [← h₁₂, ← insert_Ok]; exact lookup_insert' (by trivial)
+  rw [hb₁₃, hs₁₂v] at h₁₃
+  rw [← h₁₂] at h₁₃
+  rw [mapping_index_call_acc] at h₁₃
+  have hs₁₃v : s₁₃[v₁₃]!!
+      = (accOut (accOut (accOut evmM k₁ 208).2 k₂ (accOut evmM k₁ 208).1).2 k₃
+          (accOut (accOut evmM k₁ 208).2 k₂ (accOut evmM k₁ 208).1).1).1 := by
+    rw [← h₁₃, ← insert_Ok]; exact lookup_insert' (by trivial)
+  -- Instantiate the determinism core.
+  have hdet := accessor_chain_deterministic
+    (σ₀ := evm₀) (σmid := evmM) (k₁ := k₁) (k₂ := k₂) (k₃ := k₃) (b := 208)
+    (h₅ := rfl) (h₆ := rfl) (h₇ := rfl)
+    (hmem := by rw [hs₇evm] at hmem; exact hmem)
+    (hmono := by rw [hs₇evm] at hmono; exact hmono)
+    (h₁₁ := rfl) (h₁₂ := rfl) (h₁₃ := rfl)
+    (hclean := by rw [hs₇evm] at hclean; exact hclean)
+  rw [hs₁₃v, hs₇v]
+  exact hdet.2.2
 
 end
 

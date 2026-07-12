@@ -1,0 +1,31 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5568105450979583177
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7892825951787191569
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8374094957482155952
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3769020581494453358
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6440202192625422656
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_bytes
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7100413580705896709
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_array_bytes32_dyn_calldata
+
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata (tail : Identifier) (headStart value0 value1 value2 value3 value4 value5 : Literal) (s₀ s₉ : State) : Prop := abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata_concrete_of_code.1 tail headStart value0 value1 value2 value3 value4 value5 s₀ s₉
+
+lemma abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata_abs_of_concrete {s₀ s₉ : State} {tail headStart value0 value1 value2 value3 value4 value5} :
+  Spec (abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata_concrete_of_code.1 tail headStart value0 value1 value2 value3 value4 value5) s₀ s₉ →
+  Spec (A_abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata tail headStart value0 value1 value2 value3 value4 value5) s₀ s₉ := by
+  intro h
+  simpa [A_abi_encode_uint256_uint256_uint256_struct_L2Message_array_bytes32_dyn_calldata] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

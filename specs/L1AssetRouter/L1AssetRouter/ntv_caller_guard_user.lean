@@ -146,7 +146,7 @@ macro_rules
 
 -- The 160-bit address-cleaning mask 2^160 - 1, exactly as the Yul computes it
 --   split_expr_1 = shl(160, 1) ;  split_expr_2 = sub(split_expr_1, 1).
-def ADDRESS_MASK : UInt256 := (Fin.shiftLeft (1 : UInt256) 160) - 1
+private def ADDRESS_MASK : UInt256 := (Fin.shiftLeft (1 : UInt256) 160) - 1
 
 -- The authorized NativeTokenVault address the guard compares the caller against:
 --   and(sload(0xfb), 2^160-1)  =  (storage slot 251) & mask.

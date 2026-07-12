@@ -1,0 +1,52 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_5564101263465963537
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_3680740834951988335
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_5874225527997063108
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3450541156166099091
+import generated.AtomicFlowManager.AtomicFlowManager.allocate_memory_7429
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_bytes1
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_210206297764715912
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8012742907577658792
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3897550251423386602
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6663647540461412488
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_9170628658314157403
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6652075695448830171
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_array_struct_InteropCall_dyn
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2726711949763582265
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_2715977721633744624
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2975674517988169047
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_struct_BundleAttributes
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3177253801657779510
+import generated.AtomicFlowManager.AtomicFlowManager.abi_decode_available_length_bytes
+import generated.AtomicFlowManager.AtomicFlowManager.fun_encodeInteropBundleHash
+import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5412558363375237105
+import generated.AtomicFlowManager.AtomicFlowManager.read_from_storage_split_offset_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.validator_assert_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_3729329767271556662
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_bytes32_bytes32_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.update_storage_value_offset_enum_LegState_to_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.fun_recoverBundle
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_claimRefund_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_claimRefund  (var_flowId var_bundle_offset var_bundle_length : Literal) (s₀ s₉ : State) : Prop := fun_claimRefund_concrete_of_code.1  var_flowId var_bundle_offset var_bundle_length s₀ s₉
+
+lemma fun_claimRefund_abs_of_concrete {s₀ s₉ : State} { var_flowId var_bundle_offset var_bundle_length} :
+  Spec (fun_claimRefund_concrete_of_code.1  var_flowId var_bundle_offset var_bundle_length) s₀ s₉ →
+  Spec (A_fun_claimRefund  var_flowId var_bundle_offset var_bundle_length) s₀ s₉ := by
+  intro h
+  simpa [A_fun_claimRefund] using h
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager
