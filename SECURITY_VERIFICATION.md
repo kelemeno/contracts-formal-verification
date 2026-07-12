@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-40 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+41 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,27 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 41. Atomic interop — THE INSERT WRITES, pointwise: readback and frame discharged  ★ NEW  ✅ axiom-clean
+`L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** the general storage round-trip laws of the model — `sload_sstore_self` (re-reading a
+  written slot returns the value, ANY value: the zero case erases the key and a missing key reads
+  as 0; needs only the deployed-contract fact, preserved across writes by `acct_sstore`) and
+  `sload_sstore_ne` (distinct-slot frame, unconditional) — and on top of them
+  `insert_writes_readback`: after the insert glue's two struct writes (retargeted low leaf
+  `(lv, ni, v)` at `lowB`, new leaf `(v, oi, ov)` at `newB`, the exact shape `copy_leaf_call`
+  produces), the represented `AbsLeaf`s are the retarget `⟨lv, v⟩` at `lowB`, the new leaf
+  `⟨v, ov⟩` at `newB`, and UNCHANGED at every slot-disjoint base.
+- **Why it matters (spec points 1, 4):** these are hypotheses (i)–(iii) of the insert-effect
+  bridge (#40), discharged against the real storage model. The remaining concrete inputs to #40
+  are now exactly: slot-disjointness of distinct leaf bases (keccak separation, the A6″ family) and
+  the uniqueness hypothesis (iv) (from `KeyInj` in context). The chain
+  compiled-writes → pointwise effect (#41) → set-level `imtInsert` (#40) → invariants (#30) →
+  never-both/never-neither (#34/#35) is complete except for those two arithmetic/context facts and
+  the glue sequencing.
+- **Caveat / trusted base:** **axiom-free** — in fact only `[propext, Quot.sound]`, not even
+  choice. `leafAt` reads fields 0/2 (`value`, `nextValue`); `nextIndex` (field 1) is navigation
+  metadata not needed by the safety argument.
 
 ### 40. Atomic interop — THE INSERT-EFFECT BRIDGE: pointwise writes make `imtInsert`  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
