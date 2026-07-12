@@ -1181,6 +1181,88 @@ theorem concrete_history
     simp only [hσ, hB]
     exact heff
 
+
+/-! ### Pointwise steps — growth inserts and node writes included
+
+`ConcreteStep` pins the exact two-write tower, which covers the non-growth
+insert.  The growth variant interleaves further `sstore`s (side arrays,
+node levels) — all at slots disjoint from every leaf triple — and root
+publishes touch no leaf slot at all.  `PointwiseStep` abstracts over the
+tower: only the REPRESENTED-LEAF effects matter.  Every `ConcreteStep` is a
+`PointwiseStep` (by #41's readback), and so is any growth insert or pure
+node write once its leaf-frame facts are discharged. -/
+
+/-- One tree transition, described by its effect on represented leaves:
+a frame-only step (node writes, root publishes), or an insert. -/
+def PointwiseStep (σ σ' : EVMState) (bases bases' : Finset UInt256) : Prop :=
+  (bases' = bases ∧ ∀ b ∈ bases, leafAt σ' b = leafAt σ b)
+  ∨ ∃ lowB newB v : UInt256,
+      newB ∉ bases ∧ lowB ∈ bases
+      ∧ leafAt σ' lowB = ⟨(leafAt σ lowB).key, v⟩
+      ∧ leafAt σ' newB = ⟨v, (leafAt σ lowB).nextKey⟩
+      ∧ (∀ b ∈ bases, b ≠ lowB → leafAt σ' b = leafAt σ b)
+      ∧ (leafAt σ lowB).key < v
+      ∧ ((leafAt σ lowB).nextKey = 0 ∨ v < (leafAt σ lowB).nextKey)
+      ∧ bases' = insert newB bases
+
+/-- Frame-only steps keep the represented set on the nose. -/
+private lemma image_congr_of_frame
+    {σ σ' : EVMState} {bases : Finset UInt256}
+    (hf : ∀ b ∈ bases, leafAt σ' b = leafAt σ b) :
+    bases.image (leafAt σ') = bases.image (leafAt σ) := by
+  apply Finset.image_congr
+  intro b hb
+  exact hf b hb
+
+/-- **POINTWISE HISTORIES ARE EVOLUTIONS.**  Same conclusion as
+`concrete_history`, from the leaf-effect description alone — covering
+growth inserts and node-only writes. -/
+theorem pointwise_history
+    {σ : ℕ → EVMState} {B : ℕ → Finset UInt256}
+    (hstep : ∀ n, PointwiseStep (σ n) (σ (n+1)) (B n) (B (n+1)))
+    (hgs0 : IMTAbstract.GapSound ((B 0).image (leafAt (σ 0))))
+    (hinj0 : IMTAbstract.KeyInj ((B 0).image (leafAt (σ 0))))
+    (hrki0 : IMTAbstract.RepKeyInj (leafAt (σ 0)) (B 0)) :
+    (∀ n, IMTAbstract.GapSound ((B n).image (leafAt (σ n)))
+        ∧ IMTAbstract.KeyInj ((B n).image (leafAt (σ n)))
+        ∧ IMTAbstract.RepKeyInj (leafAt (σ n)) (B n))
+      ∧ IMTAbstract.Evolution (fun n => (B n).image (leafAt (σ n))) := by
+  have hinv : ∀ n, IMTAbstract.GapSound ((B n).image (leafAt (σ n)))
+      ∧ IMTAbstract.KeyInj ((B n).image (leafAt (σ n)))
+      ∧ IMTAbstract.RepKeyInj (leafAt (σ n)) (B n) := by
+    intro n
+    induction n with
+    | zero => exact ⟨hgs0, hinj0, hrki0⟩
+    | succ n ih =>
+      obtain ⟨hgs, hinj, hrki⟩ := ih
+      rcases hstep n with ⟨hB, hf⟩ | ⟨lowB, newB, v,
+          hnew, hlow, hf'low, hf'new, hframe, hwlow, hwin, hB⟩
+      · rw [hB, image_congr_of_frame hf]
+        refine ⟨hgs, hinj, ?_⟩
+        intro b hb c hc hkey
+        exact hrki b hb c hc (by rw [← hf b hb, ← hf c hc]; exact hkey)
+      · obtain ⟨_, hgs', hinj', hrki'⟩ :=
+          IMTAbstract.image_insert_step' hnew hlow hf'low hf'new hframe
+            hrki hgs hinj hwlow hwin
+        rw [hB]
+        exact ⟨hgs', hinj', hrki'⟩
+  refine ⟨hinv, ?_⟩
+  intro n
+  obtain ⟨hgs, hinj, hrki⟩ := hinv n
+  rcases hstep n with ⟨hB, hf⟩ | ⟨lowB, newB, v,
+      hnew, hlow, hf'low, hf'new, hframe, hwlow, hwin, hB⟩
+  · left
+    simp only [hB]
+    exact image_congr_of_frame hf
+  · right
+    refine ⟨leafAt (σ n) lowB, v,
+      Finset.mem_image.mpr ⟨lowB, hlow, rfl⟩, hwlow, hwin, ?_⟩
+    obtain ⟨heff, _, _, _⟩ :=
+      IMTAbstract.image_insert_step' hnew hlow hf'low hf'new hframe
+        hrki hgs hinj hwlow hwin
+    simp only [hB]
+    exact heff
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
