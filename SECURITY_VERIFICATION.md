@@ -60,7 +60,9 @@ story:**
   timeout gate's compiled guards enforce exactly #34's premises: acceptance forces
   `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions), and the
   flow structure both gates run under is canonical and flowId-bound — sorted legs, aligned
-  chain-ids, recomputed hash — before any proof is examined (*#37*, axiom-free).
+  chain-ids, recomputed hash — before any proof is examined (*#37*, axiom-free), with every root
+  attested by the message-verification contract and every clock anchored to the settlement layer
+  (*#38*, axiom-free).
 - **The tree-builder is verified against a pure model** — `fun_updateLeaf` end-to-end equals the
   pure walk `updateWalk` (leaf write + per-level sibling hash + parent store) (*#31* + U4), and
   **the gates' verifier fold replays that walk** — given the walk's cache, siblings, and scratch
@@ -70,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-37 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+38 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -621,6 +623,27 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 38. Atomic interop — ROOT AUTHENTICATION GUARDS: attested roots, anchored clocks  ★ NEW  ✅ axiom-clean
+`AtomicFlowManager/.../authroot_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** the two semantic guards of `fun_authenticateRoot` (run by BOTH gates for every proof),
+  over their verbatim compiled blocks, both directions:
+  `root_verified_pass`/`root_unverified_reverts` — the decoded result of the
+  `proveL2MessageInclusionShared` staticcall to the L2 message-verification system contract must
+  be TRUE, else `ProofRootNotVerified`; and `multihop_pass`/`final_node_reverts` — a single-level
+  / commit-based proof (`finalProofNode = true`), which exposes NO settlement-layer anchor, is
+  rejected.
+- **Why it matters (spec points 2, 3, 4):** acceptance of `authenticateRoot` means (i) the IMT
+  root the fold (#24–#26/#32) runs against really is one the commitment tree PUBLISHED — the
+  cross-chain trust anchor, delegated to the message-verification system contract — and (ii) the
+  `(slChainId, l1Timestamp)` metadata consumed by the temporal guards (#36) comes from a parsed
+  settlement-layer anchor inside that same attested proof: the deadline clock cannot be forged by
+  a proof that never touched the settlement layer. Together with #36/#37 this completes the
+  guard-level audit of both gates' front doors.
+- **Caveat / trusted base:** **axiom-free** as statements about the guard blocks. The staticcall's
+  RESULT is a hypothesis (the message-verification system contract is a protocol trust anchor, like
+  A1's compiler trust); the metadata-extraction tail (`ProofData` fields via `getProofData`) and the
+  failed-staticcall `revert_forward` branch are outside these lemmas.
 
 ### 37. Atomic interop — THE FLOW-ID GATE: the flow structure is canonical and bound  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../flowid_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
