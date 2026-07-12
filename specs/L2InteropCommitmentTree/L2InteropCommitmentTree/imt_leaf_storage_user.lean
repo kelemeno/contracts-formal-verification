@@ -1053,6 +1053,134 @@ theorem leaves_insert_step
         hN.1 hN.2.1 hN.2.2.1 hN.2.2.2.1 hN.2.2.2.2.1 hN.2.2.2.2.2)
     huniq hgs hinj hwlow hwin
 
+
+/-! ### The fully-inductive concrete step, and concrete histories
+
+`leaves_insert_step'` re-states #42 with the uniqueness hypothesis replaced
+by the inductive `RepKeyInj` (which it also carries forward).  On top of it,
+`ConcreteStep`/`concrete_history`: ANY sequence of such storage transitions
+from a sound base is an `Evolution` with all four invariants at every
+snapshot — the abstract temporal theorems (#34 never-both, #35
+never-neither) apply to the concrete tree with no further hypotheses. -/
+
+/-- **The fully-inductive insert step** — #42 with `RepKeyInj` in place of
+the uniqueness hypothesis, and carried to the new state. -/
+theorem leaves_insert_step'
+    {σ : EVMState} {bases : Finset UInt256} {lowB newB ni oi v : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hnew : newB ∉ bases) (hlow : lowB ∈ bases)
+    (hsep : ∀ b ∈ insert newB bases, ∀ c ∈ insert newB bases, b ≠ c →
+        ∀ i j : UInt256, i.val < 3 → j.val < 3 → b + i ≠ c + j)
+    (hrki : IMTAbstract.RepKeyInj (leafAt σ) bases)
+    (hgs : IMTAbstract.GapSound (bases.image (leafAt σ)))
+    (hinj : IMTAbstract.KeyInj (bases.image (leafAt σ)))
+    (hwlow : (leafAt σ lowB).key < v)
+    (hwin : (leafAt σ lowB).nextKey = 0 ∨ v < (leafAt σ lowB).nextKey) :
+    (insert newB bases).image
+        (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+          newB v oi (σ.sload (lowB + 2))))
+        = IMTAbstract.imtInsert (bases.image (leafAt σ)) (leafAt σ lowB) v
+      ∧ IMTAbstract.GapSound ((insert newB bases).image
+          (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+            newB v oi (σ.sload (lowB + 2)))))
+      ∧ IMTAbstract.KeyInj ((insert newB bases).image
+          (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+            newB v oi (σ.sload (lowB + 2)))))
+      ∧ IMTAbstract.RepKeyInj
+          (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+            newB v oi (σ.sload (lowB + 2)))) (insert newB bases) := by
+  have hne_nl : newB ≠ lowB := fun h => hnew (h ▸ hlow)
+  have hcross := sepN (hsep newB (Finset.mem_insert_self _ _)
+    lowB (Finset.mem_insert.mpr (Or.inr hlow)) hne_nl)
+  have hrb := insert_writes_readback
+    (σ := σ) (lowB := lowB) (newB := newB)
+    (lv := σ.sload lowB) (ni := ni) (v := v) (oi := oi) (ov := σ.sload (lowB + 2))
+    hacc
+    (tri01 lowB) (tri02 lowB) (tri12 lowB)
+    (tri01 newB) (tri02 newB) (tri12 newB)
+    hcross.1 hcross.2.1 hcross.2.2.1
+    hcross.2.2.2.1 hcross.2.2.2.2.1 hcross.2.2.2.2.2
+  exact IMTAbstract.image_insert_step' hnew hlow
+    (by
+      show leafAt _ lowB = ⟨(leafAt σ lowB).key, v⟩
+      exact hrb.1)
+    (by
+      show leafAt _ newB = ⟨v, (leafAt σ lowB).nextKey⟩
+      exact hrb.2.1)
+    (by
+      intro b hb hbl
+      have hbmem : b ∈ insert newB bases := Finset.mem_insert.mpr (Or.inr hb)
+      have hlmem : lowB ∈ insert newB bases := Finset.mem_insert.mpr (Or.inr hlow)
+      have hnmem : newB ∈ insert newB bases := Finset.mem_insert_self _ _
+      have hne_nb : newB ≠ b := fun h => hnew (h ▸ hb)
+      have hL := sepN (hsep lowB hlmem b hbmem (Ne.symm hbl))
+      have hN := sepN (hsep newB hnmem b hbmem hne_nb)
+      exact hrb.2.2 b
+        hL.1 hL.2.1 hL.2.2.1 hL.2.2.2.1 hL.2.2.2.2.1 hL.2.2.2.2.2
+        hN.1 hN.2.1 hN.2.2.1 hN.2.2.2.1 hN.2.2.2.2.1 hN.2.2.2.2.2)
+    hrki hgs hinj hwlow hwin
+
+/-- One concrete tree transition: nothing changes, or a well-formed insert's
+two struct writes land with separated bases. -/
+def ConcreteStep (σ σ' : EVMState) (bases bases' : Finset UInt256) : Prop :=
+  (σ' = σ ∧ bases' = bases)
+  ∨ ∃ lowB newB ni oi v : UInt256,
+      (σ.lookupAccount σ.execution_env.code_owner).isSome
+      ∧ newB ∉ bases ∧ lowB ∈ bases
+      ∧ (∀ b ∈ insert newB bases, ∀ c ∈ insert newB bases, b ≠ c →
+          ∀ i j : UInt256, i.val < 3 → j.val < 3 → b + i ≠ c + j)
+      ∧ (leafAt σ lowB).key < v
+      ∧ ((leafAt σ lowB).nextKey = 0 ∨ v < (leafAt σ lowB).nextKey)
+      ∧ σ' = writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+          newB v oi (σ.sload (lowB + 2))
+      ∧ bases' = insert newB bases
+
+/-- **CONCRETE HISTORIES ARE EVOLUTIONS.**  Along any sequence of
+`ConcreteStep` transitions from a base with all invariants, every snapshot
+keeps `GapSound`/`KeyInj`/`RepKeyInj`, and the represented sets form an
+`Evolution` — so the abstract never-both (#34) and never-neither (#35)
+theorems apply to the concrete tree directly. -/
+theorem concrete_history
+    {σ : ℕ → EVMState} {B : ℕ → Finset UInt256}
+    (hstep : ∀ n, ConcreteStep (σ n) (σ (n+1)) (B n) (B (n+1)))
+    (hgs0 : IMTAbstract.GapSound ((B 0).image (leafAt (σ 0))))
+    (hinj0 : IMTAbstract.KeyInj ((B 0).image (leafAt (σ 0))))
+    (hrki0 : IMTAbstract.RepKeyInj (leafAt (σ 0)) (B 0)) :
+    (∀ n, IMTAbstract.GapSound ((B n).image (leafAt (σ n)))
+        ∧ IMTAbstract.KeyInj ((B n).image (leafAt (σ n)))
+        ∧ IMTAbstract.RepKeyInj (leafAt (σ n)) (B n))
+      ∧ IMTAbstract.Evolution (fun n => (B n).image (leafAt (σ n))) := by
+  have hinv : ∀ n, IMTAbstract.GapSound ((B n).image (leafAt (σ n)))
+      ∧ IMTAbstract.KeyInj ((B n).image (leafAt (σ n)))
+      ∧ IMTAbstract.RepKeyInj (leafAt (σ n)) (B n) := by
+    intro n
+    induction n with
+    | zero => exact ⟨hgs0, hinj0, hrki0⟩
+    | succ n ih =>
+      obtain ⟨hgs, hinj, hrki⟩ := ih
+      rcases hstep n with ⟨hσ, hB⟩ | ⟨lowB, newB, ni, oi, v,
+          hacc, hnew, hlow, hsep, hwlow, hwin, hσ, hB⟩
+      · rw [hσ, hB]
+        exact ⟨hgs, hinj, hrki⟩
+      · obtain ⟨_, hgs', hinj', hrki'⟩ :=
+          leaves_insert_step' hacc hnew hlow hsep hrki hgs hinj hwlow hwin
+        rw [hσ, hB]
+        exact ⟨hgs', hinj', hrki'⟩
+  refine ⟨hinv, ?_⟩
+  intro n
+  obtain ⟨hgs, hinj, hrki⟩ := hinv n
+  rcases hstep n with ⟨hσ, hB⟩ | ⟨lowB, newB, ni, oi, v,
+      hacc, hnew, hlow, hsep, hwlow, hwin, hσ, hB⟩
+  · left
+    simp only [hσ, hB]
+  · right
+    refine ⟨leafAt (σ n) lowB, v,
+      Finset.mem_image.mpr ⟨lowB, hlow, rfl⟩, hwlow, hwin, ?_⟩
+    obtain ⟨heff, _, _, _⟩ :=
+      leaves_insert_step' hacc hnew hlow hsep hrki hgs hinj hwlow hwin
+    simp only [hσ, hB]
+    exact heff
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
