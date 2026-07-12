@@ -692,9 +692,17 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Discharging (i)–(iv) is now pure slot arithmetic (`sload`-after-`sstore` at keccak-separated
   bases), after which the whole abstract stack — invariant preservation (#30), never-both (#34),
   never-neither (#35) — applies to the concrete tree with no further set theory.
-- **Caveat / trusted base:** **axiom-free** (pure Finset algebra). The uniqueness hypothesis (iv)
-  follows from `KeyInj` of the represented set in context; the slot-disjointness needed for (iii)
-  concretely is the A6″-family keccak separation the walk machinery already uses.
+- **Caveat / trusted base:** **axiom-free** (pure Finset algebra). The slot-disjointness needed
+  for (iii) concretely is the A6″-family keccak separation the walk machinery already uses.
+- **Update (same day) — uniqueness made INDUCTIVE (`image_insert_step'`):** the uniqueness
+  hypothesis (iv) is no longer assumed anywhere. `RepKeyInj` (distinct indices represent distinct
+  keys) is a fourth invariant PRESERVED by the insert step (`repKeyInj_insert_step` — the retarget
+  keeps its key, the new key is fresh), the freshness it needs follows from the gap window itself
+  (`fresh_of_window`, via `gap_excludes_member` — no separate guard hypothesis at the abstract
+  level), and (iv) is a one-line corollary (`huniq_of_repKeyInj`). The self-contained step
+  `image_insert_step'` concludes `imtInsert` + ALL FOUR invariants (`GapSound`/`KeyInj`/
+  `RepKeyInj` + the effect) from pointwise writes + window + soundness alone: nothing about the
+  insert chain remains non-inductive. Axiom-free.
 
 ### 39. Atomic interop — THE LEAVES-MAPPING PRIMITIVES: the insert glue's alphabet  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
