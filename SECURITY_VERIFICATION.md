@@ -756,6 +756,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   RESULT is a hypothesis (the message-verification system contract is a protocol trust anchor, like
   A1's compiler trust); the metadata-extraction tail (`ProofData` fields via `getProofData`) and the
   failed-staticcall `revert_forward` branch are outside these lemmas.
+- **Update (same day) — the prelude alphabet (`authroot_prelims_user.lean`):** seven closed forms
+  for the L2Message-construction helpers the function runs before the staticcall — the size-96
+  generic finalizer (rounding is the identity), the uint16/address masked memory writers, the
+  96-byte allocator, the single-word abi encoder, the PINNED sender constant `0x10012` (the
+  commitment-tree address every chain shares — what binds the verified message to the real tree),
+  and the address cleaner. All axiom-free; the stitching of #38's guards through the full body is
+  now a composition exercise over these plus the encoder/decoder pair around the staticcall.
 
 ### 37. Atomic interop — THE FLOW-ID GATE: the flow structure is canonical and bound  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../flowid_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
