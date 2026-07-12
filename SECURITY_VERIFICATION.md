@@ -647,6 +647,12 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   source-level inspection, documented at #31/(B)) and the guard-derived hypotheses (freshness of
   `v` and the window checks — enforced by the compiled guards per #26/#37 and the insert's own
   reverts).
+- **Update (same day) — pointwise histories (`pointwise_history`):** the history theorem
+  generalized from the exact two-write tower to `PointwiseStep` — a transition described by its
+  REPRESENTED-LEAF effect alone (frame-only for node writes/root publishes/side-array growth, or
+  the insert's retarget+append+frame). Same conclusion: all invariants at every snapshot and an
+  `Evolution`. This subsumes the GROWTH-variant insert (its extra `sstore`s are leaf-frame-disjoint
+  by keccak base separation) and every non-leaf write the contract performs. Axiom-free.
 - **Update (same day) — concrete histories are Evolutions (`concrete_history`):** the step was
   upgraded to the fully-inductive form (`leaves_insert_step'`, `RepKeyInj` replacing the
   uniqueness hypothesis and carried forward), and the arc capped: along ANY sequence of
