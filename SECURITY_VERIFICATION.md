@@ -633,14 +633,21 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   `copy_struct_to_storage(slot, ptr)` is exactly three word `sstore`s of the three memory fields
   `(value, nextIndex, nextValue)` at `slot`/`slot+1`/`slot+2` (reads normalized through the
   interleaved `sstore`s via `mload_sstore`).
-- **Why it matters (spec points 1, 4):** these are two of the three storage primitives the insert
-  protocol is built from (the struct READ is the remaining one). With them, the leaves-mapping
+- **Why it matters (spec points 1, 4):** these are the storage primitives the insert protocol is
+  built from — and with the same-day update below, ALL THREE now have closed forms. With them, the leaves-mapping
   abstraction — "`AbsLeaf ⟨value, nextValue⟩` at index `i` lives at `keccak(i ‖ 4)`" — is
   definable against VERIFIED primitives, so the retarget-low-leaf and append-new-leaf writes of
   the insert (#30's `imtInsert`, #34/#35's `Evolution` steps) can be stated as compositions of
   machine-checked pieces; the (B) glue shrinks toward pure sequencing.
 - **Caveat / trusted base:** **axiom-free**. The `accOut` slot value is the same keccak-slot atom
   the entire walk machinery uses, so slot non-aliasing facts (A6″ family) apply uniformly.
+- **Update (same day) — the struct READ:** `read_leaf_call` — `read_from_storage(slot)` allocates
+  a fresh 96-byte struct at the free pointer (`finalize_allocation_96_call`: the fixed-size
+  finalizer is exactly `mstore(64, memPtr+96)` under the pointer bound) and copies the three
+  storage words from `slot`/`+1`/`+2` into it, returning the pointer (`leafReadEvm`). With all
+  three primitives closed, the dispatcher-inlined insert's storage effect is a composition of
+  machine-checked pieces end-to-end: read the low leaf, write the retargeted low leaf, write the
+  new leaf — at keccak-derived slots the walk machinery already reasons about. Axiom-free.
 
 ### 38. Atomic interop — ROOT AUTHENTICATION GUARDS: attested roots, anchored clocks  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../authroot_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
