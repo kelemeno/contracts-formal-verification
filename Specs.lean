@@ -340,6 +340,7 @@ import specs.AtomicFlowManager.AtomicFlowManager.write_to_memory_bool_user
 import specs.AtomicFlowManager.AtomicFlowManager.write_to_memory_uint16_user
 import specs.CalldatacopyFrame
 import specs.InteropHandler.InteropHandler.no_double_delivery_user
+import specs.InteropHandler.InteropHandler.exec_allowed_user
 import specs.DiamondProxy.DiamondProxy.Common.block_259397859734445078_user
 import specs.DiamondProxy.DiamondProxy.Common.block_2631134540445051484_user
 import specs.DiamondProxy.DiamondProxy.Common.block_3861332359708908420_user
