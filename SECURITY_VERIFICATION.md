@@ -647,6 +647,13 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   source-level inspection, documented at #31/(B)) and the guard-derived hypotheses (freshness of
   `v` and the window checks — enforced by the compiled guards per #26/#37 and the insert's own
   reverts).
+- **Update (same day) — concrete histories are Evolutions (`concrete_history`):** the step was
+  upgraded to the fully-inductive form (`leaves_insert_step'`, `RepKeyInj` replacing the
+  uniqueness hypothesis and carried forward), and the arc capped: along ANY sequence of
+  `ConcreteStep` transitions (identity, or a well-formed insert's two struct writes with
+  separated bases) from a sound base, every snapshot keeps `GapSound`/`KeyInj`/`RepKeyInj` and
+  the represented sets form an `Evolution` — the abstract never-both (#34) and never-neither
+  (#35) theorems apply to the CONCRETE tree with no further hypotheses. Axiom-free.
 
 ### 41. Atomic interop — THE INSERT WRITES, pointwise: readback and frame discharged  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
