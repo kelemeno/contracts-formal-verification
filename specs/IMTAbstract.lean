@@ -443,4 +443,81 @@ theorem genesis_soundState : SoundState ({⟨0, 0⟩} : Finset AbsLeaf) :=
 theorem genesis_zero_mem : (0 : UInt256) ∈ keys ({⟨0, 0⟩} : Finset AbsLeaf) :=
   Finset.mem_image.mpr ⟨⟨0, 0⟩, Finset.mem_singleton_self _, rfl⟩
 
+/-! ## The insert-effect bridge — pointwise writes make `imtInsert`
+
+The concrete insert (the dispatcher glue over #39's verified storage
+primitives) does three things to the leaves mapping: overwrite the low
+leaf's slot triple with the RETARGETED leaf, write the NEW leaf at a fresh
+index, and touch nothing else.  This theorem says those pointwise facts —
+stated over an abstract representation function `f : index → AbsLeaf` —
+force the REPRESENTED SET to transform exactly as `imtInsert`.  It is the
+last abstract link: concrete slot arithmetic discharges the four pointwise
+hypotheses, and #30/#34/#35 take over from `imtInsert`. -/
+
+/-- **THE INSERT EFFECT.**  If, going from representation `f` to `f'`:
+the low index now carries the retargeted leaf `⟨key, v⟩`, the fresh index
+carries the new leaf `⟨v, nextKey⟩`, every other index is unchanged, and the
+low leaf was uniquely represented — then the image over the grown index set
+IS the abstract `imtInsert`. -/
+theorem image_insert_effect
+    {α : Type} [DecidableEq α]
+    {f f' : α → AbsLeaf} {bases : Finset α} {lowb newb : α} {v : UInt256}
+    (hnew : newb ∉ bases) (hlow : lowb ∈ bases)
+    (hf'low : f' lowb = ⟨(f lowb).key, v⟩)
+    (hf'new : f' newb = ⟨v, (f lowb).nextKey⟩)
+    (hframe : ∀ b ∈ bases, b ≠ lowb → f' b = f b)
+    (huniq : ∀ b ∈ bases, b ≠ lowb → f b ≠ f lowb) :
+    Finset.image f' (insert newb bases)
+      = imtInsert (Finset.image f bases) (f lowb) v := by
+  ext x
+  rw [mem_imtInsert, Finset.mem_image]
+  constructor
+  · rintro ⟨b, hb, rfl⟩
+    rw [Finset.mem_insert] at hb
+    rcases hb with rfl | hb
+    · right; left
+      exact hf'new
+    · by_cases hbl : b = lowb
+      · subst hbl
+        left
+        exact hf'low
+      · rw [hframe b hb hbl]
+        right; right
+        exact ⟨Finset.mem_image.mpr ⟨b, hb, rfl⟩, huniq b hb hbl⟩
+  · rintro (rfl | rfl | ⟨hx, hne⟩)
+    · exact ⟨lowb, Finset.mem_insert.mpr (Or.inr hlow), hf'low⟩
+    · exact ⟨newb, Finset.mem_insert_self _ _, hf'new⟩
+    · obtain ⟨b, hb, rfl⟩ := Finset.mem_image.mp hx
+      have hbl : b ≠ lowb := fun h => hne (by rw [h])
+      exact ⟨b, Finset.mem_insert.mpr (Or.inr hb), hframe b hb hbl⟩
+
+/-- **INSERT EFFECT + INVARIANT, in one step.**  The pointwise write facts,
+a well-formed window on the represented low leaf, key-injectivity of the old
+set, and soundness of the old set give: the NEW represented set is exactly
+`imtInsert` AND remains `GapSound`/`KeyInj` — one `Evolution` step. -/
+theorem image_insert_step
+    {α : Type} [DecidableEq α]
+    {f f' : α → AbsLeaf} {bases : Finset α} {lowb newb : α} {v : UInt256}
+    (hnew : newb ∉ bases) (hlow : lowb ∈ bases)
+    (hf'low : f' lowb = ⟨(f lowb).key, v⟩)
+    (hf'new : f' newb = ⟨v, (f lowb).nextKey⟩)
+    (hframe : ∀ b ∈ bases, b ≠ lowb → f' b = f b)
+    (huniq : ∀ b ∈ bases, b ≠ lowb → f b ≠ f lowb)
+    (hgs : GapSound (Finset.image f bases))
+    (hinj : KeyInj (Finset.image f bases))
+    (hwlow : (f lowb).key < v)
+    (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
+    Finset.image f' (insert newb bases)
+        = imtInsert (Finset.image f bases) (f lowb) v
+      ∧ GapSound (Finset.image f' (insert newb bases))
+      ∧ KeyInj (Finset.image f' (insert newb bases)) := by
+  have heff := image_insert_effect hnew hlow hf'low hf'new hframe huniq
+  have hmem : f lowb ∈ Finset.image f bases :=
+    Finset.mem_image.mpr ⟨lowb, hlow, rfl⟩
+  refine ⟨heff, ?_, ?_⟩
+  · rw [heff]
+    exact imtInsert_gapSound hgs hinj hmem hwlow hwin
+  · rw [heff]
+    exact imtInsert_keyInj hgs hinj hmem hwlow hwin
+
 end IMTAbstract
