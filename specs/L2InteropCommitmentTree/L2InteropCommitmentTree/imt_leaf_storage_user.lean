@@ -959,6 +959,100 @@ theorem leafBase_sep
     exact Clear.KeccakInjective.keccak256_slot_sep h₂ h₁ hint.symm
       (by rw [hbound, heval]; omega) hstep
 
+
+/-! ### THE CONCRETE INSERT STEP — writes to `imtInsert`, end to end
+
+Composing the pointwise readback (#41), the base separation (above), and the
+abstract insert-effect bridge (#40): the glue's two struct writes transform
+the REPRESENTED LEAF SET into exactly `imtInsert`, preserving the sortedness
+invariants — one `Evolution` step (#34/#35), stated directly over the
+storage model. -/
+
+private lemma tri01 (b : UInt256) : b ≠ b + 1 := by
+  intro h
+  have h' : b + 0 = b + 1 := by rw [add_zero]; exact h
+  exact (by decide : (0 : UInt256) ≠ 1) (add_left_cancel h')
+
+private lemma tri02 (b : UInt256) : b ≠ b + 2 := by
+  intro h
+  have h' : b + 0 = b + 2 := by rw [add_zero]; exact h
+  exact (by decide : (0 : UInt256) ≠ 2) (add_left_cancel h')
+
+private lemma tri12 (b : UInt256) : b + 1 ≠ b + 2 :=
+  fun h => (by decide : (1 : UInt256) ≠ 2) (add_left_cancel h)
+
+/-- Unpack a pairwise triple-separation fact into the six `≠`s the frame
+lemma consumes. -/
+private lemma sepN {b c : UInt256}
+    (h : ∀ i j : UInt256, i.val < 3 → j.val < 3 → b + i ≠ c + j) :
+    (b ≠ c) ∧ (b + 1 ≠ c) ∧ (b + 2 ≠ c)
+      ∧ (b ≠ c + 2) ∧ (b + 1 ≠ c + 2) ∧ (b + 2 ≠ c + 2) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · have := h 0 0 (by decide) (by decide); rwa [add_zero, add_zero] at this
+  · have := h 1 0 (by decide) (by decide); rwa [add_zero] at this
+  · have := h 2 0 (by decide) (by decide); rwa [add_zero] at this
+  · have := h 0 2 (by decide) (by decide); rwa [add_zero] at this
+  · exact h 1 2 (by decide) (by decide)
+  · exact h 2 2 (by decide) (by decide)
+
+/-- **THE INSERT STEP, concretely.**  Under the deployed-contract fact,
+pairwise triple separation of the (grown) base set, and uniqueness of the
+low leaf's representation: after the glue's two struct writes — the
+retargeted low leaf `(sload lowB, ni, v)` at `lowB` and the new leaf
+`(v, oi, sload (lowB+2))` at `newB` — the represented leaf set over the
+grown base set IS `imtInsert`, and it remains `GapSound` and `KeyInj`. -/
+theorem leaves_insert_step
+    {σ : EVMState} {bases : Finset UInt256} {lowB newB ni oi v : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hnew : newB ∉ bases) (hlow : lowB ∈ bases)
+    (hsep : ∀ b ∈ insert newB bases, ∀ c ∈ insert newB bases, b ≠ c →
+        ∀ i j : UInt256, i.val < 3 → j.val < 3 → b + i ≠ c + j)
+    (huniq : ∀ b ∈ bases, b ≠ lowB → leafAt σ b ≠ leafAt σ lowB)
+    (hgs : IMTAbstract.GapSound (bases.image (leafAt σ)))
+    (hinj : IMTAbstract.KeyInj (bases.image (leafAt σ)))
+    (hwlow : (leafAt σ lowB).key < v)
+    (hwin : (leafAt σ lowB).nextKey = 0 ∨ v < (leafAt σ lowB).nextKey) :
+    (insert newB bases).image
+        (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+          newB v oi (σ.sload (lowB + 2))))
+        = IMTAbstract.imtInsert (bases.image (leafAt σ)) (leafAt σ lowB) v
+      ∧ IMTAbstract.GapSound ((insert newB bases).image
+          (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+            newB v oi (σ.sload (lowB + 2)))))
+      ∧ IMTAbstract.KeyInj ((insert newB bases).image
+          (leafAt (writeLeafEvm (writeLeafEvm σ lowB (σ.sload lowB) ni v)
+            newB v oi (σ.sload (lowB + 2))))) := by
+  have hne_nl : newB ≠ lowB := fun h => hnew (h ▸ hlow)
+  have hcross := sepN (hsep newB (Finset.mem_insert_self _ _)
+    lowB (Finset.mem_insert.mpr (Or.inr hlow)) hne_nl)
+  have hrb := insert_writes_readback
+    (σ := σ) (lowB := lowB) (newB := newB)
+    (lv := σ.sload lowB) (ni := ni) (v := v) (oi := oi) (ov := σ.sload (lowB + 2))
+    hacc
+    (tri01 lowB) (tri02 lowB) (tri12 lowB)
+    (tri01 newB) (tri02 newB) (tri12 newB)
+    hcross.1 hcross.2.1 hcross.2.2.1
+    hcross.2.2.2.1 hcross.2.2.2.2.1 hcross.2.2.2.2.2
+  exact IMTAbstract.image_insert_step hnew hlow
+    (by
+      show leafAt _ lowB = ⟨(leafAt σ lowB).key, v⟩
+      exact hrb.1)
+    (by
+      show leafAt _ newB = ⟨v, (leafAt σ lowB).nextKey⟩
+      exact hrb.2.1)
+    (by
+      intro b hb hbl
+      have hbmem : b ∈ insert newB bases := Finset.mem_insert.mpr (Or.inr hb)
+      have hlmem : lowB ∈ insert newB bases := Finset.mem_insert.mpr (Or.inr hlow)
+      have hnmem : newB ∈ insert newB bases := Finset.mem_insert_self _ _
+      have hne_nb : newB ≠ b := fun h => hnew (h ▸ hb)
+      have hL := sepN (hsep lowB hlmem b hbmem (Ne.symm hbl))
+      have hN := sepN (hsep newB hnmem b hbmem hne_nb)
+      exact hrb.2.2 b
+        hL.1 hL.2.1 hL.2.2.1 hL.2.2.2.1 hL.2.2.2.2.1 hL.2.2.2.2.2
+        hN.1 hN.2.1 hN.2.2.1 hN.2.2.2.1 hN.2.2.2.2.1 hN.2.2.2.2.2)
+    huniq hgs hinj hwlow hwin
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
