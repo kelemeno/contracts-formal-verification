@@ -373,6 +373,7 @@ import specs.KeccakDeterminism
 import specs.KeccakDistinct
 import specs.KeccakInjective
 import specs.CalldatacopyFrame
+import specs.ModelFidelity
 import specs.IMTAbstract
 import specs.L1AssetRouter.L1AssetRouter.Common.block_1024321818884845994_user
 import specs.L1AssetRouter.L1AssetRouter.Common.block_1094181428675153396_user

@@ -110,6 +110,16 @@ reviewer can spot-check that the Yul matches the Solidity.
 **A2. EVM semantics.** Clear's `State` / `exec` / `eval` / `sload` / `sstore` / `keccak256` / `call`
 (in the `Clear/` framework, `Clear/Clear/EVMState.lean`, `Interpreter.lean`) faithfully model the
 EVM. **You trust this EVM model.**
+**A2a. KNOWN fidelity gap (machine-checked, `specs/ModelFidelity.lean`).** `Array.extractFill`
+computes `extract v₀ (v₀ + size − 1)` with an EXCLUSIVE stop, returning `size − 1` elements — so
+the modeled `calldataload` reads 31 bytes: **the low byte of every modeled calldata word is 0**
+(witness: an all-`0xFF` 32-byte read has `.val % 256 = 0`; the high byte is read correctly), and
+`calldatacopy` inherits the same truncation via `extractBytes`. Impact: none of the theorems in
+Part B depends on concrete calldata bytes (values are treated symbolically); the gap WOULD affect
+content-level claims (e.g. "the copied array element equals the calldata word") and concrete
+replays. Flagged for an upstream Clear fix; the witnesses pin the behavior so the fix is
+observable. Also note external calls (`staticcall` etc.) return NO values in the model — results
+of cross-contract calls are hypotheses by construction (see #38).
 
 **A3. Admitted opcodes (MCOPY, TSTORE).** `solc 0.8.28` emits `mcopy` (EIP-5656) and `tstore`
 (EIP-1153, transient storage), which Clear does not natively model. They are supplied as small
