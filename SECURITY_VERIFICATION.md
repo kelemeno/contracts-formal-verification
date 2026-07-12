@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-38 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+39 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,24 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 39. Atomic interop — THE LEAVES-MAPPING PRIMITIVES: the insert glue's alphabet  ★ NEW  ✅ axiom-clean
+`L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
+- **Claim:** closed forms for the named storage helpers the dispatcher-inlined IMT insert (the (B)
+  boundary) sequences over the `leaves` mapping (storage slot 4): `mapping_leaves_call` — the
+  accessor `mapping_…_5196(key)` is exactly one `accOut` step at `(key, 4)`, so leaf `i`'s struct
+  occupies slots `keccak256(i ‖ 4) + 0/1/2`; and `copy_leaf_call` — the struct write
+  `copy_struct_to_storage(slot, ptr)` is exactly three word `sstore`s of the three memory fields
+  `(value, nextIndex, nextValue)` at `slot`/`slot+1`/`slot+2` (reads normalized through the
+  interleaved `sstore`s via `mload_sstore`).
+- **Why it matters (spec points 1, 4):** these are two of the three storage primitives the insert
+  protocol is built from (the struct READ is the remaining one). With them, the leaves-mapping
+  abstraction — "`AbsLeaf ⟨value, nextValue⟩` at index `i` lives at `keccak(i ‖ 4)`" — is
+  definable against VERIFIED primitives, so the retarget-low-leaf and append-new-leaf writes of
+  the insert (#30's `imtInsert`, #34/#35's `Evolution` steps) can be stated as compositions of
+  machine-checked pieces; the (B) glue shrinks toward pure sequencing.
+- **Caveat / trusted base:** **axiom-free**. The `accOut` slot value is the same keccak-slot atom
+  the entire walk machinery uses, so slot non-aliasing facts (A6″ family) apply uniformly.
 
 ### 38. Atomic interop — ROOT AUTHENTICATION GUARDS: attested roots, anchored clocks  ★ NEW  ✅ axiom-clean
 `AtomicFlowManager/.../authroot_gate_user.lean` *(added 2026-07-12; PR #2218 contracts)*
