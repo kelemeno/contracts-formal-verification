@@ -520,4 +520,95 @@ theorem image_insert_step
   · rw [heff]
     exact imtInsert_keyInj hgs hinj hmem hwlow hwin
 
+/-! ## Representation key-injectivity — hypothesis (iv) made inductive
+
+`image_insert_effect`'s uniqueness hypothesis ("the low leaf is represented
+only at the low index") is not free-standing: two indices could in principle
+carry identical leaves.  But the concrete tree can't produce that — distinct
+indices always hold distinct KEYS, because every insert adds a fresh key and
+the retarget keeps its key.  This section closes the loop: `RepKeyInj` is
+preserved by the insert step, the freshness it needs follows from the gap
+window itself, and uniqueness (iv) is a one-line corollary.  Nothing about
+the insert chain remains non-inductive. -/
+
+/-- Distinct indices represent distinct keys. -/
+def RepKeyInj {α : Type} (f : α → AbsLeaf) (bases : Finset α) : Prop :=
+  ∀ b ∈ bases, ∀ c ∈ bases, (f b).key = (f c).key → b = c
+
+/-- Uniqueness (iv) from representation key-injectivity. -/
+theorem huniq_of_repKeyInj {α : Type} {f : α → AbsLeaf} {bases : Finset α}
+    {lowb : α} (hrki : RepKeyInj f bases) (hlow : lowb ∈ bases) :
+    ∀ b ∈ bases, b ≠ lowb → f b ≠ f lowb :=
+  fun b hb hne hfe => hne (hrki b hb lowb hlow (congrArg AbsLeaf.key hfe))
+
+/-- **Freshness is free**: the low leaf's window straddling `v` already
+excludes ANY represented key equal to `v` (via `gap_excludes_member`). -/
+theorem fresh_of_window {α : Type} {f : α → AbsLeaf} {bases : Finset α}
+    {lowb : α} {v : UInt256} [DecidableEq α]
+    (hgs : GapSound (Finset.image f bases)) (hlow : lowb ∈ bases)
+    (hwlow : (f lowb).key < v)
+    (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
+    ∀ b ∈ bases, (f b).key ≠ v :=
+  fun b hb hkey => gap_excludes_member hgs
+    (Finset.mem_image.mpr ⟨lowb, hlow, rfl⟩)
+    (Finset.mem_image.mpr ⟨b, hb, rfl⟩)
+    hwlow hwin hkey
+
+/-- **THE INSERT STEP PRESERVES `RepKeyInj`**: the retarget keeps its key and
+the new index's key `v` is fresh. -/
+theorem repKeyInj_insert_step {α : Type} [DecidableEq α]
+    {f f' : α → AbsLeaf} {bases : Finset α} {lowb newb : α} {v : UInt256}
+    (hnew : newb ∉ bases) (hlow : lowb ∈ bases)
+    (hf'low : f' lowb = ⟨(f lowb).key, v⟩)
+    (hf'new : f' newb = ⟨v, (f lowb).nextKey⟩)
+    (hframe : ∀ b ∈ bases, b ≠ lowb → f' b = f b)
+    (hrki : RepKeyInj f bases)
+    (hfresh : ∀ b ∈ bases, (f b).key ≠ v) :
+    RepKeyInj f' (insert newb bases) := by
+  -- every old index keeps its key
+  have hkey_eq : ∀ b ∈ bases, (f' b).key = (f b).key := by
+    intro b hb
+    by_cases hbl : b = lowb
+    · subst hbl
+      rw [hf'low]
+    · rw [hframe b hb hbl]
+  intro b hb c hc hkey
+  rw [Finset.mem_insert] at hb hc
+  rcases hb with rfl | hb <;> rcases hc with rfl | hc
+  · rfl
+  · -- b = newb, c old: key v = old key — contradicts freshness
+    rw [hf'new, hkey_eq c hc] at hkey
+    exact absurd hkey.symm (hfresh c hc)
+  · rw [hf'new, hkey_eq b hb] at hkey
+    exact absurd hkey (hfresh b hb)
+  · exact hrki b hb c hc (by rw [← hkey_eq b hb, ← hkey_eq c hc]; exact hkey)
+
+/-- **THE SELF-CONTAINED INDUCTIVE STEP.**  Pointwise write facts + window +
+soundness + `RepKeyInj` give: the new set IS `imtInsert`, and ALL THREE
+invariants — `GapSound`, `KeyInj`, `RepKeyInj` — carry to the new state.
+Uniqueness and freshness are derived, not assumed. -/
+theorem image_insert_step'
+    {α : Type} [DecidableEq α]
+    {f f' : α → AbsLeaf} {bases : Finset α} {lowb newb : α} {v : UInt256}
+    (hnew : newb ∉ bases) (hlow : lowb ∈ bases)
+    (hf'low : f' lowb = ⟨(f lowb).key, v⟩)
+    (hf'new : f' newb = ⟨v, (f lowb).nextKey⟩)
+    (hframe : ∀ b ∈ bases, b ≠ lowb → f' b = f b)
+    (hrki : RepKeyInj f bases)
+    (hgs : GapSound (Finset.image f bases))
+    (hinj : KeyInj (Finset.image f bases))
+    (hwlow : (f lowb).key < v)
+    (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
+    Finset.image f' (insert newb bases)
+        = imtInsert (Finset.image f bases) (f lowb) v
+      ∧ GapSound (Finset.image f' (insert newb bases))
+      ∧ KeyInj (Finset.image f' (insert newb bases))
+      ∧ RepKeyInj f' (insert newb bases) := by
+  have huniq := huniq_of_repKeyInj hrki hlow
+  have hfresh := fresh_of_window hgs hlow hwlow hwin
+  obtain ⟨heff, hgs', hinj'⟩ :=
+    image_insert_step hnew hlow hf'low hf'new hframe huniq hgs hinj hwlow hwin
+  exact ⟨heff, hgs', hinj',
+    repKeyInj_insert_step hnew hlow hf'low hf'new hframe hrki hfresh⟩
+
 end IMTAbstract
