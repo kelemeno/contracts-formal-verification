@@ -644,6 +644,14 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
 - **Caveat / trusted base:** **axiom-free** — in fact only `[propext, Quot.sound]`, not even
   choice. `leafAt` reads fields 0/2 (`value`, `nextValue`); `nextIndex` (field 1) is navigation
   metadata not needed by the safety argument.
+- **Update (same day) — keccak base separation (`leafBase_sep`, A6″):** the leaf-slot bases of two
+  DISTINCT keys — both computed by the mapping accessor `keccak256(key ‖ base)` over the same base
+  word — never collide at any pair of small offsets: `b₁ + i ≠ b₂ + j` for `i, j < 2³²`. The
+  interval difference comes from the key word at offset 0 (an `mstore` round-trip through the base
+  write), the offset shifting is pure group algebra. With `base_offset_ne` (a triple is internally
+  distinct — `[propext, Quot.sound]` only), ALL slot-side hypotheses of the insert chain
+  (#40's frame/disjointness, #41's ≠-hypotheses) are now dischargeable from key distinctness
+  alone. Axioms: standard three + `keccak256_slot_sep` (the sanctioned A6″ spread idealization).
 
 ### 40. Atomic interop — THE INSERT-EFFECT BRIDGE: pointwise writes make `imtInsert`  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
