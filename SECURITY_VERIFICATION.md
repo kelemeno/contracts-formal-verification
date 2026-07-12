@@ -72,7 +72,7 @@ story:**
   capstone discharge: the dispatcher-inlined insert glue → `imtInsert` correspondence
   (source-level inspection; outside the generated corpus).
 
-39 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
+40 machine-checked theorem groups in total (Part B), on top of a 485/485 real-build baseline (A9). The
 numbers in parentheses are the theorem entries below. Caveats per theorem are in Part B; the trusted
 base is Part A.
 
@@ -623,6 +623,25 @@ the timeout/refund path and re-mints burned source funds via `claimRefund`)*
   Classical.choice]`, for both the parameterized and concrete forms). Success-path form: the revert
   directions of the three witness guards are not yet stated (each is a small
   `gate_if_reverts`-style corollary if needed).
+
+### 40. Atomic interop — THE INSERT-EFFECT BRIDGE: pointwise writes make `imtInsert`  ★ NEW  ✅ axiom-clean
+`specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
+- **Claim (`image_insert_effect`):** over any representation function `f : index → AbsLeaf`, if
+  going from `f` to `f'` (i) the low index carries the RETARGETED leaf `⟨key, v⟩`, (ii) a fresh
+  index carries the NEW leaf `⟨v, nextKey⟩`, (iii) every other index is unchanged, and (iv) the low
+  leaf was uniquely represented — then the represented set over the grown index set IS exactly the
+  abstract `imtInsert`. And (`image_insert_step`) with a well-formed window and a sound old set,
+  the new set is simultaneously `imtInsert` AND `GapSound`/`KeyInj` — one `Evolution` step (#34/#35)
+  in a single theorem.
+- **Why it matters (spec points 1, 4):** this is the last abstract link in the insert chain. The
+  dispatcher glue's storage effect is: read low leaf (`read_leaf_call`), write retargeted low leaf
+  and new leaf (`copy_leaf_call` ×2, at `mapping_leaves_call` slots) — #39's verified primitives.
+  Discharging (i)–(iv) is now pure slot arithmetic (`sload`-after-`sstore` at keccak-separated
+  bases), after which the whole abstract stack — invariant preservation (#30), never-both (#34),
+  never-neither (#35) — applies to the concrete tree with no further set theory.
+- **Caveat / trusted base:** **axiom-free** (pure Finset algebra). The uniqueness hypothesis (iv)
+  follows from `KeyInj` of the represented set in context; the slot-disjointness needed for (iii)
+  concretely is the A6″-family keccak separation the walk machinery already uses.
 
 ### 39. Atomic interop — THE LEAVES-MAPPING PRIMITIVES: the insert glue's alphabet  ★ NEW  ✅ axiom-clean
 `L2InteropCommitmentTree/.../imt_leaf_storage_user.lean` *(added 2026-07-12; PR #2218 contracts)*
