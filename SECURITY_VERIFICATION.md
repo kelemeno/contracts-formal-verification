@@ -230,6 +230,24 @@ it **guarantees**, and the honest **caveat**. File paths are under `specs/`.
 > takes ~40–50 min to elaborate); its routing property still holds in meaning. So the honest current count is
 > **15 deep (#1–#8, #10–#16) + 1 (#9) deferred** — which *exceeds* the pre-regeneration baseline of 14. Originals backed up.
 
+> **⚠️ Migration blocker (2026-07-17, era-contracts → PR #2303 head `c67894b97`).** The atomic-interop
+> contracts were re-generated against the updated source. Most repairs are mechanical (memory-pointer
+> variable renames, block content-hash remaps, and one storage-layout shift: the `leaves` mapping moved
+> from slot 4 → 5, fixed in `imt_leaf_storage`). The **abstract / keccak / storage layers**
+> (`IMTAbstract`, the `imt_*` arc, #22–#44 as listed below) are unaffected and verify in isolation.
+> **One structural generator gap blocks the concrete AtomicFlowManager function-execution layer** and
+> hence `lake build specs` as a whole: the Clear VC generator emits `rw [EVM<Func>']` for control-flow
+> **conditions that are user-function calls** (`if cleanup_bool(x)`, `switch read_from_calldatat_bool(x)`),
+> treating them as primops. No such lemma exists, and the emitted `_concrete_of_code` goal is itself
+> unprovable — `If'` evaluates the condition with universally-quantified fuel, and a user-function call
+> diverges at fuel 0 while returning the real value at fuel ≥ 1, so no fuel-independent synthesized spec
+> can match. Primop conditions escape this (fuel-independent); statement-position user calls escape via
+> the generated `<f>_abs_of_code` abstraction; the condition path has no such mechanism. Affects 5
+> generated Common blocks (2 user functions: `cleanup_bool`, `read_from_calldatat_bool`) and transitively
+> the `fun_getProofData / fun_verifyInclusion_1261 / fun_authenticateRoot / fun_verifyTimeoutAbsence`
+> proofs. **Fix requires generator work (condition-position abstraction scaffold + fuel-relative spec) —
+> escalated, not a spec-repair.** Details in the `atomic-interop-verification` memory.
+
 ### 1. Withdrawal replay protection  — *the anti-bridge-drain property*
 `L1Nullifier/.../modifier_nonReentrant_892_user.lean`
 - **Claim:** every run of the withdrawal-finalization guarded body (a) **reads** the
