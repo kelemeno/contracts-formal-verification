@@ -443,6 +443,39 @@ theorem timed_out_leg_reclaimable_not_deliverable
   obtain ⟨W, hWj, hlow, hwin⟩ := hwit
   exact delivered_and_reclaimed_impossible hevo hgs0 hinj0 htmono hti hmem htj1 hWj hlow hwin
 
+/-- **DELIVERED ⇒ NOT RECLAIMABLE (abstract).**  The sharp converse of reclaim
+liveness: if commit value `v` IS a key of a snapshot `s` (the leg was delivered —
+its leaf is in the tree), then NO leaf of `s` carries a window straddling `v`, so
+the reclaim gate's witness precondition (#26) is *unsatisfiable*.  A delivered leg
+can never also be refunded — the anti-double-spend guarantee on the reclaim side,
+needing only `GapSound` (no timestamps, no evolution). -/
+theorem present_not_reclaimable
+    {s : Finset AbsLeaf} {v : UInt256}
+    (hgs : GapSound s) (hpres : v ∈ keys s) :
+    ¬ ∃ W ∈ s, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey) := by
+  rintro ⟨W, hW, hlow, hwin⟩
+  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hpres
+  exact gap_excludes_member hgs hW hL hlow hwin hLkey
+
+/-- **RECLAIMABILITY PINS ABSENCE (abstract).**  Combining liveness
+(`reclaim_witness_available`) with its converse (`present_not_reclaimable`):
+along any evolution from a sound base with the zero leaf, a nonzero commit value
+`v` has a valid reclaim witness at snapshot `j` **iff** `v` is absent from `S j`.
+So the reclaim gate fires on *exactly* the legs the tree never delivered — no
+false refunds, no missed refunds. -/
+theorem reclaimable_iff_absent
+    {S : ℕ → Finset AbsLeaf}
+    (hevo : Evolution S) (h0 : SoundState (S 0))
+    (hzero : (0 : UInt256) ∈ keys (S 0))
+    {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) :
+    (∃ W ∈ S j, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+      ↔ v ∉ keys (S j) := by
+  constructor
+  · intro hwit hpres
+    exact present_not_reclaimable (evolution_sound hevo h0 j).1 hpres hwit
+  · intro habs
+    exact reclaim_witness_available hevo h0 hzero hv0 habs
+
 /-- The genesis singleton has no dangling links. -/
 theorem genesis_nextClosed : NextClosed ({⟨0, 0⟩} : Finset AbsLeaf) := by
   intro W hW hnz
