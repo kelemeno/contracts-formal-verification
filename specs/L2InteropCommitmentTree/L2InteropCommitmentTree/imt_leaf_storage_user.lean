@@ -13,18 +13,18 @@ import specs.KeccakInjective
   THE LEAVES-MAPPING STORAGE PRIMITIVES — the insert glue's alphabet.
 
   The dispatcher-inlined IMT insert (the (B) boundary) sequences three named,
-  VC-generated helpers over the `leaves` mapping (storage slot 4):
+  VC-generated helpers over the `leaves` mapping (storage slot 5):
 
-  * `mapping_…_5196(key)`  — the slot of leaf `key`: `keccak256(key ‖ 4)`,
+  * `mapping_…_5196(key)`  — the slot of leaf `key`: `keccak256(key ‖ 5)`,
   * `copy_struct_to_storage(slot, ptr)` — write a leaf struct: three
     `sstore`s of `(value, nextIndex, nextValue)` at `slot`/`+1`/`+2`,
   * `read_from_storage(slot)` — the mirror-image read (future work).
 
   This file closes the first two: the mapping accessor is exactly one
-  `accOut` step at `(key, 4)` (the same keccak-slot atom as the whole walk
+  `accOut` step at `(key, 5)` (the same keccak-slot atom as the whole walk
   machinery), and the struct write is exactly three word `sstore`s of the
   three memory fields.  With these, the leaves-mapping abstraction
-  ("`AbsLeaf` at index `i` lives at `keccak(i ‖ 4) + 0/1/2`") is definable
+  ("`AbsLeaf` at index `i` lives at `keccak(i ‖ 5) + 0/1/2`") is definable
   against verified primitives, narrowing the (B) glue to pure sequencing.
 
   Axiom-free.
@@ -86,15 +86,15 @@ private lemma mload_sstore (σ : EVMState) (a v p : UInt256) :
   show (σ.sstore a v).machine_state.lookupMemory p = σ.machine_state.lookupMemory p
   rw [machine_state_sstore]
 
-/-! ### The leaf-slot accessor: `keccak256(key ‖ 4)` as one `accOut` step -/
+/-! ### The leaf-slot accessor: `keccak256(key ‖ 5)` as one `accOut` step -/
 
 /-- **Closed form of `mapping_…_5196(key)`** — the `leaves` mapping accessor
-at storage slot 4: one `accOut` step at `(key, 4)`. -/
+at storage slot 5: one `accOut` step at `(key, 5)`. -/
 lemma mapping_leaves_call
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} {v : Identifier} :
     execCall (fuel+1) mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
         [v] (Ok evm store, [key])
-      = Ok (accOut evm key 4).2 (store.insert v (accOut evm key 4).1) := by
+      = Ok (accOut evm key 5).2 (store.insert v (accOut evm key 5).1) := by
   unfold execCall call mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
   simp only [params, body, rets, multifill', mkOk_initcall_Ok,
              List.map_nil, List.map_cons]
@@ -116,16 +116,16 @@ lemma mapping_leaves_call
           (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧)
       🇪⟦(((Ok evm store)☎️⟦["key"], [key]⟧)
           🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
-              (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧).evm.mstore 32 4⟧
+              (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧).evm.mstore 32 5⟧
       with hhost
   have hhost_ok : isOk host := by
     rw [hhost, isOk_setEvm, isOk_setEvm]; exact hok₀
-  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 4 := by
+  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 5 := by
     rw [hhost, evm_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok₀),
         evm_setEvm_of_isOk hok₀, hevm₀, hkey]
   rw [hhost_evm]
   unfold accOut
-  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 4) 0 64 = out
+  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 5) 0 64 = out
   simp only [multifill_cons, multifill_nil]
   have hsetEvm_ok : isOk (host.setEvm out.2) := by
     rw [isOk_setEvm]; exact hhost_ok
