@@ -124,6 +124,17 @@ theorem auth_self_pass
   try simp only [lookup_insert_self_fin]
   try rw [lookup_insert_self_fin]
 
+/- **THE DESIGNATED EXECUTOR PASS (scoped future work).**  The other accepting
+   case — caller is not the handler, but the parsed `(chainId, address)` matches
+   the current chain (or is chain-agnostic `0`) and the masked address equals the
+   caller — is a nested-if dataflow with an assignment inside a branch
+   (`if iszero(expr_1) { expr_1 := iszero(...) }` then `if expr_1 { ... }`).
+   Proving its PASS direction the way `auth_self_pass` is proven does not compose
+   with the `If'`-blast unfolding: the blast distributes the trailing
+   `expr := expr_2` over the still-unresolved inner `if expr_1`, burying it inside
+   the `expr` value.  It needs a one-statement-at-a-time drive that resolves each
+   nested `if` before processing its continuation.  Deferred. -/
+
 end
 
 end generated.InteropHandler.InteropHandler

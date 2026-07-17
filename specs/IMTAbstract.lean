@@ -421,6 +421,28 @@ theorem reclaim_witness_available
   rw [hZkey]
   exact Fin.pos_of_ne_zero hv0
 
+/-- **EXACTLY-ONE-OUTCOME CAPSTONE (abstract).**  For a nonzero commit value
+`v` that is absent from a deadline-pinned snapshot `j` (`D < t (j+1)`), along
+any evolution from a sound base with the zero leaf and monotone settlement
+timestamps: a valid RECLAIM witness exists at `j` (never neither — the leg can
+be refunded), AND `v` is a key of NO on-time snapshot (never both — the leg
+cannot have been delivered).  This is #34 and #35 packaged as the single
+"a timed-out leg is reclaimable and not deliverable" statement. -/
+theorem timed_out_leg_reclaimable_not_deliverable
+    {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
+    (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
+    (hzero : (0 : UInt256) ∈ keys (S 0)) (hv0 : v ≠ 0)
+    {j : ℕ} (habs : v ∉ keys (S j)) (htj1 : D < t (j+1)) :
+    (∃ W ∈ S j, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+      ∧ (∀ i : ℕ, t i ≤ D → v ∉ keys (S i)) := by
+  have hgs0 : GapSound (S 0) := h0.1
+  have hinj0 : KeyInj (S 0) := h0.2.1
+  have hwit := reclaim_witness_available hevo h0 hzero hv0 habs
+  refine ⟨hwit, ?_⟩
+  intro i hti hmem
+  obtain ⟨W, hWj, hlow, hwin⟩ := hwit
+  exact delivered_and_reclaimed_impossible hevo hgs0 hinj0 htmono hti hmem htj1 hWj hlow hwin
+
 /-- The genesis singleton has no dangling links. -/
 theorem genesis_nextClosed : NextClosed ({⟨0, 0⟩} : Finset AbsLeaf) := by
   intro W hW hnz
