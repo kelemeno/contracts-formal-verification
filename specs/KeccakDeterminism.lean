@@ -1040,4 +1040,63 @@ theorem accOut_mload_high
   rw [lookupMemory_updateMemory_outside _ 0 x a (by rw [h0v]; norm_num) hnw
       (by right; rw [h0v]; omega)]
 
+/-- **Cross-state accessor cache hit.**  If a *different* state `σ₂` already
+caches the accessor preimage that `σ₁` would produce (mapped to `r`), and the
+two states agree on the junk window `[64, 95)` — the only preimage bytes the two
+scratch `mstore`s do not overwrite — then `accOut` on `σ₂` is a cache hit
+returning exactly `r`.
+
+This is the abstract, `generated`-free form of the cross-evm agreement atom the
+builder–verifier fold relies on: the verifier evm `σ₂` need only carry the
+walk evm `σ₁`'s cache entry and agree on the junk window; cleanliness of the
+second run is *not* required.  Axiom-free. -/
+theorem accOut_of_cached_frame
+    {σ₁ σ₂ : EVMState} {key base r : UInt256}
+    (hframe : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i σ₁.machine_state.memory = Finmap.lookup i σ₂.machine_state.memory)
+    (hcache : Finmap.lookup (accInterval σ₁ key base) σ₂.keccak_map = some r) :
+    accOut σ₂ key base = (r, (σ₂.mstore 0 key).mstore 32 base) := by
+  apply accOut_of_cached
+  rw [show accInterval σ₂ key base = accInterval σ₁ key base from
+      accInterval_eq (fun i h1 h2 => (hframe i h1 h2).symm)]
+  exact hcache
+
+/-- Value corollary of `accOut_of_cached_frame`: under the same hypotheses the
+cross-state accessor step *produces* exactly the cached hash `r`. -/
+theorem accOut_agree_value
+    {σ₁ σ₂ : EVMState} {key base r : UInt256}
+    (hframe : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i σ₁.machine_state.memory = Finmap.lookup i σ₂.machine_state.memory)
+    (hcache : Finmap.lookup (accInterval σ₁ key base) σ₂.keccak_map = some r) :
+    (accOut σ₂ key base).1 = r := by
+  rw [accOut_of_cached_frame hframe hcache]
+
+/-- **Cross-state accessor determinism.**  Two accessor runs with the same
+`(key, base)` from junk-window-agreeing states produce the same hash, provided
+the second state `σ₂` transports the first run's post-state cache entry for the
+preimage and the first run's post-state is collision-free.  The `accOut`
+specialization of `keccakOut_deterministic`; the second run needs no cleanliness
+assumption — it hits the cache.  Axiom-free. -/
+theorem accOut_deterministic
+    {σ₁ σ₂ : EVMState} {key base : UInt256}
+    (hframe : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i σ₁.machine_state.memory = Finmap.lookup i σ₂.machine_state.memory)
+    (hmono : ∀ w : UInt256,
+      Finmap.lookup (accInterval σ₁ key base) (accOut σ₁ key base).2.keccak_map = some w →
+        Finmap.lookup (accInterval σ₁ key base) σ₂.keccak_map = some w)
+    (hclean : (accOut σ₁ key base).2.hash_collision = false) :
+    (accOut σ₂ key base).1 = (accOut σ₁ key base).1 := by
+  have h2 := hmono _ (accOut_caches_of_clean hclean)
+  rw [accOut_of_cached_frame hframe h2]
+
+/-- The junk window `[64, 95)` survives *two* consecutive accessor steps — the
+frame that lets a multi-level fold read scratch state after any number of
+pair-hash steps (base atom for the fold agreement induction). -/
+theorem accOut_junk_window₂
+    {σ : EVMState} {k₁ b₁ k₂ b₂ : UInt256} {i : UInt256}
+    (hi : 64 ≤ i.val) :
+    Finmap.lookup i (accOut (accOut σ k₁ b₁).2 k₂ b₂).2.machine_state.memory
+      = Finmap.lookup i σ.machine_state.memory := by
+  rw [accOut_junk_window hi, accOut_junk_window hi]
+
 end Clear.KeccakDeterminism
