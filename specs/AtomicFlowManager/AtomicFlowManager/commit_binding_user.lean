@@ -106,23 +106,23 @@ are defeq but kernel-expensive to compare; local quotes are syntactically
 identical to the `<f>` body elements, so all matching is free) -/
 
 private def commitBlkA : Stmt := <s {
-        let expr_1080_mpos := mload(64)
-        let _1 := add(expr_1080_mpos, 32)
+        let expr_1188_mpos := mload(64)
+        let _1 := add(expr_1188_mpos, 32)
         let split_expr_0 := shl(226, 219235539)
         mstore(_1, split_expr_0)
-        let split_expr_1 := add(expr_1080_mpos, 64)
+        let split_expr_1 := add(expr_1188_mpos, 64)
       }>
 
 private def commitBlkB : Stmt := <s {
         mstore(split_expr_1, var_flowId)
-        let split_expr_2 := add(expr_1080_mpos, 96)
+        let split_expr_2 := add(expr_1188_mpos, 96)
         mstore(split_expr_2, var_specHash)
-        mstore(expr_1080_mpos, 96)
-        finalize_allocation(expr_1080_mpos, 128)
+        mstore(expr_1188_mpos, 96)
+        finalize_allocation(expr_1188_mpos, 128)
       }>
 
 private def commitBlkC : Stmt := <s {
-        let split_expr_3 := mload(expr_1080_mpos)
+        let split_expr_3 := mload(expr_1188_mpos)
         var := keccak256(_1, split_expr_3)
       }>
 
@@ -134,7 +134,7 @@ lemma commitValue_chunkA
     {evm : EVMState} {store : VarStore} {fuel : ℕ} :
     exec (fuel+1) commitBlkA (Ok evm store)
       = Ok (evm.mstore (evm.mload 64 + 32) commitTag)
-          ((((store.insert "expr_1080_mpos" (evm.mload 64)).insert
+          ((((store.insert "expr_1188_mpos" (evm.mload 64)).insert
               "_1" (evm.mload 64 + 32)).insert "split_expr_0" commitTag).insert
               "split_expr_1" (evm.mload 64 + 64)) := by
   unfold commitBlkA
@@ -147,24 +147,24 @@ lemma commitValue_chunkA
              EVMMload', EVMAdd', EVMShl', EVMMstore']
   simp only [multifill_cons, multifill_nil]
   have hok0 : isOk (Ok evm store) := trivial
-  have hok1 : isOk ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧) := isOk_insert.mpr hok0
-  have r1 : ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧)["expr_1080_mpos"]!!
+  have hok1 : isOk ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧) := isOk_insert.mpr hok0
+  have r1 : ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧)["expr_1188_mpos"]!!
       = evm.mload 64 := lookup_insert' hok0
   simp only [evm_insert, evm_Ok]
   rw [r1]
-  have hok2 : isOk ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧) :=
+  have hok2 : isOk ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧) :=
     isOk_insert.mpr hok1
-  have hok3 : isOk ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧) :=
+  have hok3 : isOk ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧) :=
     isOk_insert.mpr hok2
-  have r2a : ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧)["_1"]!!
+  have r2a : ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧)["_1"]!!
       = evm.mload 64 + 32 := by
     rw [lookup_insert_of_ne (by decide)]
     exact lookup_insert' hok1
-  have r2b : ((Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧)["split_expr_0"]!!
+  have r2b : ((Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧)["split_expr_0"]!!
       = commitTag := lookup_insert' hok2
   rw [show Fin.shiftLeft 219235539 226 = commitTag from rfl]
   rw [r2a, r2b]
-  set T3 := (Ok evm store)⟦"expr_1080_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧ with hT3
+  set T3 := (Ok evm store)⟦"expr_1188_mpos" ↦ evm.mload 64⟧⟦"_1" ↦ evm.mload 64 + 32⟧⟦"split_expr_0" ↦ commitTag⟧ with hT3
   have hok3' : isOk T3 := by rw [hT3]; exact hok3
   set E1 := evm.mstore (evm.mload 64 + 32) commitTag with hE1
   have hokU1 : isOk (T3🇪⟦E1⟧) := by rw [isOk_setEvm]; exact hok3'
@@ -173,7 +173,7 @@ lemma commitValue_chunkA
   rw [show (Ok (evm.mstore (evm.mload 64 + 32) commitTag)
       (Finmap.insert "split_expr_0" commitTag
         (Finmap.insert "_1" (evm.mload 64 + 32)
-          (Finmap.insert "expr_1080_mpos" (evm.mload 64) store))))["expr_1080_mpos"]!!
+          (Finmap.insert "expr_1188_mpos" (evm.mload 64) store))))["expr_1188_mpos"]!!
       = evm.mload 64 from by
     rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
     exact lookup_insert_self_fin]
@@ -184,7 +184,7 @@ lemma commitValue_chunkB
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {s1 f P h : Literal}
     (hs1 : (Ok evm store)["split_expr_1"]!! = s1)
     (hf : (Ok evm store)["var_flowId"]!! = f)
-    (hP : (Ok evm store)["expr_1080_mpos"]!! = P)
+    (hP : (Ok evm store)["expr_1188_mpos"]!! = P)
     (hh : (Ok evm store)["var_specHash"]!! = h)
     (hp128 : P.val + 128 ≤ 18446744073709551615) :
     exec (fuel+1) commitBlkB (Ok evm store)
@@ -204,7 +204,7 @@ lemma commitValue_chunkB
   simp only [evm_insert, evm_Ok]
   set E1 := evm.mstore s1 f with hE1
   have hokU1 : isOk ((Ok evm store)🇪⟦E1⟧) := by rw [isOk_setEvm]; exact hok0
-  have r1a : ((Ok evm store)🇪⟦E1⟧)["expr_1080_mpos"]!! = P := by
+  have r1a : ((Ok evm store)🇪⟦E1⟧)["expr_1188_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk hok0]
     exact hP
   have r1b : ((Ok evm store)🇪⟦E1⟧).evm = E1 := evm_setEvm_of_isOk hok0
@@ -220,7 +220,7 @@ lemma commitValue_chunkB
   have hok2' : isOk T2 := by rw [hT2]; exact hokU2
   set E2 := E1.mstore (P + 96) h with hE2
   have hokU3 : isOk (T2🇪⟦E2⟧) := by rw [isOk_setEvm]; exact hok2'
-  have r3a : (T2🇪⟦E2⟧)["expr_1080_mpos"]!! = P := by
+  have r3a : (T2🇪⟦E2⟧)["expr_1188_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk hok2', hT2, lookup_insert_of_ne (by decide),
         lookup_setEvm_of_isOk hok0]
     exact hP
@@ -228,7 +228,7 @@ lemma commitValue_chunkB
   rw [r3a, r3b]
   set E3 := E2.mstore P 96 with hE3
   have hokU4 : isOk ((T2🇪⟦E2⟧)🇪⟦E3⟧) := by rw [isOk_setEvm, isOk_setEvm]; exact hok2'
-  have r4 : ((T2🇪⟦E2⟧)🇪⟦E3⟧)["expr_1080_mpos"]!! = P := by
+  have r4 : ((T2🇪⟦E2⟧)🇪⟦E3⟧)["expr_1188_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok2')]
     exact r3a
   rw [r4]
@@ -252,7 +252,7 @@ open AtomicFlowManager.Common in
 /-- Chunk C — the length read-back and the commit keccak. -/
 lemma commitValue_chunkC
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {P x : Literal}
-    (hP : (Ok evm store)["expr_1080_mpos"]!! = P)
+    (hP : (Ok evm store)["expr_1188_mpos"]!! = P)
     (hx : (Ok evm store)["_1"]!! = x) :
     exec (fuel+1) commitBlkC (Ok evm store)
       = Ok (keccakOut evm x (evm.mload P)).2
@@ -320,7 +320,7 @@ lemma commitValue_call_acc
   -- chunk A
   simp only [commitValue_chunkA]
   -- chunk B (store from chunk A, evm advanced by the tag write)
-  set σA := (((σ0.insert "expr_1080_mpos" (evm.mload 64)).insert
+  set σA := (((σ0.insert "expr_1188_mpos" (evm.mload 64)).insert
       "_1" (evm.mload 64 + 32)).insert "split_expr_0" commitTag).insert
       "split_expr_1" (evm.mload 64 + 64) with hσA
   set EA := evm.mstore (evm.mload 64 + 32) commitTag with hEA
@@ -332,7 +332,7 @@ lemma commitValue_call_acc
         lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
         lookup_ok_evm EA evm]
     exact hf0
-  have hPA : (Ok EA σA)["expr_1080_mpos"]!! = evm.mload 64 := by
+  have hPA : (Ok EA σA)["expr_1188_mpos"]!! = evm.mload 64 := by
     rw [hσA, lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
         lookup_insert_ne_fin (by decide)]
     exact lookup_insert_self_fin
@@ -347,7 +347,7 @@ lemma commitValue_call_acc
       (evm.mload 64 + 96) specHash).mstore (evm.mload 64) 96).mstore
       64 (evm.mload 64 + 128)) with hEB
   set σB := σA.insert "split_expr_2" (evm.mload 64 + 96) with hσB
-  have hPB : (Ok EB σB)["expr_1080_mpos"]!! = evm.mload 64 := by
+  have hPB : (Ok EB σB)["expr_1188_mpos"]!! = evm.mload 64 := by
     rw [hσB, lookup_insert_ne_fin (by decide), lookup_ok_evm EB EA]
     exact hPA
   have hxB : (Ok EB σB)["_1"]!! = evm.mload 64 + 32 := by
