@@ -1,0 +1,27 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5568105450979583177
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8767626847519917836
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3059228122066566910
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_array_bytes32_dyn_calldata
+
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata (tail : Identifier) (headStart value0 value1 value2 value3 value4 value5 : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata_abs_of_concrete {s₀ s₉ : State} {tail headStart value0 value1 value2 value3 value4 value5} :
+  Spec (abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata_concrete_of_code.1 tail headStart value0 value1 value2 value3 value4 value5) s₀ s₉ →
+  Spec (A_abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata tail headStart value0 value1 value2 value3 value4 value5) s₀ s₉ := by
+  unfold abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata_concrete_of_code A_abi_encode_uint256_uint256_uint256_bytes32_array_bytes32_dyn_calldata
+  sorry
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

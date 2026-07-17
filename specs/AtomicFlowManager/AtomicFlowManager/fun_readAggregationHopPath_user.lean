@@ -1,0 +1,39 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_494204241126806489
+import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation_7913
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_657627694741805327
+import generated.AtomicFlowManager.AtomicFlowManager.fun_parseProofMetadata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7226119035692598001
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_4432928539203713149
+import generated.AtomicFlowManager.AtomicFlowManager.panic_error_0x11
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_3961166741891382552
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_4495411844040129084
+import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_bytes32_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_955172680570820210
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_6774672125526196418
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2307431178967243798
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6693107657829395119
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_5196681927906208124
+import generated.AtomicFlowManager.AtomicFlowManager.fun_extractSlice
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_readAggregationHopPath_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_readAggregationHopPath (var_path_4021_mpos : Identifier) (var_proof_4017_offset var_proof_4017_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_readAggregationHopPath_abs_of_concrete {s₀ s₉ : State} {var_path_4021_mpos var_proof_4017_offset var_proof_4017_length} :
+  Spec (fun_readAggregationHopPath_concrete_of_code.1 var_path_4021_mpos var_proof_4017_offset var_proof_4017_length) s₀ s₉ →
+  Spec (A_fun_readAggregationHopPath var_path_4021_mpos var_proof_4017_offset var_proof_4017_length) s₀ s₉ := by
+  unfold fun_readAggregationHopPath_concrete_of_code A_fun_readAggregationHopPath
+  sorry
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

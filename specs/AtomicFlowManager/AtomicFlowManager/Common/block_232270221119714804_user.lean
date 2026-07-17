@@ -1,0 +1,24 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_checkFlowId
+import generated.AtomicFlowManager.AtomicFlowManager.fun_checkSettlementLayerIsL1
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_232270221119714804_gen
+
+
+namespace AtomicFlowManager.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.AtomicFlowManager AtomicFlowManager
+
+def A_block_232270221119714804 (s₀ s₉ : State) : Prop := sorry
+
+lemma block_232270221119714804_abs_of_concrete {s₀ s₉ : State} :
+  Spec block_232270221119714804_concrete_of_code s₀ s₉ →
+  Spec A_block_232270221119714804 s₀ s₉ := by
+  sorry
+
+end
+
+end AtomicFlowManager.Common

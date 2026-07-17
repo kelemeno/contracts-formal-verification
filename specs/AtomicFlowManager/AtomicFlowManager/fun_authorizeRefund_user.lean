@@ -1,0 +1,44 @@
+import Clear.ReasoningPrinciple
+
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_232270221119714804
+import generated.AtomicFlowManager.AtomicFlowManager.fun_checkFlowId
+import generated.AtomicFlowManager.AtomicFlowManager.fun_checkSettlementLayerIsL1
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8894785805436887346
+import generated.AtomicFlowManager.AtomicFlowManager.access_calldata_tail_array_bytes32_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_bytes32_dyn_calldata
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8559447401727496342
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_8448292644412419740
+import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_uint256_uint256_7838
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8811939612780478110
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7724771009005182405
+import generated.AtomicFlowManager.AtomicFlowManager.fun_commitValue
+import generated.AtomicFlowManager.AtomicFlowManager.read_from_calldatat_uint64
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_3910654886049084055
+import generated.AtomicFlowManager.AtomicFlowManager.fun_verifyTimeoutAbsence
+import generated.AtomicFlowManager.AtomicFlowManager.Common.for_2008641262155462271
+import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
+import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32
+import generated.AtomicFlowManager.AtomicFlowManager.read_from_storage_split_offset_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.validator_assert_enum_LegState
+import generated.AtomicFlowManager.AtomicFlowManager.update_storage_value_offset_enum_LegState_to_enum_LegState
+
+import generated.AtomicFlowManager.AtomicFlowManager.fun_authorizeRefund_gen
+
+
+namespace generated.AtomicFlowManager.AtomicFlowManager
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
+
+def A_fun_authorizeRefund  (var__flow_offset var_missingLegIndex var_absence_offset : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_authorizeRefund_abs_of_concrete {s₀ s₉ : State} { var__flow_offset var_missingLegIndex var_absence_offset} :
+  Spec (fun_authorizeRefund_concrete_of_code.1  var__flow_offset var_missingLegIndex var_absence_offset) s₀ s₉ →
+  Spec (A_fun_authorizeRefund  var__flow_offset var_missingLegIndex var_absence_offset) s₀ s₉ := by
+  unfold fun_authorizeRefund_concrete_of_code A_fun_authorizeRefund
+  sorry
+
+end
+
+end generated.AtomicFlowManager.AtomicFlowManager

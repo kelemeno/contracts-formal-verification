@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_sub_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4451958921457272093
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_8102603259148870207
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.update_storage_value_bytes32_to_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_5752024616743232143
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_2268004712116198193
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mod_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_add_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
+
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_5205_gen
+
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+
+def A_fun_updateLeaf_5205 (var : Identifier) (var_index var_itemHash : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_updateLeaf_5205_abs_of_concrete {s₀ s₉ : State} {var var_index var_itemHash} :
+  Spec (fun_updateLeaf_5205_concrete_of_code.1 var var_index var_itemHash) s₀ s₉ →
+  Spec (A_fun_updateLeaf_5205 var var_index var_itemHash) s₀ s₉ := by
+  unfold fun_updateLeaf_5205_concrete_of_code A_fun_updateLeaf_5205
+  sorry
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
