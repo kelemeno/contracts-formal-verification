@@ -3,8 +3,8 @@ import Clear.ReasoningPrinciple
 import generated.AtomicFlowManager.AtomicFlowManager.fun_hashLeaf
 import generated.AtomicFlowManager.AtomicFlowManager.finalize_allocation
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_1948431615937796266
-import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2107889966731741519
-import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5332474131377440033
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_8829807190347859628
+import generated.AtomicFlowManager.AtomicFlowManager.Common.block_2454239829965541399
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_7615139809432579602
 
 import specs.KeccakDeterminism
@@ -283,11 +283,11 @@ lemma hashLeaf_chunk2
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {a b : Literal}
     (h1 : (Ok evm store)["_1"]!! = a)
     (h2 : (Ok evm store)["_2"]!! = b) :
-    exec (fuel+1) block_2107889966731741519 (Ok evm store)
+    exec (fuel+1) block_8829807190347859628 (Ok evm store)
       = Ok ((evm.mstore (evm.mload 64 + 32) a).mstore (evm.mload 64 + 64) b)
-          (((store.insert "expr_2406_mpos" (evm.mload 64)).insert
+          (((store.insert "expr_2619_mpos" (evm.mload 64)).insert
             "_4" (evm.mload 64 + 32)).insert "split_expr_2" (evm.mload 64 + 64)) := by
-  unfold block_2107889966731741519
+  unfold block_8829807190347859628
   simp only [cons, nil]
   simp only [LetPrimCall', AssignPrimCall', ExprStmtPrimCall',
              evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
@@ -297,24 +297,24 @@ lemma hashLeaf_chunk2
              EVMMload', EVMAdd', EVMMstore']
   simp only [multifill_cons, multifill_nil]
   have hok0 : isOk (Ok evm store) := trivial
-  have hok1 : isOk ((Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧) := isOk_insert.mpr hok0
-  have r1 : ((Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧)["expr_2406_mpos"]!!
+  have hok1 : isOk ((Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧) := isOk_insert.mpr hok0
+  have r1 : ((Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧)["expr_2619_mpos"]!!
       = evm.mload 64 := lookup_insert' hok0
   simp only [evm_insert, evm_Ok]
   rw [r1]
-  have hok2 : isOk ((Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧) :=
+  have hok2 : isOk ((Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧) :=
     isOk_insert.mpr hok1
-  have r2a : ((Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧)["_4"]!!
+  have r2a : ((Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧)["_4"]!!
       = evm.mload 64 + 32 := lookup_insert' hok1
-  have r2b : ((Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧)["_1"]!!
+  have r2b : ((Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧)["_1"]!!
       = a := by
     rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]; exact h1
   rw [r2a, r2b]
-  set T2 := (Ok evm store)⟦"expr_2406_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧ with hT2
+  set T2 := (Ok evm store)⟦"expr_2619_mpos" ↦ evm.mload 64⟧⟦"_4" ↦ evm.mload 64 + 32⟧ with hT2
   have hok2' : isOk T2 := by rw [hT2]; exact hok2
   set E1 := evm.mstore (evm.mload 64 + 32) a with hE1
   have hokU1 : isOk (T2🇪⟦E1⟧) := by rw [isOk_setEvm]; exact hok2'
-  have r3 : (T2🇪⟦E1⟧)["expr_2406_mpos"]!! = evm.mload 64 := by
+  have r3 : (T2🇪⟦E1⟧)["expr_2619_mpos"]!! = evm.mload 64 := by
     rw [lookup_setEvm_of_isOk hok2', hT2, lookup_insert_of_ne (by decide)]
     exact r1
   rw [r3]
@@ -336,14 +336,14 @@ open AtomicFlowManager.Common in
 read-back (kept symbolic). -/
 lemma hashLeaf_chunk3
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {P c : Literal}
-    (hP : (Ok evm store)["expr_2406_mpos"]!! = P)
+    (hP : (Ok evm store)["expr_2619_mpos"]!! = P)
     (h3 : (Ok evm store)["_3"]!! = c)
     (hp128 : P.val + 128 ≤ 18446744073709551615) :
-    exec (fuel+1) block_5332474131377440033 (Ok evm store)
+    exec (fuel+1) block_2454239829965541399 (Ok evm store)
       = Ok ((((evm.mstore (P + 96) c).mstore P 96).mstore 64 (P + 128)))
           ((store.insert "split_expr_3" (P + 96)).insert "split_expr_4"
             ((((evm.mstore (P + 96) c).mstore P 96).mstore 64 (P + 128)).mload P)) := by
-  unfold block_5332474131377440033
+  unfold block_2454239829965541399
   simp only [cons, nil]
   simp only [LetPrimCall', AssignPrimCall', ExprStmtPrimCall', LetCall', ExprStmtCall',
              evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
@@ -365,14 +365,14 @@ lemma hashLeaf_chunk3
   have hok1' : isOk T1 := by rw [hT1]; exact hok1
   set E3 := evm.mstore (P + 96) c with hE3
   have hokU1 : isOk (T1🇪⟦E3⟧) := by rw [isOk_setEvm]; exact hok1'
-  have r2a : (T1🇪⟦E3⟧)["expr_2406_mpos"]!! = P := by
+  have r2a : (T1🇪⟦E3⟧)["expr_2619_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk hok1', hT1, lookup_insert_of_ne (by decide)]
     exact hP
   have r2b : (T1🇪⟦E3⟧).evm = E3 := evm_setEvm_of_isOk hok1'
   rw [r2a, r2b]
   set E4 := E3.mstore P 96 with hE4
   have hokU2 : isOk ((T1🇪⟦E3⟧)🇪⟦E4⟧) := by rw [isOk_setEvm, isOk_setEvm]; exact hok1'
-  have r3 : ((T1🇪⟦E3⟧)🇪⟦E4⟧)["expr_2406_mpos"]!! = P := by
+  have r3 : ((T1🇪⟦E3⟧)🇪⟦E4⟧)["expr_2619_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok1')]
     exact r2a
   rw [r3]
@@ -381,11 +381,11 @@ lemma hashLeaf_chunk3
     have h := congrArg State.evm h6
     rw [evm_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok1')] at h
     exact h.symm
-  have r3' : (Ok e6 σ6)["expr_2406_mpos"]!! = P := by rw [← h6]; exact r3
+  have r3' : (Ok e6 σ6)["expr_2619_mpos"]!! = P := by rw [← h6]; exact r3
   rw [h6, finalize_allocation_128_call hp128]
   have hokW : isOk ((Ok e6 σ6).setEvm (e6.mstore 64 (P + 128))) := by
     rw [isOk_setEvm]; trivial
-  have r4 : ((Ok e6 σ6).setEvm (e6.mstore 64 (P + 128)))["expr_2406_mpos"]!! = P := by
+  have r4 : ((Ok e6 σ6).setEvm (e6.mstore 64 (P + 128)))["expr_2619_mpos"]!! = P := by
     rw [lookup_setEvm_of_isOk (by trivial)]; exact r3'
   have r4b : ((Ok e6 σ6).setEvm (e6.mstore 64 (P + 128))).evm = e6.mstore 64 (P + 128) :=
     evm_setEvm_of_isOk (by trivial)
@@ -426,8 +426,8 @@ lemma hashLeaf_call_acc
     execCall (fuel+1) fun_hashLeaf [v] (Ok evm store, [leaf])
       = Ok (hashLeafOut evm leaf).2 (store.insert v (hashLeafOut evm leaf).1) := by
   have hbody : fun_hashLeaf.body
-      = [block_1948431615937796266, block_2107889966731741519,
-         block_5332474131377440033, block_7615139809432579602] := by
+      = [block_1948431615937796266, block_8829807190347859628,
+         block_2454239829965541399, block_7615139809432579602] := by
     rfl
   have hparams : fun_hashLeaf.params = ["var_leaf_mpos"] := rfl
   have hrets : fun_hashLeaf.rets = ["var"] := rfl
@@ -468,10 +468,10 @@ lemma hashLeaf_call_acc
   set σ2 := ((((((σ0.insert "_1" (evm.mload leaf)).insert
       "split_expr_0" (leaf + 32)).insert "_2" (evm.mload (leaf + 32))).insert
       "split_expr_1" (leaf + 64)).insert "_3" (evm.mload (leaf + 64))).insert
-      "expr_2406_mpos" (evm.mload 64)).insert "_4" (evm.mload 64 + 32) with hσ2
+      "expr_2619_mpos" (evm.mload 64)).insert "_4" (evm.mload 64 + 32) with hσ2
   set E2 := (evm.mstore (evm.mload 64 + 32) (evm.mload leaf)).mstore (evm.mload 64 + 64)
       (evm.mload (leaf + 32)) with hE2
-  have hP : (Ok E2 (σ2.insert "split_expr_2" (evm.mload 64 + 64)))["expr_2406_mpos"]!!
+  have hP : (Ok E2 (σ2.insert "split_expr_2" (evm.mload 64 + 64)))["expr_2619_mpos"]!!
       = evm.mload 64 := by
     rw [lookup_insert_ne_fin (by decide), hσ2,
         lookup_insert_ne_fin (by decide)]
