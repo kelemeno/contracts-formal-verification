@@ -6,3 +6,4 @@ generated/
 reference_proofs/
 .claude/
 *.bak
+.DS_Store
