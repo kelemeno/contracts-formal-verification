@@ -56,7 +56,10 @@ story:**
   `committed_member_gap_impossible`), and **never both across time** — on-time membership and a
   deadline-pinned gap witness for the same leg are jointly impossible along any append-only IMT
   history with monotone settlement timestamps (*#34*, axiom-free) — and **never neither**: an
-  absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free). The
+  absent leg always HAS a valid reclaim witness, at every snapshot (*#35*, axiom-free). These two
+  are packaged into one **exactly-one-outcome capstone**
+  (`timed_out_leg_reclaimable_not_deliverable`, axiom-free): a timed-out leg (nonzero commit value
+  absent from a deadline-pinned snapshot) is reclaimable AND is a key of no on-time snapshot. The
   timeout gate's compiled guards enforce exactly #34's premises: acceptance forces
   `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions), and the
   flow structure both gates run under is canonical and flowId-bound — sorted legs, aligned
