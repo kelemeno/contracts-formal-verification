@@ -60,6 +60,10 @@ story:**
   are packaged into one **exactly-one-outcome capstone**
   (`timed_out_leg_reclaimable_not_deliverable`, axiom-free): a timed-out leg (nonzero commit value
   absent from a deadline-pinned snapshot) is reclaimable AND is a key of no on-time snapshot. The
+  bound is further sharpened to an **equivalence** (*#35b*, `reclaimable_iff_absent`, axiom-free): a
+  nonzero leg is reclaimable at a snapshot **iff** it is absent there — so the reclaim gate fires on
+  exactly the never-delivered legs (a delivered leg can never also be refunded, and an undelivered
+  one is always witnessable). The
   timeout gate's compiled guards enforce exactly #34's premises: acceptance forces
   `tN ≤ deadline < tS` with consecutive batches (*#36*, axiom-free, both directions), and the
   flow structure both gates run under is canonical and flowId-bound — sorted legs, aligned
@@ -977,6 +981,24 @@ newly compiled into the corpus — 632 VC files, `fun_markFullyExecutedAndRun` i
   EXISTENCE; producing the witness (indexing into the tree) and the gate accepting it are the
   concrete layers #24–#26/#32. The absent-forever hypothesis (`v ∉ keys (S j)`) is the
   "transaction failed / leg never committed" premise.
+
+### 35b. Atomic interop — RECLAIMABILITY PINS ABSENCE: the sharp iff  ★ NEW (2026-07-17)  ✅ axiom-clean
+`specs/IMTAbstract.lean` *(contract-independent)*
+- **Claim (`reclaimable_iff_absent`):** along any evolution from a sound base with the zero leaf, a
+  nonzero commit value `v` has a valid reclaim witness at snapshot `j` **if and only if** `v ∉ keys
+  (S j)`. The forward (⇐) direction is reclaim liveness (#35); the new backward (⇒) direction is
+  `present_not_reclaimable` — if `v` IS a key of a `GapSound` snapshot (the leg was delivered, its
+  leaf is in the tree) then NO leaf carries a window straddling `v`, so the reclaim gate's witness
+  precondition (#26) is *unsatisfiable*. The converse needs only `GapSound` — no timestamps, no
+  evolution — a direct consequence of `gap_excludes_member`.
+- **Why it matters (spec point 4):** sharpens exactly-one-outcome from "never both / never neither"
+  (#34/#35, which bound the outcomes) to an *equivalence*: the reclaim gate fires on **exactly** the
+  legs the tree never delivered — no false refunds (a delivered leg can never also be refunded, the
+  anti-double-spend guarantee on the reclaim side), and no missed refunds (an undelivered leg is
+  always witnessable). Together with #34 this closes the abstract outcome dichotomy on the nose.
+- **Caveat / trusted base:** **axiom-free** — `#print axioms` shows only `propext`, `Quot.sound`,
+  `Classical.choice`; no keccak axioms (A6′/A6″), no `sorry`. Reclaimability here is witness
+  existence; the concrete gate accepting the witness is #26/#32.
 
 ### 34. Atomic interop — DELIVERED XOR RECLAIMED, temporal core: never both  ★ NEW  ✅ axiom-clean
 `specs/IMTAbstract.lean` *(added 2026-07-12; contract-independent)*
