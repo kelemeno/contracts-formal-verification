@@ -719,4 +719,30 @@ theorem evolution_step_keys
   · exact Or.inl (by rw [heq])
   · exact Or.inr ⟨v, by rw [heq, imtInsert_keys_eq hW₀]⟩
 
+/-- **KEY PROVENANCE.**  Along any evolution, every key present at step `n` that
+was not in the genesis set was *freshly inserted at a definite earlier step* `m`:
+it was absent at `m` and the step from `m` to `m+1` adjoined exactly it.  The
+inductive companion to `evolution_step_keys`: a delivered commit value has a
+well-defined point of entry into the tree. -/
+theorem evolution_key_origin
+    {S : ℕ → Finset AbsLeaf} {v : UInt256} (hevo : Evolution S) :
+    ∀ n, v ∈ keys (S n) → v ∉ keys (S 0) →
+      ∃ m, m < n ∧ v ∉ keys (S m) ∧ keys (S (m+1)) = insert v (keys (S m)) := by
+  intro n
+  induction n with
+  | zero => intro hmem h0; exact absurd hmem h0
+  | succ n ih =>
+    intro hmem h0
+    rcases evolution_step_keys hevo n with heq | ⟨w, hw⟩
+    · have hvn : v ∈ keys (S n) := by rw [← heq]; exact hmem
+      obtain ⟨m, hmn, hnm, hstep⟩ := ih hvn h0
+      exact ⟨m, Nat.lt_succ_of_lt hmn, hnm, hstep⟩
+    · by_cases hvn : v ∈ keys (S n)
+      · obtain ⟨m, hmn, hnm, hstep⟩ := ih hvn h0
+        exact ⟨m, Nat.lt_succ_of_lt hmn, hnm, hstep⟩
+      · rw [hw] at hmem
+        rcases Finset.mem_insert.mp hmem with rfl | hcontra
+        · exact ⟨n, Nat.lt_succ_self n, hvn, hw⟩
+        · exact absurd hcontra hvn
+
 end IMTAbstract
