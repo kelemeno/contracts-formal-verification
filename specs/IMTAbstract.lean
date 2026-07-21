@@ -745,4 +745,20 @@ theorem evolution_key_origin
         · exact ⟨n, Nat.lt_succ_self n, hvn, hw⟩
         · exact absurd hcontra hvn
 
+/-- **DELIVERY ⟺ INSERTION (abstract).**  A non-genesis commit value is a key of
+snapshot `n` **iff** it was freshly inserted at some earlier step.  The
+delivery-side companion to `reclaimable_iff_absent`: presence in the tree is
+exactly having a point of entry.  (⇒ is `evolution_key_origin`; ⇐ is forward
+persistence via `evolution_keys_mono`.) -/
+theorem evolution_key_present_iff
+    {S : ℕ → Finset AbsLeaf} {v : UInt256} (hevo : Evolution S)
+    (h0 : v ∉ keys (S 0)) (n : ℕ) :
+    v ∈ keys (S n)
+      ↔ ∃ m, m < n ∧ v ∉ keys (S m) ∧ keys (S (m+1)) = insert v (keys (S m)) := by
+  constructor
+  · intro hmem; exact evolution_key_origin hevo n hmem h0
+  · rintro ⟨m, hmn, _, hstep⟩
+    have hvm1 : v ∈ keys (S (m+1)) := by rw [hstep]; exact Finset.mem_insert_self _ _
+    exact evolution_keys_mono hevo (Nat.succ_le_of_lt hmn) hvm1
+
 end IMTAbstract
