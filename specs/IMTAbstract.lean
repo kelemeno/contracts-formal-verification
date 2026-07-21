@@ -666,4 +666,57 @@ theorem image_insert_step'
   exact ⟨heff, hgs', hinj',
     repKeyInj_insert_step hnew hlow hf'low hf'new hframe hrki hfresh⟩
 
+/-! ## Exact key-set effect of an insert
+
+`imtInsert_keys_grow` only bounds the key set below (`⊆`).  The following pins
+it precisely: an insert adjoins EXACTLY the commit value `v` and nothing else —
+the retarget preserves `W₀.key`, the erase removes no key (the low leaf's key
+returns on the retargeted leaf), and the sole new key is `v`.  Needs only
+`W₀ ∈ s` (no window or injectivity hypothesis). -/
+
+/-- **INSERT ADDS EXACTLY `v`.**  The post-insert key set is the old key set
+with `v` adjoined.  Sharpens `imtInsert_keys_grow` from `⊆` to `=`. -/
+theorem imtInsert_keys_eq
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} (hW₀ : W₀ ∈ s) :
+    keys (imtInsert s W₀ v) = insert v (keys s) := by
+  ext k
+  unfold keys
+  simp only [Finset.mem_image, Finset.mem_insert]
+  constructor
+  · rintro ⟨X, hX, rfl⟩
+    rw [mem_imtInsert] at hX
+    rcases hX with rfl | rfl | ⟨hXs, _⟩
+    · exact Or.inr ⟨W₀, hW₀, rfl⟩
+    · exact Or.inl rfl
+    · exact Or.inr ⟨X, hXs, rfl⟩
+  · rintro (rfl | ⟨X, hXs, rfl⟩)
+    · exact ⟨⟨_, W₀.nextKey⟩, by rw [mem_imtInsert]; exact Or.inr (Or.inl rfl), rfl⟩
+    · by_cases hXW : X = W₀
+      · exact ⟨⟨W₀.key, v⟩, by rw [mem_imtInsert]; exact Or.inl rfl, by rw [hXW]⟩
+      · exact ⟨X, by rw [mem_imtInsert]; exact Or.inr (Or.inr ⟨hXs, hXW⟩), rfl⟩
+
+/-- Membership form of `imtInsert_keys_eq`. -/
+theorem mem_keys_imtInsert
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v k : UInt256} (hW₀ : W₀ ∈ s) :
+    k ∈ keys (imtInsert s W₀ v) ↔ k = v ∨ k ∈ keys s := by
+  rw [imtInsert_keys_eq hW₀, Finset.mem_insert]
+
+/-- The inserted commit value is present afterwards — the delivery-side
+counterpart to `gap_excludes_member` (which shows an ABSENT value stays
+excludable). -/
+theorem imtInsert_key_mem
+    {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} (hW₀ : W₀ ∈ s) :
+    v ∈ keys (imtInsert s W₀ v) := by
+  rw [imtInsert_keys_eq hW₀]; exact Finset.mem_insert_self _ _
+
+/-- **Per-step key-set evolution (exact).**  Every evolution step either leaves
+the key set unchanged or adjoins exactly one commit value.  Sharpens the
+monotone `evolution_keys_mono` to a precise per-step account. -/
+theorem evolution_step_keys
+    {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
+    keys (S (n+1)) = keys (S n) ∨ ∃ v, keys (S (n+1)) = insert v (keys (S n)) := by
+  rcases hevo n with heq | ⟨W₀, v, hW₀, _, _, heq⟩
+  · exact Or.inl (by rw [heq])
+  · exact Or.inr ⟨v, by rw [heq, imtInsert_keys_eq hW₀]⟩
+
 end IMTAbstract
