@@ -761,4 +761,19 @@ theorem evolution_key_present_iff
     have hvm1 : v ∈ keys (S (m+1)) := by rw [hstep]; exact Finset.mem_insert_self _ _
     exact evolution_keys_mono hevo (Nat.succ_le_of_lt hmn) hvm1
 
+/-- **THE ENTRY STEP IS UNIQUE.**  A commit value is absent then present across
+at most one step boundary: once inserted it persists (`evolution_keys_mono`), so
+it can be absent only strictly before its single point of entry.  Together with
+`evolution_key_origin` this makes provenance a well-defined function — every
+delivered value entered the tree at exactly one step. -/
+theorem evolution_key_origin_unique
+    {S : ℕ → Finset AbsLeaf} {v : UInt256} (hevo : Evolution S) {m₁ m₂ : ℕ}
+    (h1 : v ∉ keys (S m₁) ∧ v ∈ keys (S (m₁+1)))
+    (h2 : v ∉ keys (S m₂) ∧ v ∈ keys (S (m₂+1))) :
+    m₁ = m₂ := by
+  rcases lt_trichotomy m₁ m₂ with hlt | heq | hgt
+  · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hlt) h1.2) h2.1
+  · exact heq
+  · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hgt) h2.2) h1.1
+
 end IMTAbstract
