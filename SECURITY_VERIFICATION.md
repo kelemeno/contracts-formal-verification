@@ -1220,6 +1220,67 @@ newly compiled into the corpus — 632 VC files, `fun_markFullyExecutedAndRun` i
 
 ---
 
+
+## Part B addendum — 2026-07-22 session (groups #46–#54)
+
+All statements below are axiom-free (standard `propext/Quot.sound/Classical.choice` base only)
+unless noted; every file compiles green. Corpora: `specs/IMTAbstract.lean`, `specs/KDParallel/`,
+`specs/InteropHandler/` (pre-relocation compile), `specs/L2InteropHandler/` (PR #2303 relocated
+compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
+
+- **#46 Delivered-value ledger + exactly-once (abstract).** `IMTAbstract.lean`:
+  `evolution_keys_ledger` (keys at step n = genesis ∪ per-step increments), `evolution_card_ledger`
+  (tree size = genesis + effective inserts), `evolution_key_origin_exists_unique` (∃! entry step),
+  `evolution_insert_unique` (the guarded insert never runs twice for one value).
+- **#47 n-step fold agreement (abstract).** `KDParallel/FoldAgreement.lean`: `accFold` (dependent
+  accessor chain — per-level `(key, base)` a function of the running hash; covers nested-mapping
+  chains and Merkle pair-hash folds), `accFold_agree` (junk-window frame + honest per-level cache
+  entries force the cross-evm fold to the honest value at any depth), `accFold_deterministic`
+  (honest-clean + cache transport pins the cross fold), plus n-step junk-window/cache-mono/
+  clean-backward/caches-of-clean frames.
+- **#48 Executor binding completed (old InteropHandler corpus).** `exec_allowed_user.lean`:
+  `auth_executor_pass` — the designated executor (chain-exact or chain-agnostic, 160-bit-masked
+  address = caller) passes the authorization; with `auth_self_pass` the accepting surface of the
+  intended-executor binding is closed.
+- **#49 L2InteropHandler corpus + executor-binding port.** Upstream moved InteropHandler verbatim
+  into `interop-handler/` (Base + L1/L2 split); recompiled, regenerated, mcopy ported.
+  `exec_allowed_user.lean` (new corpus): `auth_self_pass` + `auth_executor_pass` over the
+  dispatcher-inlined auth block. *Caveat: dispatcher glue is not generator-extracted; the quoted
+  block is source-verbatim.*
+- **#50 No-double-delivery, end to end (new corpus).** `no_double_delivery_user.lean`:
+  mark slot/write closed forms (accOut(bh,1), `(old&&&~255)|||2`), 3-way status guard,
+  `require_bap_pass/reverts`, `status_read_block` (fun_getBundleData's masked-sload tail),
+  `read_after_mark_two` (cross-evm re-read = 2 via `accOut_deterministic` + storage frame),
+  `no_double_delivery_reverts` (guard 0 ⇒ BundleAlreadyProcessed revert). *Caveats: call-boundary
+  argument passing and status-slot preservation between mark and re-read are explicit hypotheses.*
+- **#51 Bundle provenance + attestation (new corpus).** `verify_bundle_gate_user.lean`:
+  `verify_sender_pass/reverts` (the inclusion proof's masked `message.sender` must be the
+  InteropCenter built-in `0x1000D`, else InvalidSender), `inclusion_verified_pass/
+  inclusion_unverified_reverts` (the `proveL2MessageInclusionShared` verdict — trust anchor pinned
+  at built-in `0x10009` — must be true, else MessageVerificationFailed), `call_failure_forwards`
+  (a failed attestation call always reverts, both returndatacopy branches). *Caveat: the staticcall
+  itself is the model's opaque external-call boundary (#38-style decomposition).*
+- **#52 executeCalls guard surface (new corpus).** `exec_calls_gate_user.lean`:
+  `call_version_pass/reverts` (every dispatched call carries INTEROP_CALL_VERSION = 1),
+  `bth_addr_mask` + `holder_code_pass/reverts` (call value is sourced only from the pinned
+  base-token holder `0x10011`; codeless holder reverts), `fail_forward_reverts` (generic
+  external-call failure arm, identifier-parametric, rfl-checked against the verbatim quotes) with
+  instances `give_call_failure_forwards` (unfunded ⇒ revert) and `dispatch_call_failure_forwards`
+  (any failed receiveMessage ⇒ whole delivery reverts — all-or-nothing bundles).
+- **#53 executeCalls loop, base case.** `executeCalls_empty` — full-function closed form: an empty
+  bundle returns with caller store and evm untouched (`execCall` in = `Ok evm store` out);
+  `index_access_call` — the in-bounds element address closed form (first step-case dependency).
+  *Remaining: the loop step case (oracle packs for the two opaque call results per iteration).*
+- **#54 L2AssetRouter recovery gate, exact both ways.** `recover_gate_user.lean`:
+  `afm_addr_mask` + `only_afm_recovers` (only the AtomicFlowManager built-in `0x10014` may invoke
+  the timeout recovery; anyone else gets Unauthorized), `recover_short_returns_false` +
+  `recover_wrong_selector_returns_false` (degenerate/foreign payloads return false with the evm
+  untouched — no decode, no NTV call), `slice4_call`/`bytes4_call` (calldata helper closed forms;
+  the calldataload word stays symbolic per A2a), `recover_selector_match_continues` (liveness: a
+  correct finalizeDeposit payload is NOT blocked). *Caveat: the NTV forward is the opaque
+  external-call boundary; the calldata-content selector value is symbolic (A2a model bug bars
+  byte-content claims).*
+
 ## Part C — What a reviewer should do
 
 1. **Read Part A** and decide if the assumptions are acceptable for your threat model (especially
