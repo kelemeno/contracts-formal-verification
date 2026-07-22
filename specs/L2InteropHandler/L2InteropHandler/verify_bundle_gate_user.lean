@@ -339,6 +339,71 @@ theorem inclusion_unverified_reverts
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
 
+/-! ### The staticcall-failure forward arm -/
+
+/-- The failure arm after the `proveL2MessageInclusionShared` staticcall:
+forward the callee's revert data. -/
+@[reducible] private def callFailIf : Stmt := <s
+  if iszero(_10)
+  {
+      let pos_1 := mload(64)
+      returndatacopy(pos_1, 0, returndatasize())
+      revert(pos_1, returndatasize())
+  }
+>
+
+/-- **A FAILED VERIFICATION CALL REVERTS** (forwarding the callee's revert
+data): whether the returndata copy succeeds or itself faults, the arm ends
+reverted — a bundle cannot proceed past a failed attestation call. -/
+theorem call_failure_forwards
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h10 : (Ok evm store)["_10"]!! = 0) :
+    (exec (fuel+1) callFailIf (Ok evm store)).evm.reverted = true := by
+  unfold callFailIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [h10]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- let pos_1 := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMMload', evm_Ok, insert_Ok]
+  try simp only [List.head!]
+  -- returndatacopy(pos_1, 0, returndatasize())
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             EVMReturndatasize', EVMReturndatacopy', evm_Ok, insert_Ok]
+  try simp only [List.head!]
+  rw [lookup_insert_self_fin]
+  rcases hrc : evm.returndatacopy (evm.mload 64) 0 evm.returndatasize with _ | evm'
+  all_goals {
+    simp only [hrc]
+    simp only [setEvm_Ok]
+    -- revert(pos_1, returndatasize())
+    rw [cons, nil, ExprStmtPrimCall']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, multifill_cons, multifill_nil,
+               EVMReturndatasize', EVMRevert', evm_Ok, setEvm_Ok, insert_Ok]
+    try simp only [List.head!]
+    try rw [lookup_insert_self_fin]
+    rfl
+  }
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
