@@ -494,6 +494,79 @@ theorem no_double_delivery_reverts
   refine require_bap_reverts ?_
   rw [hbind σ' hexec, hval]
 
+/-! ### The empty-bundle guard of `fun_getBundleData` -/
+
+/-- The degenerate-input guard (src 43:12992:13011, `_bundle.length != 0`),
+quoted verbatim from the generated body: an empty bundle byte-string is
+rejected (`EmptyBundle`, selector `0x1563113f = 358814015`) before any
+decoding, hashing, or status read happens. -/
+@[reducible] private def emptyBundleIf : Stmt := <s
+  if iszero(split_expr_9)
+  {
+      let split_expr_10 := shl(226, 358814015)
+      mstore(0, split_expr_10)
+      revert(0, 4)
+  }
+>
+
+/-- **A NONEMPTY BUNDLE PASSES**: nonzero byte length falls through unchanged. -/
+theorem nonempty_bundle_passes
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {L : Literal}
+    (hL : (Ok evm store)["split_expr_9"]!! = L) (hL0 : L ≠ 0) :
+    exec (fuel+1) emptyBundleIf (Ok evm store) = Ok evm store := by
+  unfold emptyBundleIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hL]
+  rw [show fromBool (L = 0) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hL0, if_false]]
+  simp only [List.head!]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **AN EMPTY BUNDLE REVERTS**: zero byte length aborts with `EmptyBundle` —
+no decode, no bundle hash, no status read on degenerate input. -/
+theorem empty_bundle_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (hL : (Ok evm store)["split_expr_9"]!! = 0) :
+    (exec (fuel+1) emptyBundleIf (Ok evm store)).evm.reverted = true := by
+  unfold emptyBundleIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hL]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- let split_expr_10 := shl(226, 358814015)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  -- mstore(0, split_expr_10)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  -- revert(0, 4)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMRevert',
+             evm_Ok, setEvm_Ok]
+  rfl
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
