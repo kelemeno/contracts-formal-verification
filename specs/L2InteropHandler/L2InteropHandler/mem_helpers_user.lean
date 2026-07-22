@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import generated.L2InteropHandler.L2InteropHandler.checked_sub_uint256
 import generated.L2InteropHandler.L2InteropHandler.array_allocation_size_bytes
+import generated.L2InteropHandler.L2InteropHandler.finalize_allocation
 
 /-
   MEMORY/ARITHMETIC HELPER CLOSED FORMS (L2InteropHandler).
@@ -194,6 +195,170 @@ lemma array_alloc_bytes_call
   rw [setStore_ok]
   simp only [insert_Ok]
   rw [he4]
+
+/-! ### `finalize_allocation` (generic) — arm lemmas per generated chunk -/
+
+/-- Chunk 1 of the generated body: pad the size, compute the new free pointer,
+evaluate the overflow flag. -/
+@[reducible] private def finChunk1 : Stmt := <s
+  {
+      let split_expr_0 := add(size, 31)
+      let split_expr_1 := not(31)
+      let split_expr_2 := and(split_expr_0, split_expr_1)
+      let newFreePtr := add(memPtr, split_expr_2)
+      let split_expr_3 := gt(newFreePtr, 18446744073709551615)
+  }
+>
+
+/-- Chunk 2: evaluate the wrap flag. -/
+@[reducible] private def finChunk2 : Stmt := <s
+  {
+      let split_expr_4 := lt(newFreePtr, memPtr)
+  }
+>
+
+private lemma finChunk1_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {P Z : Literal}
+    (hP : (Ok evm σ)["memPtr"]!! = P)
+    (hZ : (Ok evm σ)["size"]!! = Z)
+    (h1 : ¬ (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256))) :
+    exec (fuel+1) finChunk1 (Ok evm σ)
+      = Ok evm (((((σ.insert "split_expr_0" (Z + 31)).insert
+          "split_expr_1" (Clear.UInt256.lnot 31)).insert
+          "split_expr_2" (Fin.land (Z + 31) (Clear.UInt256.lnot 31))).insert
+          "newFreePtr" (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31))).insert
+          "split_expr_3" 0) := by
+  unfold finChunk1
+  -- let split_expr_0 := add(size, 31)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [hZ]
+  -- let split_expr_1 := not(31)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMNot',
+             insert_Ok]
+  -- let split_expr_2 := and(split_expr_0, split_expr_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAnd',
+             insert_Ok]
+  rw [lookup_insert_self_fin, lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  -- let newFreePtr := add(memPtr, split_expr_2)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin, lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hP]
+  -- let split_expr_3 := gt(newFreePtr, MAX)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMGt',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31)
+        > (18446744073709551615 : UInt256)) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false h1, if_false]]
+
+private lemma finChunk2_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {N P : Literal}
+    (hN : (Ok evm σ)["newFreePtr"]!! = N)
+    (hP : (Ok evm σ)["memPtr"]!! = P)
+    (h2 : ¬ (N < P)) :
+    exec (fuel+1) finChunk2 (Ok evm σ)
+      = Ok evm (σ.insert "split_expr_4" 0) := by
+  unfold finChunk2
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt',
+             insert_Ok]
+  rw [hN, hP]
+  rw [show fromBool (N < P) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false h2, if_false]]
+
+/-- **Generic `finalize_allocation`, non-panicking direction**: without
+overflow or wrap the call bumps the free-memory pointer to
+`memPtr + ((size + 31) &&& ~31)` and returns nothing else. -/
+lemma finalize_alloc_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {P Z : Literal}
+    (h1 : ¬ (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (h2 : ¬ (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31) < P)) :
+    execCall (fuel+1) finalize_allocation [] (Ok evm store, [P, Z])
+      = Ok (evm.mstore 64 (P + Fin.land (Z + 31) (Clear.UInt256.lnot 31)))
+          store := by
+  unfold execCall call finalize_allocation
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm store)☎️⟦["memPtr", "size"], [P, Z]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["memPtr", "size"], [P, Z]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm store)☎️⟦["memPtr", "size"], [P, Z]⟧
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  subst he0
+  rw [hJ0]
+  -- chunk 1
+  rw [cons]
+  rw [finChunk1_arm (P := P) (Z := Z)
+    (by rw [← hJ0]; exact lookup_initcall_1)
+    (by rw [← hJ0]; exact lookup_initcall_2 (by decide))
+    h1]
+  -- chunk 2
+  rw [cons]
+  rw [finChunk2_arm (N := P + Fin.land (Z + 31) (Clear.UInt256.lnot 31)) (P := P)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        rw [← hJ0]; exact lookup_initcall_1)
+    h2]
+  -- if or(split_expr_3, split_expr_4) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMOr']
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [show Fin.lor (0 : UInt256) 0 = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- mstore(64, newFreePtr)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  -- wrapper
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
 
 end
 
