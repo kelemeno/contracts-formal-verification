@@ -193,6 +193,91 @@ theorem holder_code_reverts
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
 
+/-! ### The generic external-call failure-forward arm -/
+
+/-- The revert-forward arm after an external call, generic over the condition
+variable `k` and the scratch pointer name `pv` (constructor-built AST; the
+verbatim instances below check against it by `rfl`). -/
+@[reducible] private def failForwardIf (k pv : Identifier) : Stmt :=
+  .If (.PrimCall .Iszero [.Var k])
+    [.LetPrimCall [pv] .Mload [.Lit 64],
+     .ExprStmtPrimCall .Returndatacopy [.Var pv, .Lit 0, .PrimCall .Returndatasize []],
+     .ExprStmtPrimCall .Revert [.Var pv, .PrimCall .Returndatasize []]]
+
+/-- The `give`-call failure arm of the value route, quoted verbatim. -/
+@[reducible] private def giveFailIf : Stmt := <s
+  if iszero(_7)
+  {
+      let pos := mload(64)
+      returndatacopy(pos, 0, returndatasize())
+      revert(pos, returndatasize())
+  }
+>
+
+/-- The verbatim quote IS the generic shape. -/
+example : giveFailIf = failForwardIf "_7" "pos" := rfl
+
+/-- **A FAILED EXTERNAL CALL FORWARDS ITS REVERT** — generic: whatever the
+condition and pointer names, a zero call-result runs the forward arm and ends
+reverted on both `returndatacopy` branches. -/
+theorem fail_forward_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {k pv : Identifier}
+    (h : (Ok evm store)[k]!! = 0) :
+    (exec (fuel+1) (failForwardIf k pv) (Ok evm store)).evm.reverted = true := by
+  unfold failForwardIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [h]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- let pv := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMMload', evm_Ok, insert_Ok]
+  try simp only [List.head!]
+  -- returndatacopy(pv, 0, returndatasize())
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             EVMReturndatasize', EVMReturndatacopy', evm_Ok, insert_Ok]
+  try simp only [List.head!]
+  rw [lookup_insert_self_fin]
+  rcases hrc : evm.returndatacopy (evm.mload 64) 0 evm.returndatasize with _ | evm'
+  all_goals {
+    simp only [hrc]
+    simp only [setEvm_Ok]
+    -- revert(pv, returndatasize())
+    rw [cons, nil, ExprStmtPrimCall']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, multifill_cons, multifill_nil,
+               EVMReturndatasize', EVMRevert', evm_Ok, setEvm_Ok, insert_Ok]
+    try simp only [List.head!]
+    try rw [lookup_insert_self_fin]
+    rfl
+  }
+
+/-- **A FAILED `give` CALL REVERTS THE DELIVERY**: if the pinned base-token
+holder's `give` call fails, the whole delivery reverts, forwarding the
+holder's revert data — value-carrying calls cannot proceed unfunded. -/
+theorem give_call_failure_forwards
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h7 : (Ok evm store)["_7"]!! = 0) :
+    (exec (fuel+1) giveFailIf (Ok evm store)).evm.reverted = true :=
+  fail_forward_reverts h7
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
