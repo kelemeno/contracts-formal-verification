@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
+import generated.L2InteropHandler.L2InteropHandler.fun_executeCalls
 
 /-
   THE PER-CALL VERSION GATE (L2InteropHandler, `fun_executeCalls`).
@@ -54,6 +55,9 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
     {k : Identifier} {val : Literal} :
     (Ok evm (Finmap.insert k val σ))[k]!! = val := by
   rw [← insert_Ok]; exact lookup_insert' (by trivial)
+
+private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
+  obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
 
 /-! ### The version gate, quoted verbatim -/
 
@@ -299,6 +303,92 @@ theorem dispatch_call_failure_forwards
     (h11 : (Ok evm store)["_11"]!! = 0) :
     (exec (fuel+1) dispatchFailIf (Ok evm store)).evm.reverted = true :=
   fail_forward_reverts h11
+
+/-! ### The empty bundle: a full closed form of `fun_executeCalls` -/
+
+/-- **AN EMPTY BUNDLE DISPATCHES NOTHING** — the first full-function closed
+form in this corpus: with `calls.length = 0` the loop condition fails at
+entry, and `fun_executeCalls` returns with the caller's store and the evm
+UNTOUCHED.  No call, no value movement, no state change. -/
+theorem executeCalls_empty
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    {srcC bh bundleM statusM : Literal}
+    (hlen : evm.mload (evm.mload (bundleM + 160)) = 0) :
+    execCall (fuel+3) fun_executeCalls []
+        (Ok evm store, [srcC, bh, bundleM, statusM])
+      = Ok evm store := by
+  unfold execCall call fun_executeCalls
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, cons, cons, nil]
+  simp only [Assign', LetEq', LetPrimCall', AssignPrimCall', If',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd', EVMMload']
+  have hok0 : isOk ((Ok evm store)☎️⟦["var_sourceChainId", "var_bundleHash",
+      "var__interopBundle_mpos", "var_providedCallStatus_mpos"],
+      [srcC, bh, bundleM, statusM]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["var_sourceChainId", "var_bundleHash",
+      "var__interopBundle_mpos", "var_providedCallStatus_mpos"],
+      [srcC, bh, bundleM, statusM]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have h3 : ((Ok evm store)☎️⟦["var_sourceChainId", "var_bundleHash",
+      "var__interopBundle_mpos", "var_providedCallStatus_mpos"],
+      [srcC, bh, bundleM, statusM]⟧)["var__interopBundle_mpos"]!! = bundleM :=
+    lookup_initcall_3 (by decide) (by decide)
+  rw [h3]
+  simp only [evm_insert, hevm0]
+  set I := (Ok evm store)☎️⟦["var_sourceChainId", "var_bundleHash",
+      "var__interopBundle_mpos", "var_providedCallStatus_mpos"],
+      [srcC, bh, bundleM, statusM]⟧
+  have hokI : isOk I := hok0
+  have hok1 : isOk (I⟦"_1" ↦ bundleM + 160⟧) := by
+    rw [isOk_insert]; exact hokI
+  rw [show (I⟦"_1" ↦ bundleM + 160⟧)["_1"]!! = bundleM + 160 from
+    lookup_insert' hokI]
+  have hok2 : isOk (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧) := by
+    rw [isOk_insert]; exact hok1
+  rw [show (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧)["split_expr_0"]!!
+      = evm.mload (bundleM + 160) from lookup_insert' hok1]
+  rw [hlen]
+  have hok3 : isOk (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧⟦"length" ↦ 0⟧) := by
+    rw [isOk_insert]; exact hok2
+  have hok4 : isOk (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧⟦"length" ↦ 0⟧⟦"var_i" ↦ 0⟧) := by
+    rw [isOk_insert]; exact hok3
+  rw [For']
+  dsimp only
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMLt', mkOk_of_isOk hok4]
+  rw [show (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧⟦"length" ↦ 0⟧⟦"var_i" ↦ 0⟧)["var_i"]!!
+      = 0 from lookup_insert' hok3]
+  rw [show (I⟦"_1" ↦ bundleM + 160⟧⟦"split_expr_0" ↦
+      evm.mload (bundleM + 160)⟧⟦"length" ↦ 0⟧⟦"var_i" ↦ 0⟧)["length"]!!
+      = 0 from by
+    rw [lookup_insert_of_ne (by decide)]; exact lookup_insert' hok2]
+  try simp only [List.head!]
+  try simp only [show fromBool ((0 : UInt256) < 0) = (0 : UInt256) from by decide]
+  try simp only [reduceIte]
+  try rw [if_pos (rfl : (0 : UInt256) = (0 : UInt256))]
+  obtain ⟨e4, σ4, h4⟩ := State_of_isOk hok4
+  have he4 : e4 = evm := by
+    have h := congrArg State.evm h4
+    rw [evm_insert, evm_insert, evm_insert, evm_insert, hevm0] at h
+    exact h.symm
+  rw [h4]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  rw [he4]
 
 end
 
