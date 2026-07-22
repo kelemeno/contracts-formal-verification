@@ -111,7 +111,7 @@ theorem imtInsert_gapSound
       · exact absurd h0 hnz
       · exact le_of_lt (lt_of_lt_of_le hgt hle)
   · -- W = the new leaf ⟨v, W₀.nextKey⟩ : need W₀.nextKey ≠ 0 ∧ ≤ L.key
-    rcases hL with rfl | rfl | ⟨hLs, hLne⟩
+    rcases hL with rfl | rfl | ⟨hLs, _⟩
     · -- L = retargeted low leaf: v < W₀.key contradicts the window
       exact absurd (lt_trans hlow hkey) (lt_irrefl _)
     · exact absurd hkey (lt_irrefl _)
@@ -220,7 +220,7 @@ theorem evolution_keys_mono
     rcases Nat.eq_or_lt_of_le hmn with rfl | hlt
     · exact Finset.Subset.refl _
     · have hstep : keys (S n) ⊆ keys (S (n+1)) := by
-        rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
+        rcases hevo n with heq | ⟨W₀, v, _, _, _, heq⟩
         · rw [heq]
         · rw [heq]
           exact imtInsert_keys_grow
@@ -305,7 +305,7 @@ theorem imtInsert_nextClosed
     NextClosed (imtInsert s W₀ v) := by
   intro W hW hnz
   rw [mem_imtInsert] at hW
-  rcases hW with rfl | rfl | ⟨hWs, hWne⟩
+  rcases hW with rfl | rfl | ⟨hWs, _⟩
   · -- retargeted low leaf ⟨W₀.key, v⟩: its nextKey v is the new leaf's key
     exact ⟨⟨v, W₀.nextKey⟩, by rw [mem_imtInsert]; right; left; rfl, rfl⟩
   · -- new leaf ⟨v, W₀.nextKey⟩: the old target of W₀ survives the erase
@@ -775,5 +775,127 @@ theorem evolution_key_origin_unique
   · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hlt) h1.2) h2.1
   · exact heq
   · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hgt) h2.2) h1.1
+
+/-! ## The delivered-value ledger — who is in the tree, and when they entered
+
+`evolution_step_keys` accounts for one step; these theorems telescope it over a
+whole history.  The key set at step `n` decomposes EXACTLY into the genesis keys
+plus the per-step increments (`evolution_keys_ledger`), the tree's size is the
+genesis size plus the number of effective inserts (`evolution_card_ledger`), and
+every non-genesis member has EXACTLY ONE entry step
+(`evolution_key_origin_exists_unique`) — indeed the guarded insert operation is
+never even PERFORMED twice for the same commit value
+(`evolution_insert_unique`). -/
+
+/-- **THE KEY-SET LEDGER.**  The keys at step `n` are exactly the genesis keys
+together with every step increment `keys (S (m+1)) \ keys (S m)` for `m < n`:
+nothing is in the tree without having entered it. -/
+theorem evolution_keys_ledger
+    {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
+    keys (S n)
+      = keys (S 0)
+        ∪ (Finset.range n).biUnion (fun m => keys (S (m+1)) \ keys (S m)) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    have hsub : keys (S n) ⊆ keys (S (n+1)) :=
+      evolution_keys_mono hevo (Nat.le_succ n)
+    have hdecomp : keys (S n) ∪ (keys (S (n+1)) \ keys (S n)) = keys (S (n+1)) := by
+      ext k
+      simp only [Finset.mem_union, Finset.mem_sdiff]
+      constructor
+      · rintro (hk | ⟨hk, _⟩)
+        · exact hsub hk
+        · exact hk
+      · intro hk
+        by_cases h : k ∈ keys (S n)
+        · exact Or.inl h
+        · exact Or.inr ⟨hk, h⟩
+    calc keys (S (n+1))
+        = keys (S n) ∪ (keys (S (n+1)) \ keys (S n)) := hdecomp.symm
+      _ = (keys (S 0) ∪ (Finset.range n).biUnion (fun m => keys (S (m+1)) \ keys (S m)))
+            ∪ (keys (S (n+1)) \ keys (S n)) := by rw [ih]
+      _ = keys (S 0)
+            ∪ ((keys (S (n+1)) \ keys (S n))
+                ∪ (Finset.range n).biUnion (fun m => keys (S (m+1)) \ keys (S m))) := by
+          rw [Finset.union_assoc,
+            Finset.union_comm
+              ((Finset.range n).biUnion fun m => keys (S (m+1)) \ keys (S m))
+              (keys (S (n+1)) \ keys (S n))]
+      _ = keys (S 0)
+            ∪ (Finset.range (n+1)).biUnion (fun m => keys (S (m+1)) \ keys (S m)) := by
+          rw [Finset.range_succ, Finset.biUnion_insert]
+
+/-- **THE SIZE LEDGER.**  The number of keys at step `n` is the genesis count
+plus the number of EFFECTIVE steps (those that changed the key set) before `n` —
+every effective step delivers exactly one new commit value, so tree growth
+counts deliveries. -/
+theorem evolution_card_ledger
+    {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
+    (keys (S n)).card
+      = (keys (S 0)).card
+        + ((Finset.range n).filter (fun m => keys (S (m+1)) ≠ keys (S m))).card := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Finset.range_succ, Finset.filter_insert]
+    by_cases hch : keys (S (n+1)) ≠ keys (S n)
+    · rw [if_pos hch,
+        Finset.card_insert_of_not_mem
+          (fun h => absurd (Finset.mem_filter.mp h).1 Finset.not_mem_range_self)]
+      have hcard : (keys (S (n+1))).card = (keys (S n)).card + 1 := by
+        rcases evolution_step_keys hevo n with heq | ⟨v, hv⟩
+        · exact absurd heq hch
+        · have hvnot : v ∉ keys (S n) := fun hmem =>
+            hch (by rw [hv]; exact Finset.insert_eq_self.mpr hmem)
+          rw [hv, Finset.card_insert_of_not_mem hvnot]
+      rw [hcard, ih]
+      omega
+    · rw [if_neg hch]
+      push_neg at hch
+      rw [hch]
+      exact ih
+
+/-- **EXACTLY-ONCE DELIVERY (set level).**  A commit value absent at genesis and
+present at step `n` has EXACTLY ONE entry step: existence is
+`evolution_key_origin`, uniqueness is `evolution_key_origin_unique`.  Provenance
+is a total function on delivered values. -/
+theorem evolution_key_origin_exists_unique
+    {S : ℕ → Finset AbsLeaf} {v : UInt256} (hevo : Evolution S)
+    (h0 : v ∉ keys (S 0)) {n : ℕ} (hmem : v ∈ keys (S n)) :
+    ∃! m, m < n ∧ v ∉ keys (S m) ∧ keys (S (m+1)) = insert v (keys (S m)) := by
+  obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hmem h0
+  refine ⟨m, ⟨hmn, habs, hstep⟩, ?_⟩
+  rintro m' ⟨_, habs', hstep'⟩
+  exact evolution_key_origin_unique hevo
+    ⟨habs', by rw [hstep']; exact Finset.mem_insert_self _ _⟩
+    ⟨habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
+
+/-- **THE GUARDED INSERT RUNS AT MOST ONCE PER VALUE.**  Along any evolution from
+a sound base, two guarded inserts of the SAME commit value are the SAME step:
+each insert's window proves `v` absent just before it
+(`present_not_reclaimable`), each makes `v` present just after it
+(`imtInsert_key_mem`), and absent-then-present happens at one step boundary only
+(`evolution_key_origin_unique`).  No leg can be delivered twice, at the
+operation level. -/
+theorem evolution_insert_unique
+    {S : ℕ → Finset AbsLeaf} {v : UInt256}
+    (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0))
+    {m₁ m₂ : ℕ} {W₁ W₂ : AbsLeaf}
+    (hW₁ : W₁ ∈ S m₁) (hlow₁ : W₁.key < v)
+    (hwin₁ : W₁.nextKey = 0 ∨ v < W₁.nextKey)
+    (hstep₁ : S (m₁+1) = imtInsert (S m₁) W₁ v)
+    (hW₂ : W₂ ∈ S m₂) (hlow₂ : W₂.key < v)
+    (hwin₂ : W₂.nextKey = 0 ∨ v < W₂.nextKey)
+    (hstep₂ : S (m₂+1) = imtInsert (S m₂) W₂ v) :
+    m₁ = m₂ := by
+  have habs : ∀ m (W : AbsLeaf), W ∈ S m → W.key < v →
+      (W.nextKey = 0 ∨ v < W.nextKey) → v ∉ keys (S m) := by
+    intro m W hW hlow hwin hmem
+    exact present_not_reclaimable (evolution_invariant hevo h0 hinj0 m).1 hmem
+      ⟨W, hW, hlow, hwin⟩
+  exact evolution_key_origin_unique hevo
+    ⟨habs m₁ W₁ hW₁ hlow₁ hwin₁, by rw [hstep₁]; exact imtInsert_key_mem hW₁⟩
+    ⟨habs m₂ W₂ hW₂ hlow₂ hwin₂, by rw [hstep₂]; exact imtInsert_key_mem hW₂⟩
 
 end IMTAbstract
