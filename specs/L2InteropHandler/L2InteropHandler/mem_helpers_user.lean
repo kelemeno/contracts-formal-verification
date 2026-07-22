@@ -5,6 +5,7 @@ import generated.L2InteropHandler.L2InteropHandler.checked_sub_uint256
 import generated.L2InteropHandler.L2InteropHandler.array_allocation_size_bytes
 import generated.L2InteropHandler.L2InteropHandler.finalize_allocation
 import generated.L2InteropHandler.L2InteropHandler.mcopy
+import generated.L2InteropHandler.L2InteropHandler.fun_slice
 
 /-
   MEMORY/ARITHMETIC HELPER CLOSED FORMS (L2InteropHandler).
@@ -55,6 +56,9 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
 
 private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
   obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
+
+private lemma lookup_ok_evm {σ : VarStore} {k : Identifier} (e e' : EVMState) :
+    (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
 
 /-! ### `checked_sub_uint256` -/
 
@@ -684,6 +688,150 @@ private lemma sliceC_arm
         lookup_insert_ne_fin (by decide)]
     exact hds]
   rw [mcopy_call]
+
+/-! ### `fun_slice`, assembled -/
+
+/-- The post-chunk-A evm of `fun_slice`: free-pointer bump + length word at
+the fresh array. -/
+@[reducible] private def sliceEvmA (evm : EVMState) (BUF START : Literal) : EVMState :=
+  (evm.mstore 64 (evm.mload 64
+    + Fin.land ((Fin.land (evm.mload BUF - START + 31) (Clear.UInt256.lnot 31) + 32) + 31)
+      (Clear.UInt256.lnot 31))).mstore (evm.mload 64) (evm.mload BUF - START)
+
+/-- **`fun_slice` closed form** (in-range case: `end` at or beyond the buffer
+length — clamped to it — and `start` strictly inside): the call allocates a
+fresh byte array at the old free pointer `F`, writes the slice length
+`len = mload(buf) - start` there, scratch-copies past-the-end calldata, runs
+the payload `mcopy` (A3 no-op), and returns the array pointer `F`.  The final
+evm is pinned as a term: free-pointer bump, length-word write, and the
+(symbolic) calldata scratch copy. -/
+lemma slice_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    {BUF START END : Literal} {v : Identifier}
+    (hEnd : ¬ (END < evm.mload BUF))
+    (hStart : START < evm.mload BUF)
+    (hsub : ¬ (evm.mload BUF - START > evm.mload BUF))
+    (hszb : ¬ (evm.mload BUF - START > (18446744073709551615 : UInt256)))
+    (hf1 : ¬ (evm.mload 64 + Fin.land ((Fin.land (evm.mload BUF - START + 31)
+        (Clear.UInt256.lnot 31) + 32) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hf2 : ¬ (evm.mload 64 + Fin.land ((Fin.land (evm.mload BUF - START + 31)
+        (Clear.UInt256.lnot 31) + 32) + 31) (Clear.UInt256.lnot 31)
+      < evm.mload 64)) :
+    execCall (fuel+1) fun_slice [v] (Ok evm store, [BUF, START, END])
+      = Ok ((sliceEvmA evm BUF START).calldatacopy (evm.mload 64 + 32)
+            (((sliceEvmA evm BUF START).execution_env.input_data.size : UInt256))
+            ((Fin.land (evm.mload BUF - START + 31) (Clear.UInt256.lnot 31) + 32)
+              + Clear.UInt256.lnot 31))
+          (store.insert v (evm.mload 64)) := by
+  unfold execCall call fun_slice
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm store)☎️⟦["var_buffer_mpos", "var_start", "var_end"],
+      [BUF, START, END]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["var_buffer_mpos", "var_start", "var_end"],
+      [BUF, START, END]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm store)☎️⟦["var_buffer_mpos", "var_start", "var_end"],
+      [BUF, START, END]⟧
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  have hJ0' : J = Ok evm σ0 := by rw [hJ0, he0]
+  rw [hJ0']
+  -- let _1 := mload(var_buffer_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  rw [show (Ok evm σ0)["var_buffer_mpos"]!! = BUF from by
+    rw [← hJ0']; exact lookup_initcall_1]
+  -- let expr := 0
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- switch lt(var_end, _1): END ≥ len — case 0, expr := _1
+  rw [cons]
+  rw [clamp_ge (A := END) (B := evm.mload BUF)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        rw [← hJ0']; exact lookup_initcall_3 (by decide) (by decide))
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    hEnd]
+  -- let expr_1 := 0
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- switch lt(var_start, expr): START < len — default, expr_1 := var_start
+  rw [cons]
+  rw [clamp_lt (A := START) (B := evm.mload BUF)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        rw [← hJ0']; exact lookup_initcall_2 (by decide))
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    hStart]
+  -- chunk A
+  rw [cons]
+  rw [sliceA_arm (E := evm.mload BUF) (S := START)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    hsub hszb hf1 hf2]
+  -- chunk B
+  rw [cons]
+  rw [sliceB_arm (LEN := evm.mload BUF - START) (F := evm.mload 64)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    hszb]
+  -- chunk C
+  rw [cons]
+  rw [sliceC_arm (D := evm.mload 64 + 32)
+    (CDS := (((sliceEvmA evm BUF START).execution_env.input_data.size : UInt256)))
+    (SZ2 := (Fin.land (evm.mload BUF - START + 31) (Clear.UInt256.lnot 31) + 32)
+      + Clear.UInt256.lnot 31)
+    (BUF := BUF) (S := START) (E := evm.mload BUF)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        rw [lookup_ok_evm _ evm, ← hJ0']; exact lookup_initcall_1)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- the ret chunk {var__mpos := memPtr}
+  rw [cons, nil]
+  rw [cons, nil, Assign']
+  simp only [Var', insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [insert_Ok]
 
 end
 
