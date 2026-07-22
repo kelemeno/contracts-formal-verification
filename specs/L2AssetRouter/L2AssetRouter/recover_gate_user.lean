@@ -549,6 +549,99 @@ theorem recover_wrong_selector_returns_false
   refine ⟨_, rfl, ?_⟩
   exact lookup_insert_self_fin
 
+
+/-- **Probe chunk 2, match direction**: on a selector MATCH the probe concludes
+`expr = 0` (accept). -/
+private lemma probe2_match_lemma
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {X S : Literal}
+    (h2 : (Ok evm σ)["split_expr_2"]!! = X)
+    (h3 : (Ok evm σ)["split_expr_3"]!! = S)
+    (heq : X = S) :
+    exec (fuel+1) probeChunk2 (Ok evm σ)
+      = Ok evm ((σ.insert "split_expr_4" 1).insert "expr" 0) := by
+  unfold probeChunk2
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMEq',
+             insert_Ok]
+  rw [h2, h3]
+  rw [show fromBool (X = S) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true heq, if_true]]
+  rw [cons, nil, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+
+/-- **A CORRECT `finalizeDeposit` PAYLOAD CONTINUES** (liveness side): with
+enough calldata and a MATCHING selector, the guard concludes `expr = 0` and
+falls through — no false return, no revert; execution proceeds to the decode
+and the NTV recovery forward.  The gate blocks exactly the wrong payloads. -/
+theorem recover_selector_match_continues
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {O L : Literal}
+    (hoff : (Ok evm store)["var_callData_offset"]!! = O)
+    (hlen : (Ok evm store)["var_callData_length"]!! = L)
+    (hge : ¬ (L < (4 : UInt256)))
+    (hsel : Fin.land (Fin.land (evm.calldataload O) (Fin.shiftLeft 4294967295 224))
+        (Fin.shiftLeft 4294967295 224)
+      = Fin.shiftLeft 2626179025 224) :
+    ∃ σ' : VarStore,
+      exec (fuel+1) recoverGuard (Ok evm store) = Ok evm σ' := by
+  unfold recoverGuard
+  -- let expr := lt(var_callData_length, 4)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt',
+             insert_Ok]
+  try simp only [List.head!]
+  rw [hlen]
+  rw [show fromBool (L < 4) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hge, if_false]]
+  -- the selector probe: iszero(expr) with expr = 0 — ENTER
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  try simp only [lookup_insert_self_fin]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : fromBool (decide True) ≠ (0 : UInt256))]
+  -- peel the trailing false-return if into exec position, then the chunk
+  rw [cons, cons]
+  rw [probe1_lemma (O := O) (L := L)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact hoff)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact hlen)
+    hge]
+  -- chunk 2, match direction
+  rw [cons]
+  simp only [nil]
+  rw [probe2_match_lemma
+    (X := Fin.land (Fin.land (evm.calldataload O) (Fin.shiftLeft 4294967295 224))
+      (Fin.shiftLeft 4294967295 224))
+    (S := Fin.shiftLeft 2626179025 224)
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)
+    hsel]
+  -- the false-return if (in exec position): expr = 0 — SKIP
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append]
+  try simp only [lookup_insert_self_fin]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  exact ⟨_, rfl⟩
+
 /-- **SHORT CALLDATA RETURNS FALSE.**  A payload shorter than a selector
 (`length < 4`) makes the guard set `var_recovered := 0` and `leave`: the
 function returns `false` with the evm UNTOUCHED — no decode, no NTV call, no
