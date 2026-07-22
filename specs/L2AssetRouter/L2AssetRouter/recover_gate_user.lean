@@ -1,6 +1,8 @@
 import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_range_access_bytes_calldata_11718
+import generated.L2AssetRouter.L2AssetRouter.convert_bytes_to_fixedbytes_from_bytes_calldata_to_bytes4
 
 /-
   THE RECOVERY CALLER GATE (L2AssetRouter, atomic-interop timeout path).
@@ -189,6 +191,85 @@ theorem only_afm_recovers
   refine require_unauth_reverts ?_
   rw [hbind, afm_addr_mask]
   simp only [fromBool, Bool.toUInt256, decide_eq_false hne, if_false]
+
+/-! ### The selector guard: short calldata cannot move value -/
+
+/-- The guard prefix of `fun_recoverAtomicCall_inner`, quoted verbatim from the
+generated body (statements 1–3): the length check, the selector probe (never
+entered on the short path — its helper calls stay inert AST), and the
+false-return if. -/
+private def recoverGuard : Stmt := <s
+  {
+    let expr := lt(var_callData_length, 4)
+    if iszero(expr)
+    {
+        {
+            let expr_510_offset, expr_510_length := calldata_array_index_range_access_bytes_calldata_11718(var_callData_offset, var_callData_length)
+            let split_expr_0 := convert_bytes_to_fixedbytes_from_bytes_calldata_to_bytes4(expr_510_offset, expr_510_length)
+            let split_expr_1 := shl(224, 4294967295)
+            let split_expr_2 := and(split_expr_0, split_expr_1)
+            let split_expr_3 := shl(224, 2626179025)
+        }
+        {
+            let split_expr_4 := eq(split_expr_2, split_expr_3)
+            expr := iszero(split_expr_4)
+        }
+    }
+    if expr
+    {
+        var_recovered := 0
+        leave
+    }
+}
+>
+
+/-- **SHORT CALLDATA RETURNS FALSE.**  A payload shorter than a selector
+(`length < 4`) makes the guard set `var_recovered := 0` and `leave`: the
+function returns `false` with the evm UNTOUCHED — no decode, no NTV call, no
+value movement.  The selector probe is never entered. -/
+theorem recover_short_returns_false
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {L : Literal}
+    (hlen : (Ok evm store)["var_callData_length"]!! = L)
+    (hshort : L < (4 : UInt256)) :
+    exec (fuel+1) recoverGuard (Ok evm store)
+      = 🚪 (Ok evm ((store.insert "expr" 1).insert "var_recovered" 0)) := by
+  unfold recoverGuard
+  -- let expr := lt(var_callData_length, 4)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt',
+             insert_Ok]
+  try simp only [List.head!]
+  rw [hlen]
+  rw [show fromBool (L < 4) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true hshort, if_true]]
+  -- the selector probe: iszero(expr) with expr = 1 — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  try simp only [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- the false-return if: expr = 1 — enter
+  rw [cons, nil, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append]
+  try simp only [lookup_insert_self_fin]
+  try simp only [List.head!]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- var_recovered := 0
+  rw [cons, Assign']
+  simp only [Lit', insert_Ok]
+  -- leave
+  rw [cons, nil, Leave']
 
 end
 
