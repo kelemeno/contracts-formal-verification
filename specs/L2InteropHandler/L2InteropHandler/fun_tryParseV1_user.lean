@@ -1,0 +1,44 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropHandler.L2InteropHandler.Common.if_1273033159834355241
+import generated.L2InteropHandler.L2InteropHandler.Common.block_9158224122663829709
+import generated.L2InteropHandler.L2InteropHandler.Common.block_1211529586809466322
+import generated.L2InteropHandler.L2InteropHandler.Common.if_6938822434086358619
+import generated.L2InteropHandler.L2InteropHandler.Common.if_2709084074454057459
+import generated.L2InteropHandler.L2InteropHandler.Common.if_3384444538551224921
+import generated.L2InteropHandler.L2InteropHandler.Common.switch_5192518044804447739
+import generated.L2InteropHandler.L2InteropHandler.Common.switch_8523945878344766818
+import generated.L2InteropHandler.L2InteropHandler.Common.block_181012933440567358
+import generated.L2InteropHandler.L2InteropHandler.checked_sub_uint256
+import generated.L2InteropHandler.L2InteropHandler.array_allocation_size_bytes
+import generated.L2InteropHandler.L2InteropHandler.finalize_allocation
+import generated.L2InteropHandler.L2InteropHandler.Common.block_8683506694894205076
+import generated.L2InteropHandler.L2InteropHandler.Common.block_9168070084606977247
+import generated.L2InteropHandler.L2InteropHandler.mcopy
+import generated.L2InteropHandler.L2InteropHandler.Common.block_5755787097143698222
+import generated.L2InteropHandler.L2InteropHandler.Common.if_4515461804101554459
+import generated.L2InteropHandler.L2InteropHandler.Common.block_2845927175759153544
+import generated.L2InteropHandler.L2InteropHandler.Common.block_7356270655256221062
+import generated.L2InteropHandler.L2InteropHandler.Common.if_5778481415897612946
+import generated.L2InteropHandler.L2InteropHandler.fun_slice
+
+import generated.L2InteropHandler.L2InteropHandler.fun_tryParseV1_gen
+
+
+namespace generated.L2InteropHandler.L2InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
+
+def A_fun_tryParseV1 (var_success var_chainType var_chainReference_mpos var_addr_mpos : Identifier) (var_self_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_tryParseV1_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos} :
+  Spec (fun_tryParseV1_concrete_of_code.1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos) s₀ s₉ →
+  Spec (A_fun_tryParseV1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos) s₀ s₉ := by
+  unfold fun_tryParseV1_concrete_of_code A_fun_tryParseV1
+  sorry
+
+end
+
+end generated.L2InteropHandler.L2InteropHandler

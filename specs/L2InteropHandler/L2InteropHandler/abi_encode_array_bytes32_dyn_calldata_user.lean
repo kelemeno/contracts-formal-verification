@@ -1,0 +1,24 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropHandler.L2InteropHandler.Common.if_6040632739308624336
+
+import generated.L2InteropHandler.L2InteropHandler.abi_encode_array_bytes32_dyn_calldata_gen
+
+
+namespace generated.L2InteropHandler.L2InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common 
+
+def A_abi_encode_array_bytes32_dyn_calldata (end_clear_sanitised_hrafn : Identifier) (start length pos : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma abi_encode_array_bytes32_dyn_calldata_abs_of_concrete {s₀ s₉ : State} {end_clear_sanitised_hrafn start length pos} :
+  Spec (abi_encode_array_bytes32_dyn_calldata_concrete_of_code.1 end_clear_sanitised_hrafn start length pos) s₀ s₉ →
+  Spec (A_abi_encode_array_bytes32_dyn_calldata end_clear_sanitised_hrafn start length pos) s₀ s₉ := by
+  unfold abi_encode_array_bytes32_dyn_calldata_concrete_of_code A_abi_encode_array_bytes32_dyn_calldata
+  sorry
+
+end
+
+end generated.L2InteropHandler.L2InteropHandler

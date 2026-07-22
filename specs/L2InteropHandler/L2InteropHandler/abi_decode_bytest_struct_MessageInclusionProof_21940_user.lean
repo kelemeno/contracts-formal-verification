@@ -1,0 +1,53 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropHandler.L2InteropHandler.Common.if_2519876110620745021
+import generated.L2InteropHandler.L2InteropHandler.Common.if_3680740834951988335
+import generated.L2InteropHandler.L2InteropHandler.abi_decode_bytes
+import generated.L2InteropHandler.L2InteropHandler.Common.if_9170628658314157403
+import generated.L2InteropHandler.L2InteropHandler.Common.if_5797977676899690023
+import generated.L2InteropHandler.L2InteropHandler.Common.block_1195266160146613431
+import generated.L2InteropHandler.L2InteropHandler.finalize_allocation_21963
+import generated.L2InteropHandler.L2InteropHandler.Common.block_6233277355966634063
+import generated.L2InteropHandler.L2InteropHandler.Common.block_8649141812215965287
+import generated.L2InteropHandler.L2InteropHandler.Common.if_2715977721633744624
+import generated.L2InteropHandler.L2InteropHandler.Common.if_2252518414917795087
+import generated.L2InteropHandler.L2InteropHandler.Common.block_2901418620754200206
+import generated.L2InteropHandler.L2InteropHandler.finalize_allocation_21964
+import generated.L2InteropHandler.L2InteropHandler.Common.block_6980719121843584770
+import generated.L2InteropHandler.L2InteropHandler.Common.if_755182949011924385
+import generated.L2InteropHandler.L2InteropHandler.Common.block_3988974537776573291
+import generated.L2InteropHandler.L2InteropHandler.Common.block_1468491714414979707
+import generated.L2InteropHandler.L2InteropHandler.Common.if_1776406622847886562
+import generated.L2InteropHandler.L2InteropHandler.Common.if_7588631513388927157
+import generated.L2InteropHandler.L2InteropHandler.Common.block_6029015845972361526
+import generated.L2InteropHandler.L2InteropHandler.Common.block_6500357660098691749
+import generated.L2InteropHandler.L2InteropHandler.Common.if_1225897396759969455
+import generated.L2InteropHandler.L2InteropHandler.Common.if_113270729313565489
+import generated.L2InteropHandler.L2InteropHandler.Common.block_590786962503366420
+import generated.L2InteropHandler.L2InteropHandler.array_allocation_size_array_bytes32_dyn
+import generated.L2InteropHandler.L2InteropHandler.finalize_allocation
+import generated.L2InteropHandler.L2InteropHandler.Common.block_4593412417642752052
+import generated.L2InteropHandler.L2InteropHandler.Common.block_322586364953918309
+import generated.L2InteropHandler.L2InteropHandler.Common.if_2439002248536039884
+import generated.L2InteropHandler.L2InteropHandler.Common.for_913775624710276408
+
+import generated.L2InteropHandler.L2InteropHandler.abi_decode_bytest_struct_MessageInclusionProof_21940_gen
+
+
+namespace generated.L2InteropHandler.L2InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
+
+def A_abi_decode_bytest_struct_MessageInclusionProof_21940 (value0 value1 : Identifier) (dataEnd : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma abi_decode_bytest_struct_MessageInclusionProof_21940_abs_of_concrete {s₀ s₉ : State} {value0 value1 dataEnd} :
+  Spec (abi_decode_bytest_struct_MessageInclusionProof_21940_concrete_of_code.1 value0 value1 dataEnd) s₀ s₉ →
+  Spec (A_abi_decode_bytest_struct_MessageInclusionProof_21940 value0 value1 dataEnd) s₀ s₉ := by
+  unfold abi_decode_bytest_struct_MessageInclusionProof_21940_concrete_of_code A_abi_decode_bytest_struct_MessageInclusionProof_21940
+  sorry
+
+end
+
+end generated.L2InteropHandler.L2InteropHandler

@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2InteropHandler.L2InteropHandler.Common.if_5775444121796679143
+import generated.L2InteropHandler.L2InteropHandler.Common.if_8349007531469183149
+import generated.L2InteropHandler.L2InteropHandler.Common.if_1898766265912006003
+import generated.L2InteropHandler.L2InteropHandler.Common.if_935801784454999646
+import generated.L2InteropHandler.L2InteropHandler.Common.if_8456462862300946106
+import generated.L2InteropHandler.L2InteropHandler.Common.if_9094232962516138239
+import generated.L2InteropHandler.L2InteropHandler.Common.if_6845953786477967551
+import generated.L2InteropHandler.L2InteropHandler.Common.block_2543271248399420582
+import generated.L2InteropHandler.L2InteropHandler.Common.block_6553372087765621373
+import generated.L2InteropHandler.L2InteropHandler.Common.if_8305511262668513319
+import generated.L2InteropHandler.L2InteropHandler.Common.if_5131674779867421265
+import generated.L2InteropHandler.L2InteropHandler.Common.if_6776172479016590
+import generated.L2InteropHandler.L2InteropHandler.Common.block_4336215878172870242
+import generated.L2InteropHandler.L2InteropHandler.Common.block_4281453234759629442
+
+import generated.L2InteropHandler.L2InteropHandler.fun_tryParseV1Calldata_gen
+
+
+namespace generated.L2InteropHandler.L2InteropHandler
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common 
+
+def A_fun_tryParseV1Calldata (var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length : Identifier) (var_self_offset var_self_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_tryParseV1Calldata_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_offset var_self_length} :
+  Spec (fun_tryParseV1Calldata_concrete_of_code.1 var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_offset var_self_length) s₀ s₉ →
+  Spec (A_fun_tryParseV1Calldata var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_offset var_self_length) s₀ s₉ := by
+  unfold fun_tryParseV1Calldata_concrete_of_code A_fun_tryParseV1Calldata
+  sorry
+
+end
+
+end generated.L2InteropHandler.L2InteropHandler
