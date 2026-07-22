@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
 import generated.L2InteropHandler.L2InteropHandler.fun_executeCalls
+import generated.L2InteropHandler.L2InteropHandler.memory_array_index_access_enum_CallStatus_dyn
 
 /-
   THE PER-CALL VERSION GATE (L2InteropHandler, `fun_executeCalls`).
@@ -389,6 +390,112 @@ theorem executeCalls_empty
   simp only [overwrite?_of_Ok]
   rw [setStore_ok]
   rw [he4]
+
+/-! ### The index-access helper: closed form for in-bounds reads -/
+
+/-- **The call-array index access, in bounds**: with `index < mload(baseRef)`
+the bounds panic is skipped and the call returns the element address
+`baseRef + 32·index + 32`, evm untouched.  The loop step's first dependency. -/
+lemma index_access_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {B I : Literal}
+    {a : Identifier}
+    (hlt : I < evm.mload B) :
+    execCall (fuel+1) memory_array_index_access_enum_CallStatus_dyn [a]
+        (Ok evm store, [B, I])
+      = Ok evm (store.insert a (B + Fin.shiftLeft I 5 + 32)) := by
+  unfold execCall call memory_array_index_access_enum_CallStatus_dyn
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm store)☎️⟦["baseRef", "index"], [B, I]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["baseRef", "index"], [B, I]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm store)☎️⟦["baseRef", "index"], [B, I]⟧
+  -- let split_expr_0 := mload(baseRef)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload']
+  rw [show J["baseRef"]!! = B from lookup_initcall_1]
+  rw [hevm0]
+  -- let split_expr_1 := lt(index, split_expr_0)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt']
+  have hok1 : isOk (J⟦"split_expr_0" ↦ evm.mload B⟧) := by
+    rw [isOk_insert]; exact hok0
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧)["split_expr_0"]!! = evm.mload B from
+    lookup_insert' hok0]
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧)["index"]!! = I from by
+    rw [lookup_insert_of_ne (by decide)]; exact lookup_initcall_2 (by decide)]
+  rw [show fromBool (I < evm.mload B) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true hlt, if_true]]
+  -- if iszero(split_expr_1) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  have hok2 : isOk (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧) := by
+    rw [isOk_insert]; exact hok1
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧)["split_expr_1"]!!
+      = 1 from lookup_insert' hok1]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- let split_expr_3 := shl(5, index)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl']
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧)["index"]!! = I from by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_2 (by decide)]
+  -- let split_expr_4 := add(baseRef, split_expr_3)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd']
+  have hok3 : isOk (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧) := by
+    rw [isOk_insert]; exact hok2
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧)["baseRef"]!! = B from by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+        lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_1]
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧)["split_expr_3"]!! = Fin.shiftLeft I 5 from
+    lookup_insert' hok2]
+  -- addr := add(split_expr_4, 32)
+  rw [cons, nil, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd']
+  have hok4 : isOk (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧⟦"split_expr_4" ↦ B + Fin.shiftLeft I 5⟧) := by
+    rw [isOk_insert]; exact hok3
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧⟦"split_expr_4" ↦ B + Fin.shiftLeft I 5⟧)["split_expr_4"]!! = B + Fin.shiftLeft I 5 from
+    lookup_insert' hok3]
+  -- the ret lookup and the wrapper
+  have hok5 : isOk (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧⟦"split_expr_4" ↦ B + Fin.shiftLeft I 5⟧⟦"addr" ↦ B + Fin.shiftLeft I 5 + 32⟧) := by
+    rw [isOk_insert]; exact hok4
+  rw [show (J⟦"split_expr_0" ↦ evm.mload B⟧⟦"split_expr_1" ↦ 1⟧⟦"split_expr_3" ↦ Fin.shiftLeft I 5⟧⟦"split_expr_4" ↦ B + Fin.shiftLeft I 5⟧⟦"addr" ↦ B + Fin.shiftLeft I 5 + 32⟧)["addr"]!! = B + Fin.shiftLeft I 5 + 32 from
+    lookup_insert' hok4]
+  obtain ⟨e5, σ5, h5⟩ := State_of_isOk hok5
+  have he5 : e5 = evm := by
+    have h := congrArg State.evm h5
+    rw [evm_insert, evm_insert, evm_insert, evm_insert, evm_insert, hevm0] at h
+    exact h.symm
+  rw [h5]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [insert_Ok]
+  rw [he5]
 
 end
 
