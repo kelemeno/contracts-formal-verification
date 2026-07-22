@@ -192,7 +192,7 @@ has low byte exactly `2 = BundleStatus.FullyExecuted`. -/
 theorem fin_mask_two (x : UInt256) :
     Fin.land (Fin.lor (Fin.land x (Clear.UInt256.lnot 255)) 2) 255 = 2 := by
   apply Fin.ext
-  rcases x with ⟨a, ha⟩
+  rcases x with ⟨a, _⟩
   show Nat.land (Nat.lor (Nat.land a (UInt256.size - 256) % UInt256.size) 2 % UInt256.size) 255 % UInt256.size = 2
   have hsz : UInt256.size = 2^256 := by norm_num
   rw [hsz]
