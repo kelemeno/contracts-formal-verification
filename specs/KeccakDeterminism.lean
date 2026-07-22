@@ -1089,6 +1089,23 @@ theorem accOut_deterministic
   have h2 := hmono _ (accOut_caches_of_clean hclean)
   rw [accOut_of_cached_frame hframe h2]
 
+/-- **General `mstore`/`mload` round-trip, `EVMState` level**: writing `v` at
+a non-wrapping `a` and reading the word back at `a` returns `v`. -/
+theorem mload_mstore_self_at (σ : EVMState) (a v : UInt256)
+    (ha : a.val + 32 ≤ 2 ^ 256) :
+    (σ.mstore a v).mload a = v := by
+  unfold EVMState.mstore EVMState.mload EVMState.updateMemory
+  exact lookupMemory_updateMemory_self' σ.machine_state a v ha
+
+/-- **General `mstore`/`mload` framing, `EVMState` level**: a write at `a`
+leaves the word read at a disjoint (non-wrapping) `i` unchanged. -/
+theorem mload_mstore_outside (σ : EVMState) (a v i : UInt256)
+    (ha : a.val + 32 ≤ 2 ^ 256) (hi : i.val + 32 ≤ 2 ^ 256)
+    (hdisj : i.val + 32 ≤ a.val ∨ a.val + 32 ≤ i.val) :
+    (σ.mstore a v).mload i = σ.mload i := by
+  unfold EVMState.mstore EVMState.mload EVMState.updateMemory
+  exact lookupMemory_updateMemory_outside σ.machine_state a v i ha hi hdisj
+
 /-- The junk window `[64, 95)` survives *two* consecutive accessor steps — the
 frame that lets a multi-level fold read scratch state after any number of
 pair-hash steps (base atom for the fold agreement induction). -/
