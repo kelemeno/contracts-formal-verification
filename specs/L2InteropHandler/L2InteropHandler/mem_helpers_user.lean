@@ -4,6 +4,7 @@ import specs.KeccakDeterminism
 import generated.L2InteropHandler.L2InteropHandler.checked_sub_uint256
 import generated.L2InteropHandler.L2InteropHandler.array_allocation_size_bytes
 import generated.L2InteropHandler.L2InteropHandler.finalize_allocation
+import generated.L2InteropHandler.L2InteropHandler.mcopy
 
 /-
   MEMORY/ARITHMETIC HELPER CLOSED FORMS (L2InteropHandler).
@@ -359,6 +360,91 @@ lemma finalize_alloc_call
   rw [reviveJump_of_isOk (by trivial)]
   simp only [overwrite?_of_Ok]
   rw [setStore_ok]
+
+/-! ### The clamp switch (generic) and the `mcopy` call -/
+
+/-- The min/max-clamp switch shape shared by `fun_slice`'s two bound clamps:
+`switch lt(a, b) case 0 { t := b } default { t := a }` — i.e. `t := min a b`
+read off the comparison. -/
+@[reducible] private def clampSwitch (a b t : Identifier) : Stmt :=
+  .Switch (.PrimCall .Lt [.Var a, .Var b])
+    [(0, [.Assign t (.Var b)])]
+    [.Assign t (.Var a)]
+
+/-- **Clamp, strictly-below side**: `a < b` takes the default arm, `t := a`. -/
+private lemma clamp_lt
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {a b t : Identifier}
+    {A B : Literal}
+    (ha : (Ok evm σ)[a]!! = A) (hb : (Ok evm σ)[b]!! = B) (hlt : A < B) :
+    exec (fuel+1) (clampSwitch a b t) (Ok evm σ) = Ok evm (σ.insert t A) := by
+  unfold clampSwitch
+  rw [Switch']
+  simp only [execSwitchCases, cons, nil, Assign',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt',
+             List.foldr, insert_Ok]
+  rw [ha, hb]
+  rw [show fromBool (A < B) = (1 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_true hlt, if_true]]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by decide : ¬ ((0 : UInt256) = (1 : UInt256)))]
+
+/-- **Clamp, at-or-above side**: `¬ (a < b)` takes the 0-arm, `t := b`. -/
+private lemma clamp_ge
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {a b t : Identifier}
+    {A B : Literal}
+    (ha : (Ok evm σ)[a]!! = A) (hb : (Ok evm σ)[b]!! = B) (hge : ¬ (A < B)) :
+    exec (fuel+1) (clampSwitch a b t) (Ok evm σ) = Ok evm (σ.insert t B) := by
+  unfold clampSwitch
+  rw [Switch']
+  simp only [execSwitchCases, cons, nil, Assign',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMLt',
+             List.foldr, insert_Ok]
+  rw [ha, hb]
+  rw [show fromBool (A < B) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hge, if_false]]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (rfl : (0 : UInt256) = (0 : UInt256))]
+
+/-- `fun_slice`'s two clamp switches ARE the generic shape. -/
+example : clampSwitch "var_end" "_1" "expr"
+    = .Switch (.PrimCall .Lt [.Var "var_end", .Var "_1"])
+        [(0, [.Assign "expr" (.Var "_1")])]
+        [.Assign "expr" (.Var "var_end")] := rfl
+
+/-- **`mcopy` is a model no-op** (the A3-admitted opcode module has an empty
+body): the call returns the caller state unchanged.  Any theorem that relies
+on the COPIED CONTENT is out of model scope (assumption A3); frame and
+control-flow reasoning through `mcopy` calls is exact. -/
+lemma mcopy_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {d src l : Literal} :
+    execCall (fuel+1) mcopy [] (Ok evm store, [d, src, l]) = Ok evm store := by
+  unfold execCall call mcopy
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [nil]
+  have hok0 : isOk ((Ok evm store)☎️⟦["dst", "src", "len"], [d, src, l]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["dst", "src", "len"], [d, src, l]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  obtain ⟨e0, σ0, h0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm h0
+    rw [hevm0] at h
+    exact h.symm
+  rw [h0]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  rw [he0]
+  rfl
 
 end
 
