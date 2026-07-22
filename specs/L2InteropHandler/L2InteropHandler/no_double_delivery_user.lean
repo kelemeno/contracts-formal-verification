@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_walk_discharge_user
 import specs.InteropHandler.InteropHandler.no_double_delivery_user
 
 /-
@@ -315,6 +316,82 @@ theorem no_double_delivery_guard
       ∧ (Ok evm' σ')["expr_11"]!! = 0 := by
   rw [generated.InteropHandler.InteropHandler.delivered_status_reads_two hacc] at hs
   exact status_blocked hs (by decide) (by decide)
+
+/-! ### The status read of `fun_getBundleData`, grounded in compiled code -/
+
+/-- The status-read tail of `fun_getBundleData` (src 43:13300:13340,
+`currentStatus = bundleStatus[bundleHash]`), quoted verbatim: the same
+`accOut (bh, 1)` slot as the mark, read back through the `0xff` low-byte mask. -/
+private def statusRead : Stmt := <s
+  {
+    mstore(0, var_bundleHash)
+    mstore(32, 1)
+    var_currentStatus := and(sload(keccak256(0, 64)), 0xff)
+}
+>
+
+/-- **Status-read closed form**: `fun_getBundleData` computes the status as
+`(sload (accOut evm bh 1).1) &&& 255` — exactly the value the guard's
+`expr_component_14` receives.  This grounds `no_double_delivery_guard`'s `hs`
+hypothesis in the compiled reader. -/
+lemma status_read_block
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {bh : Literal}
+    (hbh : (Ok evm store)["var_bundleHash"]!! = bh) :
+    exec (fuel+1) statusRead (Ok evm store)
+      = Ok (accOut evm bh 1).2
+          (store.insert "var_currentStatus"
+            (Fin.land ((accOut evm bh 1).2.sload (accOut evm bh 1).1) 255)) := by
+  unfold statusRead
+  simp only [cons, nil]
+  simp only [LetPrimCall', AssignPrimCall', ExprStmtPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', eval, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMMstore', EVMSload', EVMAnd']
+  simp only [multifill_cons, multifill_nil]
+  rw [hbh]
+  simp only [evm_insert, evm_Ok, setEvm_Ok, insert_Ok]
+  rw [primCall_keccakOut]
+  simp only [multifill_cons, multifill_nil, evm_Ok, setEvm_Ok, insert_Ok]
+  try simp only [List.head!]
+  have halign : keccakOut ((evm.mstore 0 bh).mstore 32 1) 0 64 = accOut evm bh 1 := by
+    unfold accOut
+    rfl
+  try rw [halign]
+  try simp only [halign]
+  try simp only [insert_Ok, setEvm_Ok, evm_Ok]
+
+/-- **RE-READ AFTER THE MARK IS `FullyExecuted`.**  Composes the cross-state
+accessor agreement (`accOut_deterministic` — the reader's slot equals the
+writer's slot, given the junk-window frame, cache transport, and writer
+cleanliness), the storage frame through the reader's keccak
+(`sload_accOut_of_clean`), slot preservation between mark and re-read
+(`hpre` — nothing wrote the status slot in between), and the pure readback
+(`delivered_status_reads_two`): the re-read status is exactly `2`, so by
+`status_blocked` the second delivery is rejected. -/
+theorem read_after_mark_two
+    {evmW evmR : EVMState} {bh : UInt256}
+    (hframe : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i evmW.machine_state.memory
+        = Finmap.lookup i evmR.machine_state.memory)
+    (hmono : ∀ w : UInt256,
+      Finmap.lookup (accInterval evmW bh 1) (accOut evmW bh 1).2.keccak_map = some w →
+        Finmap.lookup (accInterval evmW bh 1) evmR.keccak_map = some w)
+    (hcleanW : (accOut evmW bh 1).2.hash_collision = false)
+    (hcleanR : (accOut evmR bh 1).2.hash_collision = false)
+    (hacc : ((accOut evmW bh 1).2.lookupAccount
+        (accOut evmW bh 1).2.execution_env.code_owner).isSome)
+    (hpre : evmR.sload (accOut evmW bh 1).1
+      = ((accOut evmW bh 1).2.sstore (accOut evmW bh 1).1
+          (Fin.lor (Fin.land ((accOut evmW bh 1).2.sload (accOut evmW bh 1).1)
+            (Clear.UInt256.lnot 255)) 2)).sload (accOut evmW bh 1).1) :
+    Fin.land ((accOut evmR bh 1).2.sload (accOut evmR bh 1).1) 255 = 2 := by
+  have hslot : (accOut evmR bh 1).1 = (accOut evmW bh 1).1 :=
+    accOut_deterministic hframe hmono hcleanW
+  rw [generated.L2InteropCommitmentTree.L2InteropCommitmentTree.sload_accOut_of_clean
+      _ hcleanR, hslot, hpre]
+  exact generated.InteropHandler.InteropHandler.delivered_status_reads_two hacc
 
 /-! ### The require helper: pass on nonzero, revert with `BundleAlreadyProcessed` on zero -/
 
