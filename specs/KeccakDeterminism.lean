@@ -933,7 +933,7 @@ theorem lookupMemory_updateMemory_self' (m : MachineState) (a v : UInt256)
     unfold window
     rw [List.map_map, List.map_map]
     apply List.map_congr
-    intro k hk
+    intro k _
     simp only [Function.comp]
     rw [add_comm]
   rw [hread]
