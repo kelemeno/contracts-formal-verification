@@ -1,0 +1,25 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.if_238091860639932951
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_bytes_calldata_to_bytes
+
+import generated.L2AssetRouter.L2AssetRouter.require_helper_error_InteroperableAddressParsingError_bytes_calldata_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_require_helper_error_InteroperableAddressParsingError_bytes_calldata  (condition expr_4249_offset expr_4249_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma require_helper_error_InteroperableAddressParsingError_bytes_calldata_abs_of_concrete {s₀ s₉ : State} { condition expr_4249_offset expr_4249_length} :
+  Spec (require_helper_error_InteroperableAddressParsingError_bytes_calldata_concrete_of_code.1  condition expr_4249_offset expr_4249_length) s₀ s₉ →
+  Spec (A_require_helper_error_InteroperableAddressParsingError_bytes_calldata  condition expr_4249_offset expr_4249_length) s₀ s₉ := by
+  unfold require_helper_error_InteroperableAddressParsingError_bytes_calldata_concrete_of_code A_require_helper_error_InteroperableAddressParsingError_bytes_calldata
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

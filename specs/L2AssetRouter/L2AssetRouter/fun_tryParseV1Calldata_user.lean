@@ -1,0 +1,41 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.if_5775444121796679143
+import generated.L2AssetRouter.L2AssetRouter.fun_readBytes2Calldata
+import generated.L2AssetRouter.L2AssetRouter.Common.if_8349007531469183149
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4748813659306236205
+import generated.L2AssetRouter.L2AssetRouter.fun_readBytes2Calldata_11817
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_access_bytes_calldata_11818
+import generated.L2AssetRouter.L2AssetRouter.cleanup_bytes1
+import generated.L2AssetRouter.L2AssetRouter.convert_bytes1_to_uint8
+import generated.L2AssetRouter.L2AssetRouter.Common.block_6859620981063592791
+import generated.L2AssetRouter.L2AssetRouter.Common.if_4012421819531509095
+import generated.L2AssetRouter.L2AssetRouter.Common.block_86906243043760676
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_range_access_bytes_calldata_11819
+import generated.L2AssetRouter.L2AssetRouter.Common.block_5212034964361298986
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_access_bytes_calldata
+import generated.L2AssetRouter.L2AssetRouter.extract_from_storage_value_offset_bool
+import generated.L2AssetRouter.L2AssetRouter.Common.block_1804464432964499903
+import generated.L2AssetRouter.L2AssetRouter.Common.if_6167752411855890517
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_range_access_bytes_calldata
+
+import generated.L2AssetRouter.L2AssetRouter.fun_tryParseV1Calldata_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_fun_tryParseV1Calldata (var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length : Identifier) (var_self_4053_offset var_self_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_tryParseV1Calldata_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length} :
+  Spec (fun_tryParseV1Calldata_concrete_of_code.1 var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length) s₀ s₉ →
+  Spec (A_fun_tryParseV1Calldata var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length) s₀ s₉ := by
+  unfold fun_tryParseV1Calldata_concrete_of_code A_fun_tryParseV1Calldata
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

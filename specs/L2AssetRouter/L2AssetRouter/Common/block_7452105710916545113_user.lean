@@ -1,0 +1,23 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256_bytes32_bytes_calldata
+
+import generated.L2AssetRouter.L2AssetRouter.Common.block_7452105710916545113_gen
+
+
+namespace L2AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2AssetRouter L2AssetRouter
+
+def A_block_7452105710916545113 (s₀ s₉ : State) : Prop := sorry
+
+lemma block_7452105710916545113_abs_of_concrete {s₀ s₉ : State} :
+  Spec block_7452105710916545113_concrete_of_code s₀ s₉ →
+  Spec A_block_7452105710916545113 s₀ s₉ := by
+  sorry
+
+end
+
+end L2AssetRouter.Common

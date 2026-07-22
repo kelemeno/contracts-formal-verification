@@ -1,0 +1,37 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.mapping_index_access_mapping_bytes32_address_of_bytes32
+import generated.L2AssetRouter.L2AssetRouter.read_from_storage_split_offset_address
+import generated.L2AssetRouter.L2AssetRouter.Common.if_3497557402213865731
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_bytes_bytes32
+import generated.L2AssetRouter.L2AssetRouter.revert_forward
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.abi_decode
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3924349988589071652
+import generated.L2AssetRouter.L2AssetRouter.Common.block_2062156546981010682
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4839524033669613487
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256_uint256_bytes32_address_bytes
+import generated.L2AssetRouter.L2AssetRouter.Common.if_4378373803491156100
+import generated.L2AssetRouter.L2AssetRouter.Common.if_2714870613723580744
+import generated.L2AssetRouter.L2AssetRouter.abi_decode_bytes_fromMemory
+
+import generated.L2AssetRouter.L2AssetRouter.fun_burn_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_fun_burn (var_bridgeMintCalldata_mpos : Identifier) (var_chainId var_nextMsgValue var_assetId var_originalCaller var_transferData_mpos var_nativeTokenVault : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_burn_abs_of_concrete {s₀ s₉ : State} {var_bridgeMintCalldata_mpos var_chainId var_nextMsgValue var_assetId var_originalCaller var_transferData_mpos var_nativeTokenVault} :
+  Spec (fun_burn_concrete_of_code.1 var_bridgeMintCalldata_mpos var_chainId var_nextMsgValue var_assetId var_originalCaller var_transferData_mpos var_nativeTokenVault) s₀ s₉ →
+  Spec (A_fun_burn var_bridgeMintCalldata_mpos var_chainId var_nextMsgValue var_assetId var_originalCaller var_transferData_mpos var_nativeTokenVault) s₀ s₉ := by
+  unfold fun_burn_concrete_of_code A_fun_burn
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

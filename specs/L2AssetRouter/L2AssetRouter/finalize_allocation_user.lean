@@ -1,0 +1,27 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.block_801497109727252421
+import generated.L2AssetRouter.L2AssetRouter.Common.block_6033096439800527865
+import generated.L2AssetRouter.L2AssetRouter.Common.if_5792510925045852942
+import generated.L2AssetRouter.L2AssetRouter.panic_error_0x41
+
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_finalize_allocation  (memPtr size : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma finalize_allocation_abs_of_concrete {s₀ s₉ : State} { memPtr size} :
+  Spec (finalize_allocation_concrete_of_code.1  memPtr size) s₀ s₉ →
+  Spec (A_finalize_allocation  memPtr size) s₀ s₉ := by
+  unfold finalize_allocation_concrete_of_code A_finalize_allocation
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

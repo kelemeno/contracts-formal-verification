@@ -1,0 +1,45 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.block_5193557723081470027
+import generated.L2AssetRouter.L2AssetRouter.allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_access_bytes_calldata_11804
+import generated.L2AssetRouter.L2AssetRouter.fun_decodeAssetRouterBridgehubDepositData
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4011585858768310270
+import generated.L2AssetRouter.L2AssetRouter.constant_L2_BRIDGEHUB_ADDR
+import generated.L2AssetRouter.L2AssetRouter.cleanup_address
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3402155946391142085
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256
+import generated.L2AssetRouter.L2AssetRouter.Common.block_1460416934725088244
+import generated.L2AssetRouter.L2AssetRouter.Common.if_1636797331660012289
+import generated.L2AssetRouter.L2AssetRouter.revert_forward
+import generated.L2AssetRouter.L2AssetRouter.Common.if_5771020514989660505
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.abi_decode_bytes32_fromMemory
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3464651237741574941
+import generated.L2AssetRouter.L2AssetRouter.require_helper_error_AssetIdNotSupported_bytes32
+import generated.L2AssetRouter.L2AssetRouter.fun_burn
+import generated.L2AssetRouter.L2AssetRouter.fun_encodeTxDataHash
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3128077029088809125
+import generated.L2AssetRouter.L2AssetRouter.fun_requestToBridge
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_bytes32_bytes
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3967809527235321317
+
+import generated.L2AssetRouter.L2AssetRouter.Common.switch_3400402571562672546_gen
+
+
+namespace L2AssetRouter.Common
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_switch_3400402571562672546 (s₀ s₉ : State) : Prop := sorry
+
+lemma switch_3400402571562672546_abs_of_concrete {s₀ s₉ : State} :
+  Spec switch_3400402571562672546_concrete_of_code s₀ s₉ →
+  Spec A_switch_3400402571562672546 s₀ s₉ := by
+  sorry
+
+end
+
+end L2AssetRouter.Common

@@ -1,0 +1,36 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.block_2415779567920543028
+import generated.L2AssetRouter.L2AssetRouter.allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
+import generated.L2AssetRouter.L2AssetRouter.fun_getDepositCalldata
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4787811467592878326
+import generated.L2AssetRouter.L2AssetRouter.array_allocation_size_array_bytes_dyn
+import generated.L2AssetRouter.L2AssetRouter.Common.block_1446275096203827228
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8604469385962486367
+import generated.L2AssetRouter.L2AssetRouter.Common.for_5329340484243884781
+import generated.L2AssetRouter.L2AssetRouter.Common.block_2607302815688231814
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation_11803
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8928954768485066452
+import generated.L2AssetRouter.L2AssetRouter.Common.block_7691368776890493895
+
+import generated.L2AssetRouter.L2AssetRouter.fun_requestToBridge_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_fun_requestToBridge (var_request_1326_mpos : Identifier) (var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_requestToBridge_abs_of_concrete {s₀ s₉ : State} {var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash} :
+  Spec (fun_requestToBridge_concrete_of_code.1 var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash) s₀ s₉ →
+  Spec (A_fun_requestToBridge var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash) s₀ s₉ := by
+  unfold fun_requestToBridge_concrete_of_code A_fun_requestToBridge
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

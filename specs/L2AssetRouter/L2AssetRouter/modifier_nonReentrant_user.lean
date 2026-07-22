@@ -1,0 +1,39 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.if_7589762552718540589
+import generated.L2AssetRouter.L2AssetRouter.Common.if_4307119837691313886
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8613951780142051869
+import generated.L2AssetRouter.L2AssetRouter.require_helper_error_AssetIdNotSupported_bytes32
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3694856571280274132
+import generated.L2AssetRouter.L2AssetRouter.constant_L2_NATIVE_TOKEN_VAULT_ADDR
+import generated.L2AssetRouter.L2AssetRouter.mapping_index_access_mapping_bytes32_address_of_bytes32
+import generated.L2AssetRouter.L2AssetRouter.read_from_storage_split_offset_address
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4822775801670294296
+import generated.L2AssetRouter.L2AssetRouter.Common.switch_4568778344009629408
+import generated.L2AssetRouter.L2AssetRouter.fun_setAssetHandler
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256_bytes32_bytes_calldata
+import generated.L2AssetRouter.L2AssetRouter.revert_forward
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.abi_decode
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_bytes_calldata
+
+import generated.L2AssetRouter.L2AssetRouter.modifier_nonReentrant_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_modifier_nonReentrant  (var_sourceChainId var_assetId var_transferData_offset var_transferData_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma modifier_nonReentrant_abs_of_concrete {s₀ s₉ : State} { var_sourceChainId var_assetId var_transferData_offset var_transferData_length} :
+  Spec (modifier_nonReentrant_concrete_of_code.1  var_sourceChainId var_assetId var_transferData_offset var_transferData_length) s₀ s₉ →
+  Spec (A_modifier_nonReentrant  var_sourceChainId var_assetId var_transferData_offset var_transferData_length) s₀ s₉ := by
+  unfold modifier_nonReentrant_concrete_of_code A_modifier_nonReentrant
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

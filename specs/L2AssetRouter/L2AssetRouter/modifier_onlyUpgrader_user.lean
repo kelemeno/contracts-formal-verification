@@ -1,0 +1,36 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.block_3869862821392286044
+import generated.L2AssetRouter.L2AssetRouter.Common.block_437071082198276319
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4466405805255842814
+import generated.L2AssetRouter.L2AssetRouter.Common.if_953608477247502286
+import generated.L2AssetRouter.L2AssetRouter.Common.if_6521491511756037814
+import generated.L2AssetRouter.L2AssetRouter.Common.block_4678587461998371215
+import generated.L2AssetRouter.L2AssetRouter.Common.block_6012763339103030502
+import generated.L2AssetRouter.L2AssetRouter.update_storage_value_offset_uint256_to_uint256
+import generated.L2AssetRouter.L2AssetRouter.read_from_storage_split_offset_address_11714
+import generated.L2AssetRouter.L2AssetRouter.Common.block_2082101221537410625
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8074043080168938433
+import generated.L2AssetRouter.L2AssetRouter.Common.if_4301763317186428358
+import generated.L2AssetRouter.L2AssetRouter.fun_transferOwnership
+
+import generated.L2AssetRouter.L2AssetRouter.modifier_onlyUpgrader_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_modifier_onlyUpgrader  (var_l1ChainId var_eraChainId var_l1AssetRouter_address var_baseTokenAssetId var_aliasedOwner : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma modifier_onlyUpgrader_abs_of_concrete {s₀ s₉ : State} { var_l1ChainId var_eraChainId var_l1AssetRouter_address var_baseTokenAssetId var_aliasedOwner} :
+  Spec (modifier_onlyUpgrader_concrete_of_code.1  var_l1ChainId var_eraChainId var_l1AssetRouter_address var_baseTokenAssetId var_aliasedOwner) s₀ s₉ →
+  Spec (A_modifier_onlyUpgrader  var_l1ChainId var_eraChainId var_l1AssetRouter_address var_baseTokenAssetId var_aliasedOwner) s₀ s₉ := by
+  unfold modifier_onlyUpgrader_concrete_of_code A_modifier_onlyUpgrader
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

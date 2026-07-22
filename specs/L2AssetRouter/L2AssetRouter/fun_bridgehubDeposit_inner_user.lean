@@ -1,0 +1,40 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.if_4184604597587717065
+import generated.L2AssetRouter.L2AssetRouter.panic_error_0x32
+import generated.L2AssetRouter.L2AssetRouter.Common.switch_3400402571562672546
+import generated.L2AssetRouter.L2AssetRouter.allocate_and_zero_memory_struct_struct_L2TransactionRequestTwoBridgesInner
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_access_bytes_calldata_11804
+import generated.L2AssetRouter.L2AssetRouter.fun_decodeAssetRouterBridgehubDepositData
+import generated.L2AssetRouter.L2AssetRouter.constant_L2_BRIDGEHUB_ADDR
+import generated.L2AssetRouter.L2AssetRouter.cleanup_address
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256
+import generated.L2AssetRouter.L2AssetRouter.revert_forward
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.abi_decode_bytes32_fromMemory
+import generated.L2AssetRouter.L2AssetRouter.require_helper_error_AssetIdNotSupported_bytes32
+import generated.L2AssetRouter.L2AssetRouter.fun_burn
+import generated.L2AssetRouter.L2AssetRouter.fun_encodeTxDataHash
+import generated.L2AssetRouter.L2AssetRouter.fun_requestToBridge
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_bytes32_bytes
+
+import generated.L2AssetRouter.L2AssetRouter.fun_bridgehubDeposit_inner_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_fun_bridgehubDeposit_inner (var_request_mpos : Identifier) (var_chainId var_originalCaller var_value var__data_offset var_data_length var_nativeTokenVault : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_bridgehubDeposit_inner_abs_of_concrete {s₀ s₉ : State} {var_request_mpos var_chainId var_originalCaller var_value var__data_offset var_data_length var_nativeTokenVault} :
+  Spec (fun_bridgehubDeposit_inner_concrete_of_code.1 var_request_mpos var_chainId var_originalCaller var_value var__data_offset var_data_length var_nativeTokenVault) s₀ s₉ →
+  Spec (A_fun_bridgehubDeposit_inner var_request_mpos var_chainId var_originalCaller var_value var__data_offset var_data_length var_nativeTokenVault) s₀ s₉ := by
+  unfold fun_bridgehubDeposit_inner_concrete_of_code A_fun_bridgehubDeposit_inner
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter

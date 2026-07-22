@@ -1,0 +1,42 @@
+import Clear.ReasoningPrinciple
+
+import generated.L2AssetRouter.L2AssetRouter.Common.if_9037085336587543485
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_range_access_bytes_calldata_11718
+import generated.L2AssetRouter.L2AssetRouter.convert_bytes_to_fixedbytes_from_bytes_calldata_to_bytes4
+import generated.L2AssetRouter.L2AssetRouter.Common.if_3454614243226331915
+import generated.L2AssetRouter.L2AssetRouter.Common.block_6999322671783571917
+import generated.L2AssetRouter.L2AssetRouter.calldata_array_index_range_access_bytes_calldata_11759
+import generated.L2AssetRouter.L2AssetRouter.abi_decode_uint256t_bytes32t_bytes
+import generated.L2AssetRouter.L2AssetRouter.constant_L2_NATIVE_TOKEN_VAULT_ADDR
+import generated.L2AssetRouter.L2AssetRouter.cleanup_address
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8059370031011181845
+import generated.L2AssetRouter.L2AssetRouter.Common.if_3617866943961008170
+import generated.L2AssetRouter.L2AssetRouter.Common.block_8445464875461143846
+import generated.L2AssetRouter.L2AssetRouter.Common.block_1067437107697907065
+import generated.L2AssetRouter.L2AssetRouter.abi_encode_uint256_bytes32_bytes
+import generated.L2AssetRouter.L2AssetRouter.Common.if_1636797331660012289
+import generated.L2AssetRouter.L2AssetRouter.revert_forward
+import generated.L2AssetRouter.L2AssetRouter.Common.if_508989492593568173
+import generated.L2AssetRouter.L2AssetRouter.finalize_allocation
+import generated.L2AssetRouter.L2AssetRouter.abi_decode
+
+import generated.L2AssetRouter.L2AssetRouter.fun_recoverAtomicCall_inner_gen
+
+
+namespace generated.L2AssetRouter.L2AssetRouter
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
+
+def A_fun_recoverAtomicCall_inner (var_recovered : Identifier) (var_destChainId var_callData_offset var_callData_length : Literal) (s₀ s₉ : State) : Prop := sorry
+
+lemma fun_recoverAtomicCall_inner_abs_of_concrete {s₀ s₉ : State} {var_recovered var_destChainId var_callData_offset var_callData_length} :
+  Spec (fun_recoverAtomicCall_inner_concrete_of_code.1 var_recovered var_destChainId var_callData_offset var_callData_length) s₀ s₉ →
+  Spec (A_fun_recoverAtomicCall_inner var_recovered var_destChainId var_callData_offset var_callData_length) s₀ s₉ := by
+  unfold fun_recoverAtomicCall_inner_concrete_of_code A_fun_recoverAtomicCall_inner
+  sorry
+
+end
+
+end generated.L2AssetRouter.L2AssetRouter
