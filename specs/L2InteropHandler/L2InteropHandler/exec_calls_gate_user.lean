@@ -278,6 +278,28 @@ theorem give_call_failure_forwards
     (exec (fuel+1) giveFailIf (Ok evm store)).evm.reverted = true :=
   fail_forward_reverts h7
 
+/-- The `receiveMessage`-dispatch failure arm, quoted verbatim. -/
+@[reducible] private def dispatchFailIf : Stmt := <s
+  if iszero(_11)
+  {
+      let pos_1 := mload(64)
+      returndatacopy(pos_1, 0, returndatasize())
+      revert(pos_1, returndatasize())
+  }
+>
+
+/-- The verbatim quote IS the generic shape. -/
+example : dispatchFailIf = failForwardIf "_11" "pos_1" := rfl
+
+/-- **BUNDLE ATOMICITY (per-call leg)**: if ANY call's `receiveMessage`
+dispatch fails, the whole delivery reverts, forwarding the recipient's revert
+data — a bundle executes all of its calls or none of them. -/
+theorem dispatch_call_failure_forwards
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h11 : (Ok evm store)["_11"]!! = 0) :
+    (exec (fuel+1) dispatchFailIf (Ok evm store)).evm.reverted = true :=
+  fail_forward_reverts h11
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
