@@ -77,7 +77,7 @@ private def senderGuard : Stmt := <s
     let cleaned_2 := and(mload(add(mload(_1), 32)), sub(shl(160, 1), 1))
     if iszero(eq(cleaned, cleaned_1))
     {
-        mstore(0, shl(225, 578395707))
+        mstore(0, shl(225, 1157535291))
         mstore(4, cleaned_1)
         mstore(36, cleaned_2)
         revert(0, 68)
@@ -95,7 +95,7 @@ binder contexts — top-level def per the playbook). -/
 @[reducible] private def senderIf : Stmt := <s
   if iszero(eq(cleaned, cleaned_1))
   {
-      mstore(0, shl(225, 578395707))
+      mstore(0, shl(225, 1157535291))
       mstore(4, cleaned_1)
       mstore(36, cleaned_2)
       revert(0, 68)
@@ -240,7 +240,7 @@ theorem verify_sender_reverts
     simp only [fromBool, Bool.toUInt256, decide_eq_false hsender, if_false]]
   try simp only [List.head!]
   rw [if_pos (by decide : fromBool (decide True) ≠ (0 : UInt256))]
-  -- mstore(0, shl(225, 578395707))
+  -- mstore(0, shl(225, 1157535291))
   rw [cons, ExprStmtPrimCall']
   simp only [evalArgs, evalTail, cons', head', reverse', multifill',
              PrimCall', Lit', Var', execPrimCall, evalPrimCall,
@@ -262,6 +262,75 @@ theorem verify_sender_reverts
              List.singleton_append, multifill_cons, multifill_nil,
              EVMMstore', evm_Ok, setEvm_Ok]
   -- revert(0, 68)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
+
+/-! ### The inclusion gate: the attested-inclusion bool must be true -/
+
+/-- The final gate of `fun_verifyBundle`: `expr` is the bool decoded from the
+`proveL2MessageInclusionShared` staticcall to the L2 message-verification
+built-in (`0x10009 = 65545`, the trust anchor); reject unless it is true
+(selector `0x196170ab = 425816235`, `MessageVerificationFailed`). -/
+@[reducible] private def inclusionIf : Stmt := <s
+  if iszero(expr)
+  {
+      mstore(0, shl(225, 425816235))
+      revert(0, 4)
+  }
+>
+
+/-- **VERIFIED INCLUSION PASSES**: a true attested-inclusion bool falls
+through with the state unchanged. -/
+theorem inclusion_verified_pass
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {b : Literal}
+    (hb : (Ok evm store)["expr"]!! = b) (hb0 : b ≠ 0) :
+    exec (fuel+1) inclusionIf (Ok evm store) = Ok evm store := by
+  unfold inclusionIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hb]
+  rw [show fromBool (b = 0) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hb0, if_false]]
+  simp only [List.head!]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **UNVERIFIED INCLUSION REVERTS**: if the message-verification system
+contract does NOT attest the message's inclusion (`expr = 0`), the bundle is
+rejected with `MessageVerificationFailed` — no unattested bundle is ever
+executed.  The staticcall itself is the model's opaque external-call
+boundary; `expr` carries its decoded verdict (#38-style decomposition). -/
+theorem inclusion_unverified_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (hb : (Ok evm store)["expr"]!! = 0) :
+    (exec (fuel+1) inclusionIf (Ok evm store)).evm.reverted = true := by
+  unfold inclusionIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hb]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- mstore(0, shl(225, 425816235))
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  -- revert(0, 4)
   rw [cons, nil, ExprStmtPrimCall']
   simp only [evalArgs, evalTail, cons', head', reverse', multifill',
              PrimCall', Lit', Var', execPrimCall, evalPrimCall,
