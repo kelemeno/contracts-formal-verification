@@ -58,6 +58,9 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
     (Ok evm (Finmap.insert k val σ))[k]!! = val := by
   rw [← insert_Ok]; exact lookup_insert' (by trivial)
 
+private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
+  obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
+
 /-! ### The require helper's body-if, quoted verbatim (generator chunking) -/
 
 /-- The body-if of `require_helper_error_Unauthorized_address`
@@ -191,6 +194,147 @@ theorem only_afm_recovers
   refine require_unauth_reverts ?_
   rw [hbind, afm_addr_mask]
   simp only [fromBool, Bool.toUInt256, decide_eq_false hne, if_false]
+
+/-! ### Closed forms of the two calldata helpers (evm-pure calls) -/
+
+/-- **The `[:4]` slice**: with `length ≥ 4` the bounds check passes and the
+call returns `(offset, 4)`, evm untouched. -/
+lemma slice4_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {O L : Literal}
+    {o l : Identifier}
+    (hL : ¬ ((4 : UInt256) > L)) :
+    execCall (fuel+1) calldata_array_index_range_access_bytes_calldata_11718
+        [o, l] (Ok evm store, [O, L])
+      = Ok evm ((store.insert l 4).insert o O) := by
+  unfold execCall call calldata_array_index_range_access_bytes_calldata_11718
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, cons, cons, nil]
+  simp only [Assign', LetEq', LetPrimCall', AssignPrimCall', If',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMGt']
+  have hok0 : isOk ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hok1 : isOk ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧) := by
+    rw [isOk_insert]; exact hok0
+  have hok2 : isOk ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧) := by
+    rw [isOk_insert]; exact hok1
+  -- the bounds check reads `length`
+  have hlenl : ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧)["length"]!!
+      = L := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_2 (by decide)
+  rw [hlenl]
+  rw [show fromBool ((4 : UInt256) > L) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hL, if_false]]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- offsetOut := offset
+  have hoffl : ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧)["offset"]!!
+      = O := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_1
+  rw [hoffl]
+  -- the two ret lookups
+  have hok3 : isOk ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧⟦"offsetOut" ↦ O⟧) := by
+    rw [isOk_insert]; exact hok2
+  have hok4 : isOk ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧⟦"offsetOut" ↦ O⟧⟦"lengthOut" ↦ 4⟧) := by
+    rw [isOk_insert]; exact hok3
+  have hretl : ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧⟦"offsetOut" ↦ O⟧⟦"lengthOut" ↦ 4⟧)["lengthOut"]!!
+      = 4 := lookup_insert' hok3
+  have hreto : ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧⟦"startIndex" ↦ 0⟧⟦"startIndex" ↦ 0⟧⟦"offsetOut" ↦ O⟧⟦"lengthOut" ↦ 4⟧)["offsetOut"]!!
+      = O := by
+    rw [lookup_insert_of_ne (by decide)]
+    exact lookup_insert' hok2
+  rw [hretl, hreto]
+  obtain ⟨e4, σ4, h4⟩ := State_of_isOk hok4
+  have he4 : e4 = evm := by
+    have h := congrArg State.evm h4
+    rw [evm_insert, evm_insert, evm_insert, evm_insert] at h
+    rw [show ((Ok evm store)☎️⟦["offset", "length"], [O, L]⟧).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at h
+    exact h.symm
+  rw [h4]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [insert_Ok]
+  rw [he4]
+
+/-- **The `bytes4` extraction** at `len = 4`: the call returns the first
+calldata word masked to its top four bytes (the raw `calldataload` value is
+kept symbolic — no byte-content claims), evm untouched. -/
+lemma bytes4_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {A : Literal}
+    {v : Identifier} :
+    execCall (fuel+1) convert_bytes_to_fixedbytes_from_bytes_calldata_to_bytes4
+        [v] (Ok evm store, [A, 4])
+      = Ok evm (store.insert v
+          (Fin.land (evm.calldataload A) (Fin.shiftLeft 4294967295 224))) := by
+  unfold execCall call convert_bytes_to_fixedbytes_from_bytes_calldata_to_bytes4
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, cons, nil]
+  simp only [Assign', LetEq', LetPrimCall', AssignPrimCall', If',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             EVMCalldataload', EVMShl', EVMAnd', EVMLt']
+  have hok0 : isOk ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  -- the calldataload argument
+  have harr : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧)["array"]!! = A :=
+    lookup_initcall_1
+  rw [harr, hevm0]
+  have hok1 : isOk ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧) := by
+    rw [isOk_insert]; exact hok0
+  have hok2 : isOk ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧) := by
+    rw [isOk_insert]; exact hok1
+  -- the `and` arguments
+  have h1l : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧)["_1"]!!
+      = evm.calldataload A := by
+    rw [lookup_insert_of_ne (by decide)]
+    exact lookup_insert' hok0
+  have h0l : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧)["split_expr_0"]!!
+      = Fin.shiftLeft 4294967295 224 := lookup_insert' hok1
+  rw [h1l, h0l]
+  -- the skipped `lt(len, 4)` tail
+  have hok3 : isOk ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧⟦"value" ↦ Fin.land (evm.calldataload A) (Fin.shiftLeft 4294967295 224)⟧) := by
+    rw [isOk_insert]; exact hok2
+  have hlenl : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧⟦"value" ↦ Fin.land (evm.calldataload A) (Fin.shiftLeft 4294967295 224)⟧)["len"]!!
+      = 4 := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+        lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_2 (by decide)
+  rw [hlenl]
+  rw [show fromBool ((4 : UInt256) < 4) = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- the ret lookup
+  have hretv : ((Ok evm store)☎️⟦["array", "len"], [A, 4]⟧⟦"_1" ↦ evm.calldataload A⟧⟦"split_expr_0" ↦ Fin.shiftLeft 4294967295 224⟧⟦"value" ↦ Fin.land (evm.calldataload A) (Fin.shiftLeft 4294967295 224)⟧)["value"]!!
+      = Fin.land (evm.calldataload A) (Fin.shiftLeft 4294967295 224) :=
+    lookup_insert' hok2
+  rw [hretv]
+  obtain ⟨e3, σ3, h3⟩ := State_of_isOk hok3
+  have he3 : e3 = evm := by
+    have h := congrArg State.evm h3
+    rw [evm_insert, evm_insert, evm_insert, hevm0] at h
+    exact h.symm
+  rw [h3]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [insert_Ok]
+  rw [he3]
 
 /-! ### The selector guard: short calldata cannot move value -/
 
