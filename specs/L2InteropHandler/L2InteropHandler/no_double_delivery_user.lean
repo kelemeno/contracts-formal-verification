@@ -316,6 +316,107 @@ theorem no_double_delivery_guard
   rw [generated.InteropHandler.InteropHandler.delivered_status_reads_two hacc] at hs
   exact status_blocked hs (by decide) (by decide)
 
+/-! ### The require helper: pass on nonzero, revert with `BundleAlreadyProcessed` on zero -/
+
+/-- The body-if of the generated
+`require_helper_error_BundleAlreadyProcessed_bytes32(condition, expr)`, quoted
+verbatim (selector `0x5bba5111 = 1538937105`, split let per the generator). -/
+private def requireIf : Stmt := <s
+  if iszero(condition)
+  {
+      let split_expr_0 := shl(224, 1538937105)
+      mstore(0, split_expr_0)
+      mstore(4, expr)
+      revert(0, 36)
+  }
+>
+
+/-- **PASS**: a nonzero condition falls through with the state unchanged. -/
+theorem require_bap_pass
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {c : Literal}
+    (hc : (Ok evm store)["condition"]!! = c) (hc0 : c ≠ 0) :
+    exec (fuel+1) requireIf (Ok evm store) = Ok evm store := by
+  unfold requireIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hc]
+  rw [show fromBool (c = 0) = (0 : UInt256) from by
+    simp only [fromBool, Bool.toUInt256, decide_eq_false hc0, if_false]]
+  simp only [List.head!]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **REVERT**: a zero condition runs the error path — selector + payload are
+written and the call REVERTS. -/
+theorem require_bap_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (hc : (Ok evm store)["condition"]!! = 0) :
+    (exec (fuel+1) requireIf (Ok evm store)).evm.reverted = true := by
+  unfold requireIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [hc]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- let split_expr_0 := shl(224, 1538937105)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  -- mstore(0, split_expr_0)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  -- mstore(4, expr)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  -- revert(0, 36)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMRevert',
+             evm_Ok, setEvm_Ok]
+  rfl
+
+/-- **NO DOUBLE DELIVERY, END TO END.**  After the CEI mark, run the status
+guard on the re-read status and feed its output to the require helper (the
+call boundary is the explicit `hbind` hypothesis: the callee binds `condition`
+to the guard's `expr_11`, exactly what the dispatcher's
+`require_helper_error_BundleAlreadyProcessed_bytes32(expr_11, …)` call does):
+the helper REVERTS.  A second delivery of a delivered bundle cannot complete. -/
+theorem no_double_delivery_reverts
+    {evm evm' : EVMState} {store σc : VarStore} {fuel : ℕ} {d : UInt256}
+    (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
+    (hs : (Ok evm' store)["expr_component_14"]!!
+      = Fin.land
+          ((evm.sstore d (Fin.lor (Fin.land (evm.sload d) (Clear.UInt256.lnot 255)) 2)).sload d)
+          255)
+    (hbind : ∀ σ' : VarStore,
+      exec (fuel+1) statusGuard (Ok evm' store) = Ok evm' σ' →
+        (Ok evm' σc)["condition"]!! = (Ok evm' σ')["expr_11"]!!) :
+    (exec (fuel+1) requireIf (Ok evm' σc)).evm.reverted = true := by
+  obtain ⟨σ', hexec, hval⟩ := no_double_delivery_guard hacc hs
+  refine require_bap_reverts ?_
+  rw [hbind σ' hexec, hval]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
