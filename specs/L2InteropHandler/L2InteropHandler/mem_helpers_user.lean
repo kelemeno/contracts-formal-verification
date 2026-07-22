@@ -446,6 +446,245 @@ lemma mcopy_call
   rw [he0]
   rfl
 
+/-! ### `fun_slice` chunk arms -/
+
+/-- `fun_slice` chunk A: length, allocation, length-word write. -/
+@[reducible] private def sliceChunkA : Stmt := <s
+  {
+      let _2 := checked_sub_uint256(expr, expr_1)
+      let _3 := array_allocation_size_bytes(_2)
+      let memPtr := mload(64)
+      finalize_allocation(memPtr, _3)
+      mstore(memPtr, _2)
+  }
+>
+
+/-- `fun_slice` chunk B: allocation size again, data pointer, copy extent. -/
+@[reducible] private def sliceChunkB : Stmt := <s
+  {
+      let dataSize := array_allocation_size_bytes(_2)
+      let dataStart := add(memPtr, 32)
+      let split_expr_0 := calldatasize()
+      let split_expr_1 := not(31)
+      let split_expr_2 := add(dataSize, split_expr_1)
+  }
+>
+
+/-- `fun_slice` chunk C: the scratch calldata copy and the payload `mcopy`. -/
+@[reducible] private def sliceChunkC : Stmt := <s
+  {
+      calldatacopy(dataStart, split_expr_0, split_expr_2)
+      let split_expr_3 := add(var_buffer_mpos, expr_1)
+      let split_expr_4 := add(split_expr_3, 32)
+      let split_expr_5 := sub(expr, expr_1)
+      mcopy(dataStart, split_expr_4, split_expr_5)
+  }
+>
+
+/-- **Chunk A closed form**: with the clamped bounds in scope, compute the
+slice length `E - S`, allocate, and write the length word at the fresh
+pointer. -/
+private lemma sliceA_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {E S : Literal}
+    (hE : (Ok evm σ)["expr"]!! = E)
+    (hS : (Ok evm σ)["expr_1"]!! = S)
+    (hsub : ¬ (E - S > E))
+    (hszb : ¬ (E - S > (18446744073709551615 : UInt256)))
+    (hf1 : ¬ (evm.mload 64 + Fin.land ((Fin.land (E - S + 31) (Clear.UInt256.lnot 31) + 32) + 31)
+        (Clear.UInt256.lnot 31) > (18446744073709551615 : UInt256)))
+    (hf2 : ¬ (evm.mload 64 + Fin.land ((Fin.land (E - S + 31) (Clear.UInt256.lnot 31) + 32) + 31)
+        (Clear.UInt256.lnot 31) < evm.mload 64)) :
+    exec (fuel+1) sliceChunkA (Ok evm σ)
+      = Ok ((evm.mstore 64 (evm.mload 64
+            + Fin.land ((Fin.land (E - S + 31) (Clear.UInt256.lnot 31) + 32) + 31)
+              (Clear.UInt256.lnot 31))).mstore (evm.mload 64) (E - S))
+          (((σ.insert "_2" (E - S)).insert
+            "_3" (Fin.land (E - S + 31) (Clear.UInt256.lnot 31) + 32)).insert
+            "memPtr" (evm.mload 64)) := by
+  unfold sliceChunkA
+  -- let _2 := checked_sub_uint256(expr, expr_1)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [hE, hS]
+  rw [checked_sub_call hsub]
+  -- let _3 := array_allocation_size_bytes(_2)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [array_alloc_bytes_call hszb]
+  -- let memPtr := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  -- finalize_allocation(memPtr, _3)
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [finalize_alloc_call hf1 hf2]
+  -- mstore(memPtr, _2)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+
+/-- **Chunk B closed form**: recompute the allocation size, set the data
+pointer and copy extent (evm untouched). -/
+private lemma sliceB_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {LEN F : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = LEN)
+    (hmp : (Ok evm σ)["memPtr"]!! = F)
+    (hszb : ¬ (LEN > (18446744073709551615 : UInt256))) :
+    exec (fuel+1) sliceChunkB (Ok evm σ)
+      = Ok evm (((((σ.insert "dataSize"
+          (Fin.land (LEN + 31) (Clear.UInt256.lnot 31) + 32)).insert
+          "dataStart" (F + 32)).insert
+          "split_expr_0" ((evm.execution_env.input_data.size : UInt256))).insert
+          "split_expr_1" (Clear.UInt256.lnot 31)).insert
+          "split_expr_2" ((Fin.land (LEN + 31) (Clear.UInt256.lnot 31) + 32)
+            + Clear.UInt256.lnot 31)) := by
+  unfold sliceChunkB
+  -- let dataSize := array_allocation_size_bytes(_2)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [h2]
+  rw [array_alloc_bytes_call hszb]
+  -- let dataStart := add(memPtr, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), hmp]
+  -- let split_expr_0 := calldatasize()
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMCalldatasize', evm_Ok, insert_Ok]
+  -- let split_expr_1 := not(31)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMNot',
+             insert_Ok]
+  -- let split_expr_2 := add(dataSize, split_expr_1)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+
+/-- **Chunk C closed form**: the scratch calldata copy lands in the evm term,
+the payload `mcopy` is the A3 model no-op, and the copy-source arithmetic is
+recorded in the store. -/
+private lemma sliceC_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {D CDS SZ2 BUF S E : Literal}
+    (hds : (Ok evm σ)["dataStart"]!! = D)
+    (h0 : (Ok evm σ)["split_expr_0"]!! = CDS)
+    (h2c : (Ok evm σ)["split_expr_2"]!! = SZ2)
+    (hbuf : (Ok evm σ)["var_buffer_mpos"]!! = BUF)
+    (hs1 : (Ok evm σ)["expr_1"]!! = S)
+    (hexp : (Ok evm σ)["expr"]!! = E) :
+    exec (fuel+1) sliceChunkC (Ok evm σ)
+      = Ok (evm.calldatacopy D CDS SZ2)
+          (((σ.insert "split_expr_3" (BUF + S)).insert
+            "split_expr_4" (BUF + S + 32)).insert
+            "split_expr_5" (E - S)) := by
+  unfold sliceChunkC
+  -- calldatacopy(dataStart, split_expr_0, split_expr_2)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMCalldatacopy',
+             evm_Ok, setEvm_Ok]
+  rw [hds, h0, h2c]
+  -- let split_expr_3 := add(var_buffer_mpos, expr_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [show (Ok (evm.calldatacopy D CDS SZ2) σ)["var_buffer_mpos"]!! = BUF from hbuf]
+  rw [show (Ok (evm.calldatacopy D CDS SZ2) σ)["expr_1"]!! = S from hs1]
+  -- let split_expr_4 := add(split_expr_3, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- let split_expr_5 := sub(expr, expr_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMSub',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      show (Ok (evm.calldatacopy D CDS SZ2) σ)["expr"]!! = E from hexp]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      show (Ok (evm.calldatacopy D CDS SZ2) σ)["expr_1"]!! = S from hs1]
+  -- mcopy(dataStart, split_expr_4, split_expr_5)
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [show (Ok (evm.calldatacopy D CDS SZ2) (Finmap.insert "split_expr_5" (E - S)
+        (Finmap.insert "split_expr_4" (BUF + S + 32)
+          (Finmap.insert "split_expr_3" (BUF + S) σ))))["split_expr_4"]!!
+      = BUF + S + 32 from by
+    rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin]
+  rw [show (Ok (evm.calldatacopy D CDS SZ2) (Finmap.insert "split_expr_5" (E - S)
+        (Finmap.insert "split_expr_4" (BUF + S + 32)
+          (Finmap.insert "split_expr_3" (BUF + S) σ))))["split_expr_5"]!!
+      = E - S from lookup_insert_self_fin]
+  rw [show (Ok (evm.calldatacopy D CDS SZ2) (Finmap.insert "split_expr_5" (E - S)
+        (Finmap.insert "split_expr_4" (BUF + S + 32)
+          (Finmap.insert "split_expr_3" (BUF + S) σ))))["dataStart"]!!
+      = D from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_insert_ne_fin (by decide)]
+    exact hds]
+  rw [mcopy_call]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
