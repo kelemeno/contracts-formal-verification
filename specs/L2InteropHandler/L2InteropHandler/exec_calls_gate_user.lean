@@ -129,6 +129,70 @@ theorem call_version_reverts
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
 
+/-! ### The value-carrier pin: funds come only from the base-token holder -/
+
+/-- `and(65553, 2^160 - 1) = 65553`: the L2 base-token holder built-in
+(`0x10011`) is untouched by the address mask — the `give` call that funds a
+value-carrying interop call is pinned to it. -/
+theorem bth_addr_mask :
+    Fin.land (65553 : UInt256) (Fin.shiftLeft 1 160 - 1) = 65553 := by decide
+
+/-- The code-presence guard on the value route, quoted verbatim: the pinned
+holder must have code, else the delivery reverts before any value moves. -/
+@[reducible] private def holderCodeIf : Stmt := <s
+  if iszero(extcodesize(_5))
+  {
+      revert(0, 0)
+  }
+>
+
+/-- **A DEPLOYED HOLDER PASSES**: nonzero code size at the pinned holder falls
+through unchanged. -/
+theorem holder_code_pass
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {A : Literal}
+    (hA : (Ok evm store)["_5"]!! = A)
+    (hcode : evm.extCodeSize A ≠ 0) :
+    exec (fuel+1) holderCodeIf (Ok evm store) = Ok evm store := by
+  unfold holderCodeIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero', EVMExtcodesize', evm_Ok]
+  try simp only [List.head!]
+  rw [hA]
+  simp only [decide_eq_false hcode]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **A CODELESS HOLDER REVERTS**: if the pinned holder has no code, the
+delivery reverts — value cannot be sourced from a missing contract. -/
+theorem holder_code_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {A : Literal}
+    (hA : (Ok evm store)["_5"]!! = A)
+    (hcode : evm.extCodeSize A = 0) :
+    (exec (fuel+1) holderCodeIf (Ok evm store)).evm.reverted = true := by
+  unfold holderCodeIf
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero', EVMExtcodesize', evm_Ok]
+  try simp only [List.head!]
+  rw [hA]
+  simp only [decide_eq_true hcode]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
