@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import specs.IMTAbstract
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
+import specs.KeccakInjective
 
 /-
   IMT FIDELITY, slice 1 — the storage-to-abstract leaf abstraction.
@@ -307,6 +308,145 @@ theorem leafSetOf_after_write {σ : EVMState} {v ni nv w : UInt256}
   rw [hcast, hnewc]
   congr 1
   exact Finset.image_congr (fun m hm => hstab m (Finset.mem_range.mp hm))
+
+/-! ### Keccak-injectivity discharge of the slot-disjointness oracles
+
+The trusted-base axioms (`keccak256_inj`, `keccak256_slot_sep`,
+`keccak256_ne_lowSlot`, `keccak256_add_ne_lowSlot` — see
+`specs/KeccakInjective.lean`) turn the cached mapping hashes into the
+disjointness facts `leafSetOf_after_write` consumes. -/
+
+/-- A cached interval makes `keccak256` succeed with the cached word. -/
+private lemma keccak256_of_cached {σ : EVMState} {p n w : UInt256}
+    (h : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map = some w) :
+    σ.keccak256 p n = some (w, σ) := by
+  unfold EVMState.keccak256
+  simp only [h]
+
+/-- Two 64-byte accessor preimages differ whenever the word at address `0`
+(the mapping KEY word) differs — the index-0 twin of
+`mkInterval_0_64_ne_of_word32_ne`. -/
+private lemma mkInterval_0_64_ne_of_word0_ne
+    {ms₁ ms₂ : MachineState}
+    (h0 : ms₁.lookupMemory (0 : UInt256) ≠ ms₂.lookupMemory (0 : UInt256)) :
+    mkInterval ms₁ 0 64 ≠ mkInterval ms₂ 0 64 := by
+  intro heq
+  apply h0
+  have ev : ∀ ms : MachineState,
+      (mkInterval ms 0 64).get? 0 = some (ms.lookupMemory (0 : UInt256)) := by
+    intro ms
+    unfold Clear.EVMState.mkInterval
+    simp only [List.get?_map]
+    have hidx : (List.range' (↑(0 : UInt256)) (↑(64 : UInt256))).get? 0
+        = some ↑(0 : UInt256) := by decide
+    rw [hidx]
+    rfl
+  have h := ev ms₁
+  rw [heq, ev ms₂] at h
+  exact (Option.some.inj h).symm
+
+/-- The accessor scratch reads the key back at address `0`. -/
+private lemma accWord0 (σ : EVMState) (key base : UInt256) :
+    ((σ.mstore 0 key).mstore 32 base).machine_state.lookupMemory (0 : UInt256)
+      = key := by
+  show ((σ.mstore 0 key).mstore 32 base).mload 0 = key
+  rw [mload_mstore_outside _ _ _ _ (by decide) (by decide) (Or.inl (by decide))]
+  exact mload_mstore_self_at σ 0 key (by decide)
+
+/-- Distinct keys give distinct accessor preimage intervals. -/
+private lemma accInterval_ne {σ₁ σ₂ : EVMState} {i j base : UInt256}
+    (hij : i ≠ j) :
+    mkInterval ((σ₁.mstore 0 i).mstore 32 base).machine_state 0 64
+      ≠ mkInterval ((σ₂.mstore 0 j).mstore 32 base).machine_state 0 64 := by
+  apply mkInterval_0_64_ne_of_word0_ne
+  rw [accWord0, accWord0]
+  exact hij
+
+/-- The cached-hash success witness for a leaf slot. -/
+private lemma leafSlot_keccak {σ : EVMState} {i w : UInt256}
+    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w) :
+    ((σ.mstore 0 i).mstore 32 5).keccak256 0 64
+      = some (w, (σ.mstore 0 i).mstore 32 5)
+    ∧ leafSlot σ i = w := by
+  have hkm : ((σ.mstore 0 i).mstore 32 5).keccak_map = σ.keccak_map := by
+    rw [keccak_map_mstore, keccak_map_mstore]
+  constructor
+  · exact keccak256_of_cached (by rw [hkm]; exact hc)
+  · exact keccakOut_fst_cached (by rw [hkm]; exact hc)
+
+/-- **Slot injectivity**: distinct cached keys live at distinct slots. -/
+theorem leafSlot_inj {σ : EVMState} {i j wi wj : UInt256}
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hij : i ≠ j) : leafSlot σ i ≠ leafSlot σ j := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  obtain ⟨hkj, hvj⟩ := leafSlot_keccak hcj
+  rw [hvi, hvj]
+  exact Clear.KeccakInjective.keccak256_inj hki hkj (accInterval_ne hij)
+
+/-- **Offset separation**: a small offset of one leaf slot never hits
+another leaf's slot. -/
+theorem leafSlot_add_ne {σ : EVMState} {i j wi wj k : UInt256}
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hij : i ≠ j) (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i + k ≠ leafSlot σ j := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  obtain ⟨hkj, hvj⟩ := leafSlot_keccak hcj
+  rw [hvi, hvj]
+  exact Clear.KeccakInjective.keccak256_slot_sep hki hkj (accInterval_ne hij) hk
+
+/-- **Two-sided offset separation** for concrete field offsets: with
+`k₁.val ≤ k₂.val` both small, `slot_i + k₁ ≠ slot_j + k₂` for `i ≠ j`
+(cancel `k₁`, then offset separation with `k₂ − k₁`). -/
+theorem leafSlot_off_ne_off {σ : EVMState} {i j wi wj k₁ k₂ : UInt256}
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hij : i ≠ j)
+    (hk₁ : k₁.val < Clear.KeccakInjective.lowSlotBound)
+    (hk₂ : k₂.val < Clear.KeccakInjective.lowSlotBound)
+    (hle : k₁.val ≤ k₂.val) :
+    leafSlot σ i + k₁ ≠ leafSlot σ j + k₂ := by
+  intro heq
+  have hd : ((k₂.val - k₁.val : ℕ) : UInt256).val = k₂.val - k₁.val := by
+    apply Nat.mod_eq_of_lt
+    calc k₂.val - k₁.val ≤ k₂.val := Nat.sub_le _ _
+    _ < UInt256.size := k₂.isLt
+  have hk2eq : k₁ + ((k₂.val - k₁.val : ℕ) : UInt256) = k₂ := by
+    apply Fin.ext
+    show (k₁.val + ((k₂.val - k₁.val : ℕ) : UInt256).val) % UInt256.size = k₂.val
+    rw [hd, Nat.add_sub_cancel' hle]
+    exact Nat.mod_eq_of_lt k₂.isLt
+  have heq' : leafSlot σ i + k₁
+      = (leafSlot σ j + ((k₂.val - k₁.val : ℕ) : UInt256)) + k₁ := by
+    rw [heq]
+    conv_lhs => rw [← hk2eq]
+    ring
+  have hcore : leafSlot σ i = leafSlot σ j + ((k₂.val - k₁.val : ℕ) : UInt256) :=
+    add_right_cancel heq'
+  have := leafSlot_add_ne hcj hci (Ne.symm hij)
+    (k := ((k₂.val - k₁.val : ℕ) : UInt256))
+    (by rw [hd]; exact lt_of_le_of_lt (Nat.sub_le _ _) hk₂)
+  exact this hcore.symm
+
+/-- **Slots avoid the reserved low slots** (count at 1, roots, sizes …). -/
+theorem leafSlot_ne_low {σ : EVMState} {i w : UInt256} (c : UInt256)
+    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i ≠ c := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hc
+  rw [hvi]
+  exact Clear.KeccakInjective.keccak256_ne_lowSlot c hki hlow
+
+/-- **Offset slots avoid the reserved low slots.** -/
+theorem leafSlot_add_ne_low {σ : EVMState} {i w : UInt256} (k c : UInt256)
+    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i + k ≠ c := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hc
+  rw [hvi]
+  exact Clear.KeccakInjective.keccak256_add_ne_lowSlot k c hki hk hlow
 
 end
 
