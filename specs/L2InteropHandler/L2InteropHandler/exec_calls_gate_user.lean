@@ -4,6 +4,8 @@ import specs.KeccakDeterminism
 import generated.L2InteropHandler.L2InteropHandler.fun_executeCalls
 import generated.L2InteropHandler.L2InteropHandler.memory_array_index_access_enum_CallStatus_dyn
 import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
+import specs.L2InteropHandler.L2InteropHandler.format_evmv1_user
+import generated.L2InteropHandler.L2InteropHandler.fun_formatEvmV1
 
 /-
   THE PER-CALL VERSION GATE (L2InteropHandler, `fun_executeCalls`).
@@ -964,6 +966,98 @@ private lemma stepSender_arm
   rw [lookup_insert_self_fin]
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_self_fin]
+
+/-- Loop-body format chunk: format the sender as an interop address
+(small-chain-id class), read the payload pointer (struct word at
+`_mpos + 160`), take the fresh pointer, build the selector word. -/
+@[reducible] private def stepFormatChunk : Stmt := <s
+  {
+      let expr_mpos_1 := fun_formatEvmV1(var_sourceChainId, split_expr_31)
+      let split_expr_32 := add(_mpos, 160)
+      let _mpos_1 := mload(split_expr_32)
+      let _10 := mload(64)
+      let split_expr_33 := shl(225, 303658899)
+  }
+>
+
+/-- **Format chunk closed form** (small-chain-id class): the sender is
+formatted via `formatEvmV1_small_call`, `_mpos_1` is the payload pointer,
+`_10` the fresh pointer, `split_expr_33` the staged
+`executeInteropCall` selector word. -/
+private lemma stepFormat_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {C SW MP B1 LN : Literal}
+    (hsc : (Ok evm σ)["var_sourceChainId"]!! = C)
+    (hsw : (Ok evm σ)["split_expr_31"]!! = SW)
+    (hmp : (Ok evm σ)["_mpos"]!! = MP)
+    (h128 : Fin.shiftRight C 128 = 0) (h64 : Fin.shiftRight C 64 = 0)
+    (h32 : Fin.shiftRight C 32 = 0) (h16 : Fin.shiftRight C 16 = 0)
+    (h8 : Fin.shiftRight C 8 = 0)
+    (hf1a : ¬ (evm.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hf2a : ¬ (evm.mload 64 + 64 < evm.mload 64))
+    (hlen32 : (fmtE1 evm C).mload (evm.mload 64) = 32)
+    (hp1 : ¬ ((fmtE1 evm C).mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hp2 : ¬ ((fmtE1 evm C).mload 64 + 64 < (fmtE1 evm C).mload 64))
+    (h1r : (fmtE2 evm C).mload ((fmtE1 evm C).mload 64) = B1)
+    (hlr : (fmtE4 evm C B1).mload ((fmtE1 evm C).mload 64) = LN)
+    (hfI1 : ¬ ((fmtE2 evm C).mload 64
+      + Fin.land ((fmtL3 evm C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hfI2 : ¬ ((fmtE2 evm C).mload 64
+      + Fin.land ((fmtL3 evm C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      < (fmtE2 evm C).mload 64)) :
+    exec (fuel+1) stepFormatChunk (Ok evm σ)
+      = Ok (fmtE7 evm C B1 LN SW)
+          (((((σ.insert "expr_mpos_1" ((fmtE2 evm C).mload 64)).insert
+            "split_expr_32" (MP + 160)).insert
+            "_mpos_1" ((fmtE7 evm C B1 LN SW).mload (MP + 160))).insert
+            "_10" ((fmtE7 evm C B1 LN SW).mload 64)).insert
+            "split_expr_33" (Fin.shiftLeft 303658899 225)) := by
+  unfold stepFormatChunk
+  -- let expr_mpos_1 := fun_formatEvmV1(var_sourceChainId, split_expr_31)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hsc, hsw]
+  rw [formatEvmV1_small_call h128 h64 h32 h16 h8 hf1a hf2a hlen32 hp1 hp2
+      h1r hlr hfI1 hfI2]
+  -- let split_expr_32 := add(_mpos, 160)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, hmp]
+  -- let _mpos_1 := mload(split_expr_32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- let _10 := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  -- let split_expr_33 := shl(225, 303658899)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMShl',
+             evm_Ok, setEvm_Ok, insert_Ok]
 
 end
 
