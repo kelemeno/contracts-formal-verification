@@ -1280,6 +1280,23 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   correct finalizeDeposit payload is NOT blocked). *Caveat: the NTV forward is the opaque
   external-call boundary; the calldata-content selector value is symbolic (A2a model bug bars
   byte-content claims).*
+- **#55 executeCalls loop, STEP CASE — the pre-dispatch closed form (2026-07-23).**
+  `exec_calls_gate_user.lean`: eight chunk arms over a generic store — `stepChunk1_arm` (element
+  address `arr + 32·i + 32` via `index_access_call`), `stepChunk2_arm` (version acceptance ⇒ test
+  value 1), `stepTarget_arm` (**dispatch target = `mload(_mpos+64) &&& (2^160−1)`**, the masked
+  `interopCall.to`), `stepStaging_arm` (bundle hash staged at `freshPtr+32`), `stepCommit_arm`
+  (**`expr = keccak(bundleHash ‖ i)`** under a known-hash hypothesis; `keccak_prim` collapses the
+  primop match), `stepSender_arm` (source word = `mload(_mpos+96) &&& mask`), `stepFormat_arm`
+  (composes `formatEvmV1_small_call`), `stepEncode_arm` (selector + `abi_encode3_call` payload +
+  calldata length); then the two-stage join `executeCalls_step_guards` (both guards skipped for a
+  version-1, zero-value call; the value-transfer sub-block never evaluated) and
+  **`executeCalls_step_prefix`** — the oracle-pack lemma: the whole loop body is deterministic up
+  to the dispatch-call boundary, 36-insert store tower, generic in the remaining statements (the
+  `cons` peel is constant-fuel and tail-generic). Every observable of a dispatched call is pinned
+  before the boundary: version, target, value (0-class), commitment, formatted source, payload.
+  *Caveats: zero-value + small-chain-id class; keccak result and the finalize/probe memory
+  readbacks are explicit hypotheses (the oracle pack); the dispatch call itself is the #38
+  boundary.*
 
 ## Part C — What a reviewer should do
 
