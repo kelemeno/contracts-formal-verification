@@ -38,6 +38,11 @@ set_option linter.dupNamespace false
     {var : Identifier} {val : Literal} :
     (Ok evm store)⟦var ↦ val⟧ = Ok evm (store.insert var val) := rfl
 
+private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
+
+private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
+    (Ok e σ).setEvm E = Ok E σ := rfl
+
 /-- **The appender constant, call level**: `constant_L2_ATOMIC_FLOW_MANAGER_ADDR()`
 returns the AFM built-in `65556 = 0x10014` and leaves the caller state
 untouched.  Call-level (the pair), so it feeds `evalCall` for the
@@ -57,6 +62,104 @@ lemma constant_afm_call {evm : EVMState} {σ : VarStore} {fuel : ℕ} :
   simp only [Lit', insert_Ok]
   rw [cons, nil, Assign']
   simp only [Var', Lit', insert_Ok]
+  rfl
+
+/-! ### The appender gate -/
+
+/-- The appender guard of the `insert` entry, source-verbatim (hex
+selectors in decimal: `0x742d1b5b = 1949113179`). -/
+@[reducible] def appenderIf : Stmt := <s
+  if iszero(eq(caller(), and(constant_L2_ATOMIC_FLOW_MANAGER_ADDR(), sub(shl(160, 1), 1))))
+  {
+      mstore(0, shl(224, 1949113179))
+      mstore(4, caller())
+      revert(0, 36)
+  }
+>
+
+/-- **ONLY THE ATOMICFLOWMANAGER APPENDS**: with `msg.sender` the masked AFM
+built-in (`65556 &&& (2^160−1) = 65556 = 0x10014`), the guard falls through
+with the state untouched. -/
+theorem insert_appender_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    (hc : evm.execution_env.source = (65556 : UInt256)) :
+    exec (fuel+1) appenderIf (Ok evm σ) = Ok evm σ := by
+  unfold appenderIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMEq', EVMAnd', EVMShl', EVMSub', EVMCaller', evm_Ok]
+  rw [constant_afm_call]
+  try simp only [List.head!]
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMEq', EVMAnd', EVMShl', EVMSub', EVMCaller', evm_Ok]
+  simp only [hc]
+  try simp only [show Fin.land 65556 (Fin.shiftLeft 1 160 - 1) = (65556 : UInt256) from by decide]
+  try simp only [show ((65556 : UInt256) == 65556) = true from by decide]
+  try simp only [show decide ((65556 : UInt256) = 65556) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **ANYONE ELSE IS REJECTED**: a non-AFM caller reverts with
+`CommitmentTreeNotAppender` — the commitment tree grows only through the
+AtomicFlowManager. -/
+theorem insert_appender_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    (hc : (evm.execution_env.source : UInt256) ≠ 65556) :
+    (exec (fuel+1) appenderIf (Ok evm σ)).evm.reverted = true := by
+  unfold appenderIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMEq', EVMAnd', EVMShl', EVMSub', EVMCaller', evm_Ok]
+  rw [constant_afm_call]
+  try simp only [List.head!]
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMEq', EVMAnd', EVMShl', EVMSub', EVMCaller', evm_Ok]
+  try simp only [show Fin.land 65556 (Fin.shiftLeft 1 160 - 1) = (65556 : UInt256) from by decide]
+  simp only [hc]
+  try simp only [show (decide False) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  -- mstore(0, shl(224, 1949113179))
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  -- mstore(4, caller())
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMCaller', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  -- revert(0, 36)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
   rfl
 
 end
