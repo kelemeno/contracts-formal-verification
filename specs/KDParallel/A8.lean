@@ -1,5 +1,6 @@
 import Clear.EVMState
 import specs.KeccakDeterminism
+import specs.KDParallel.A3
 
 /-!
 # Read-back / byte-agreement corollaries (A8)
@@ -45,12 +46,6 @@ theorem coe_fromBytes_toBytes (v : UInt256) :
     ((Clear.UInt256.fromBytes! (Clear.UInt256.toBytes! v) : ℕ) : UInt256) = v := by
   rw [fromBytes_toBytes]
   exact Fin.cast_val_eq_self v
-
-/-- A keccak preimage interval `mkInterval ms p n` has exactly `n.val` words. -/
-theorem mkInterval_length (ms : MachineState) (p n : UInt256) :
-    (mkInterval ms p n).length = n.val := by
-  unfold EVMState.mkInterval
-  simp only [List.length_map, List.length_range']
 
 /-- **Two-hop transport** of `mkInterval_eq_of_byte_agree`: if `m₁` agrees with
 `m₂` byte-for-byte on the window `[p, p+n+31)`, and `m₂` agrees with `m₃` there,
