@@ -19,13 +19,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
-def A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175  (value0 : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175  (value0 : Literal) (s₀ s₉ : State) : Prop := array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175_concrete_of_code.1  value0 s₀ s₉
 
 lemma array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175_abs_of_concrete {s₀ s₉ : State} { value0} :
   Spec (array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175_concrete_of_code.1  value0) s₀ s₉ →
   Spec (A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175  value0) s₀ s₉ := by
-  unfold array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175_concrete_of_code A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175
-  sorry
+  intro h
+  simpa [A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_5175] using h
 
 end
 
