@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
 import specs.CalldatacopyFrame
+import generated.L2InteropHandler.L2InteropHandler.fun_formatEvmV1
 
 /-
   `fun_formatEvmV1` ARC (L2InteropHandler) — the interop-address encoder.
@@ -40,6 +41,9 @@ private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
 
 private lemma lookup_ok_evm {σ : VarStore} {k : Identifier} (e e' : EVMState) :
     (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
+private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
+  obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
 
 private lemma lookup_insert_ne_fin {evm : EVMState} {σ : VarStore}
     {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
@@ -995,6 +999,475 @@ lemma slice_len_readback
       = E1.mload F - 31 := by
   rw [Clear.CalldatacopyFrame.mload_calldatacopy_below hcp hnw]
   exact mload_mstore_self_at _ _ _ hVP32
+
+/-! ### The assembly -/
+
+/-- Stage abbreviations of the small-chain-id closed form. -/
+@[reducible] def fmtE1 (evm : EVMState) (C : Literal) : EVMState :=
+  ((evm.mstore (evm.mload 64 + 32) C).mstore (evm.mload 64) 32).mstore 64
+    (evm.mload 64 + 64)
+
+@[reducible] def fmtE2 (evm : EVMState) (C : Literal) : EVMState :=
+  (sliceEvmA (fmtE1 evm C) (evm.mload 64) 31).calldatacopy
+    ((fmtE1 evm C).mload 64 + 32)
+    (((sliceEvmA (fmtE1 evm C) (evm.mload 64) 31).execution_env.input_data.size : UInt256))
+    (Fin.land ((fmtE1 evm C).mload (evm.mload 64) - 31 + 31) (Clear.UInt256.lnot 31) + 32
+      + Clear.UInt256.lnot 31)
+
+@[reducible] def fmtE3 (evm : EVMState) (C : Literal) : EVMState :=
+  (fmtE2 evm C).mstore ((fmtE2 evm C).mload 64 + 32) (Fin.shiftLeft 1 240)
+
+@[reducible] def fmtE4 (evm : EVMState) (C B1 : Literal) : EVMState :=
+  (fmtE3 evm C).mstore ((fmtE2 evm C).mload 64 + 36)
+    (Fin.land (Fin.shiftLeft B1 248) (Fin.shiftLeft 255 248))
+
+@[reducible] def fmtE5 (evm : EVMState) (C B1 LN : Literal) : EVMState :=
+  (fmtE4 evm C B1).mstore (((fmtE2 evm C).mload 64 + LN) + 37) (Fin.shiftLeft 5 250)
+
+@[reducible] def fmtE6 (evm : EVMState) (C B1 LN A : Literal) : EVMState :=
+  (fmtE5 evm C B1 LN).mstore (((fmtE2 evm C).mload 64 + LN) + 38)
+    (Fin.land (Fin.shiftLeft A 96)
+      (Clear.UInt256.lnot 79228162514264337593543950335))
+
+@[reducible] def fmtL3 (evm : EVMState) (C LN : Literal) : Literal :=
+  ((fmtE2 evm C).mload 64 + LN) - (fmtE2 evm C).mload 64 + 37
+
+@[reducible] def fmtE7 (evm : EVMState) (C B1 LN A : Literal) : EVMState :=
+  ((fmtE6 evm C B1 LN A).mstore ((fmtE2 evm C).mload 64)
+    (fmtL3 evm C LN + Clear.UInt256.lnot 10)).mstore 64
+    ((fmtE2 evm C).mload 64
+      + Fin.land ((fmtL3 evm C LN + 21) + 31) (Clear.UInt256.lnot 31))
+
+/-- **`fun_formatEvmV1`, small-chain-id closed form** (readbacks
+hypothesis-style — `alloc_len_readback` / `slice_len_readback` +
+`mload_mstore_outside₂` discharge them). -/
+lemma formatEvmV1_small_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    {C A B1 LN : Literal} {t : Identifier}
+    (h128 : Fin.shiftRight C 128 = 0) (h64 : Fin.shiftRight C 64 = 0)
+    (h32 : Fin.shiftRight C 32 = 0) (h16 : Fin.shiftRight C 16 = 0)
+    (h8 : Fin.shiftRight C 8 = 0)
+    (hf1a : ¬ (evm.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hf2a : ¬ (evm.mload 64 + 64 < evm.mload 64))
+    (hlen32 : (fmtE1 evm C).mload (evm.mload 64) = 32)
+    (hp1 : ¬ ((fmtE1 evm C).mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hp2 : ¬ ((fmtE1 evm C).mload 64 + 64 < (fmtE1 evm C).mload 64))
+    (h1r : (fmtE2 evm C).mload ((fmtE1 evm C).mload 64) = B1)
+    (hlr : (fmtE4 evm C B1).mload ((fmtE1 evm C).mload 64) = LN)
+    (hfI1 : ¬ ((fmtE2 evm C).mload 64
+      + Fin.land ((fmtL3 evm C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hfI2 : ¬ ((fmtE2 evm C).mload 64
+      + Fin.land ((fmtL3 evm C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      < (fmtE2 evm C).mload 64)) :
+    execCall (fuel+1) fun_formatEvmV1 [t] (Ok evm store, [C, A])
+      = Ok (fmtE7 evm C B1 LN A)
+          (store.insert t ((fmtE2 evm C).mload 64)) := by
+  unfold execCall call fun_formatEvmV1
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm store)☎️⟦["var_chainid", "var_addr"], [C, A]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["var_chainid", "var_addr"], [C, A]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm store)☎️⟦["var_chainid", "var_addr"], [C, A]⟧
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  have hJ0' : J = Ok evm σ0 := by rw [hJ0, he0]
+  rw [hJ0']
+  have hcJ : (Ok evm σ0)["var_chainid"]!! = C := by
+    rw [← hJ0']; exact lookup_initcall_1
+  -- let var_value := var_chainid
+  rw [cons, LetEq']
+  simp only [Var', insert_Ok]
+  rw [hcJ]
+  -- let var_result := 0
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- let result := shr(128, var_chainid)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShr',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hcJ]
+  rw [h128]
+  -- let split_expr_0 := iszero(result)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  -- if iszero(split_expr_0) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- let result_1 := shr(64, var_value)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShr',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [h64]
+  -- let split_expr_1 := iszero(result_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  -- if iszero(split_expr_1) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- let result_2 := shr(32, var_value)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShr',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [h32]
+  -- let split_expr_2 := iszero(result_2)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  -- if iszero(split_expr_2) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- let result_3 := shr(16, var_value)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShr',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [h16]
+  -- let split_expr_3 := iszero(result_3)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  -- if iszero(split_expr_3) — skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- let split_expr_4 := shr(8, var_value)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShr',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [h8]
+  -- let split_expr_5 := iszero(split_expr_4)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMIszero',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  -- the skipped +1 if
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [lookup_insert_self_fin]
+  try rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_neg (by exact fun h => h rfl)]
+  -- chunk A
+  rw [cons]
+  rw [format_allocA_arm (C := C)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        rw [lookup_ok_evm _ evm]; exact hcJ)
+    hf1a hf2a]
+  -- chunk B
+  rw [cons]
+  rw [format_sliceB_arm (F := evm.mload 64)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hlen32 hp1 hp2]
+  -- chunk D
+  rw [cons]
+  rw [format_tagD_arm (VP := (fmtE1 evm C).mload 64) (B1 := B1)
+    (by exact lookup_insert_self_fin)
+    h1r]
+  -- chunk E
+  rw [cons]
+  rw [format_byteE_arm (P2 := (fmtE2 evm C).mload 64) (B1 := B1)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- chunk F
+  rw [cons]
+  rw [format_copyF_arm (VP := (fmtE1 evm C).mload 64)
+      (P2 := (fmtE2 evm C).mload 64) (LN := LN)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hlr]
+  -- chunk G
+  rw [cons]
+  rw [format_addrG_arm (T2 := (fmtE2 evm C).mload 64 + LN) (A := A)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        rw [lookup_ok_evm _ evm, ← hJ0']; exact lookup_initcall_2 (by decide))]
+  -- chunk H
+  rw [cons]
+  rw [format_addrH_arm (SA := Fin.shiftLeft A 96)
+      (W := ((fmtE2 evm C).mload 64 + LN) + 38)
+      (T2 := (fmtE2 evm C).mload 64 + LN) (P2 := (fmtE2 evm C).mload 64)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- chunk I
+  rw [cons]
+  rw [format_finalI_arm (L3 := fmtL3 evm C LN) (P2 := (fmtE2 evm C).mload 64)
+    (by exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hfI1 hfI2]
+  -- ret chunk
+  rw [cons, nil]
+  rw [cons, nil, Assign']
+  simp only [Var', insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [multifill_cons, multifill_nil, insert_Ok]
+
 
 end
 
