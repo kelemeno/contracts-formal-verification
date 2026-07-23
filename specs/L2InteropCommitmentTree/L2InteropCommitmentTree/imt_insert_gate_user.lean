@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.constant_L2_ATOMIC_FLOW_MANAGER_ADDR
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256
 
 /-
   THE INSERT GATES (L2InteropCommitmentTree dispatcher glue).
@@ -42,6 +43,19 @@ private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
 
 private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
     (Ok e σ).setEvm E = Ok E σ := rfl
+
+private lemma lookup_insert_ne_fin_local {evm : EVMState} {σ : VarStore}
+    {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
+    (Ok evm (Finmap.insert k val σ))[k']!! = (Ok evm σ)[k']!! := by
+  rw [← insert_Ok]; exact lookup_insert_of_ne h
+
+private lemma lookup_insert_self_local {evm : EVMState} {σ : VarStore}
+    {k : Identifier} {val : Literal} :
+    (Ok evm (Finmap.insert k val σ))[k]!! = val := by
+  rw [← insert_Ok]; exact lookup_insert' (by trivial)
+
+private lemma reviveJump_of_isOk_local {s : State} (h : isOk s) : 🧟 s = s := by
+  obtain ⟨e₀, σ₀, rfl⟩ := State_of_isOk h; rfl
 
 /-- **The appender constant, call level**: `constant_L2_ATOMIC_FLOW_MANAGER_ADDR()`
 returns the AFM built-in `65556 = 0x10014` and leaves the caller state
@@ -161,6 +175,49 @@ theorem insert_appender_reverts
              List.singleton_append, multifill_cons, multifill_nil,
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
+
+/-! ### The error encoder, call level -/
+
+/-- **`abi_encode_uint256`, call level**: stores the value at scratch `4`
+and returns tail `36` — the `CommitmentTreeNotAppender`/
+`IMTValueAlreadyExists` argument encoder, in the pair form the revert-arg
+eval consumes. -/
+lemma abi_encode_uint256_call {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    {V : Literal} :
+    call (fuel+1) [V] abi_encode_uint256 (Ok evm σ)
+      = (Ok (evm.mstore 4 V) σ, [(36 : Literal)]) := by
+  unfold call abi_encode_uint256
+  simp only [params, body, rets, mkOk_initcall_Ok, List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm σ)☎️⟦["value0"], [V]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm σ)☎️⟦["value0"], [V]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm σ)☎️⟦["value0"], [V]⟧ with hJ
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  have hJ0' : J = Ok evm σ0 := by rw [hJ0, he0]
+  rw [hJ0']
+  -- tail := 36
+  rw [cons, Assign']
+  simp only [Lit', insert_Ok]
+  -- mstore(4, value0)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [show (Ok evm (Finmap.insert "tail" 36 σ0))["value0"]!! = V from by
+    rw [lookup_insert_ne_fin_local (by decide)]
+    rw [← hJ0']
+    exact lookup_initcall_1]
+  rw [reviveJump_of_isOk_local (by trivial)]
+  simp only [overwrite?_of_Ok, setStore_ok]
+  rw [lookup_insert_self_local]
 
 end
 
