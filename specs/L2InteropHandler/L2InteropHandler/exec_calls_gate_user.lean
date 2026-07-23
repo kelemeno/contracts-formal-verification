@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import generated.L2InteropHandler.L2InteropHandler.fun_executeCalls
 import generated.L2InteropHandler.L2InteropHandler.memory_array_index_access_enum_CallStatus_dyn
+import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
 
 /-
   THE PER-CALL VERSION GATE (L2InteropHandler, `fun_executeCalls`).
@@ -792,6 +793,177 @@ private lemma stepStaging_arm
              multifill_cons, multifill_nil, EVMAdd',
              evm_Ok, setEvm_Ok, insert_Ok]
   rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+
+/-- Keccak primop under a known-hash hypothesis: the match collapses to the
+success arm. -/
+private lemma keccak_prim {e : EVMState} {σ : VarStore} {a b H : Literal}
+    {ek : EVMState} (hk : e.keccak256 a b = some (H, ek)) :
+    primCall (Ok e σ) .Keccak256 [a, b] = ((Ok e σ).setEvm ek, [H]) := by
+  rw [EVMKeccak256']
+  simp only [evm_Ok]
+  rw [hk]
+
+/-- Loop-body commitment chunk: stage the call index, the length word, bump
+the free pointer past the 96-byte scratch, hash the 64-byte window
+`bundleHash ‖ i`. -/
+@[reducible] private def stepCommitChunk : Stmt := <s
+  {
+      mstore(split_expr_25, var_i)
+      mstore(expr_mpos, 64)
+      finalize_allocation(expr_mpos, 96)
+      let split_expr_26 := mload(expr_mpos)
+      let expr := keccak256(_9, split_expr_26)
+  }
+>
+
+/-- Loop-body sender chunk: the formatted-sender source word is the
+160-bit-masked `interopCall.from` (struct word at `_mpos + 96`). -/
+@[reducible] private def stepSenderChunk : Stmt := <s
+  {
+      let split_expr_27 := add(_mpos, 96)
+      let split_expr_28 := mload(split_expr_27)
+      let split_expr_29 := shl(160, 1)
+      let split_expr_30 := sub(split_expr_29, 1)
+      let split_expr_31 := and(split_expr_28, split_expr_30)
+  }
+>
+
+/-- **Commitment chunk closed form**: with `E₃` the post-staging memory
+(`i` at `split25`, length `64` at `F`, free pointer at `F + 96`), the chunk
+ends in the keccak-updated state with `expr = keccak(bundleHash ‖ i)`. -/
+private lemma stepCommit_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {S25 I F N9 H : Literal}
+    {ek : EVMState}
+    (hs25 : (Ok evm σ)["split_expr_25"]!! = S25)
+    (hF : (Ok evm σ)["expr_mpos"]!! = F)
+    (hi : (Ok evm σ)["var_i"]!! = I)
+    (h9 : (Ok evm σ)["_9"]!! = N9)
+    (hf1 : ¬ (F + 96 > (18446744073709551615 : UInt256)))
+    (hf2 : ¬ (F + 96 < F))
+    (hk : (((evm.mstore S25 I).mstore F 64).mstore 64 (F + 96)).keccak256 N9
+        ((((evm.mstore S25 I).mstore F 64).mstore 64 (F + 96)).mload F)
+        = some (H, ek)) :
+    exec (fuel+1) stepCommitChunk (Ok evm σ)
+      = Ok ek ((σ.insert "split_expr_26"
+          ((((evm.mstore S25 I).mstore F 64).mstore 64 (F + 96)).mload F)).insert
+          "expr" H) := by
+  unfold stepCommitChunk
+  -- mstore(split_expr_25, var_i)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hs25, hi]
+  -- mstore(expr_mpos, 64)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_ok_evm _ evm, hF]
+  -- finalize_allocation(expr_mpos, 96)
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_ok_evm _ evm, hF]
+  rw [finalize_alloc_call
+    (by rw [show Fin.land ((96 : UInt256) + 31) (Clear.UInt256.lnot 31)
+          = (96 : UInt256) from by decide]
+        exact hf1)
+    (by rw [show Fin.land ((96 : UInt256) + 31) (Clear.UInt256.lnot 31)
+          = (96 : UInt256) from by decide]
+        exact hf2)]
+  rw [show Fin.land ((96 : UInt256) + 31) (Clear.UInt256.lnot 31)
+    = (96 : UInt256) from by decide]
+  -- let split_expr_26 := mload(expr_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_ok_evm _ evm, hF]
+  -- let expr := keccak256(_9, split_expr_26)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, h9]
+  rw [keccak_prim hk]
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+
+/-- **Sender chunk closed form**: `split_expr_31 = mload(_mpos + 96) &&&
+(2^160-1)` — the formatted-sender source word, pinned. -/
+private lemma stepSender_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {MP : Literal}
+    (hmp : (Ok evm σ)["_mpos"]!! = MP) :
+    exec (fuel+1) stepSenderChunk (Ok evm σ)
+      = Ok evm (((((σ.insert "split_expr_27" (MP + 96)).insert
+          "split_expr_28" (evm.mload (MP + 96))).insert
+          "split_expr_29" (Fin.shiftLeft 1 160)).insert
+          "split_expr_30" (Fin.shiftLeft 1 160 - 1)).insert
+          "split_expr_31" (Fin.land (evm.mload (MP + 96)) (Fin.shiftLeft 1 160 - 1))) := by
+  unfold stepSenderChunk
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hmp]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMShl',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSub',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAnd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
 
 end
 
