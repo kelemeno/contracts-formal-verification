@@ -1309,9 +1309,12 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   is driven exactly.  Filled by four parallel subagents against AtomicFlowManager/L2ICT
   exemplars, verified file-by-file.  `A_fun_executeCalls` is likewise
   lossless and `fun_executeCalls_abs_of_code` (execCall ⇒ Spec) is axiom-clean — the
-  whole-function pipeline is structurally complete.  *Remaining: the inductive `AFor` invariant
-  (currently the `True` scaffold) — until it is strengthened, the pipeline carries no
-  loop-effect content; the per-iteration content lives in #55's concrete closed forms.*
+  whole-function pipeline is structurally complete.  `AFor` is now the FREE
+  loop invariant — an inductive iteration transcript whose constructors are the five
+  reasoning-principle obligations (nested `Spec` recursion split into per-`State` fields for
+  kernel positivity).  Nothing in the pipeline is a scaffold: `ACond` exact, `ABody`/`APost`
+  lossless, `AFor` free — per-call consequences are derivable by induction on the transcript,
+  with #55's `executeCalls_body_prefix` applying to each `ABody` step.*
 - **#57 VERIFIED ⇒ EXECUTABLE — the status machine closed both ways (2026-07-23).**
   `verify_mark_user.lean`: the Verified-status mark closed forms (slot = `accOut(bundleHash,1)`,
   write `(old &&& ~255) ||| 1`, `BundleVerified` log2 state-transparent, masked re-read = 1,
