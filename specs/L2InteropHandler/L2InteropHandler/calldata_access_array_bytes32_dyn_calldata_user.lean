@@ -15,13 +15,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common 
 
-def A_calldata_access_array_bytes32_dyn_calldata (value length : Identifier) (base_ref ptr : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_calldata_access_array_bytes32_dyn_calldata (value length : Identifier) (base_ref ptr : Literal) (s₀ s₉ : State) : Prop := calldata_access_array_bytes32_dyn_calldata_concrete_of_code.1 value length base_ref ptr s₀ s₉
 
 lemma calldata_access_array_bytes32_dyn_calldata_abs_of_concrete {s₀ s₉ : State} {value length base_ref ptr} :
   Spec (calldata_access_array_bytes32_dyn_calldata_concrete_of_code.1 value length base_ref ptr) s₀ s₉ →
   Spec (A_calldata_access_array_bytes32_dyn_calldata value length base_ref ptr) s₀ s₉ := by
-  unfold calldata_access_array_bytes32_dyn_calldata_concrete_of_code A_calldata_access_array_bytes32_dyn_calldata
-  sorry
+  intro h
+  simpa [A_calldata_access_array_bytes32_dyn_calldata] using h
 
 end
 

@@ -31,13 +31,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
 
-def A_fun_tryParseV1 (var_success var_chainType var_chainReference_mpos var_addr_mpos : Identifier) (var_self_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_tryParseV1 (var_success var_chainType var_chainReference_mpos var_addr_mpos : Identifier) (var_self_mpos : Literal) (s₀ s₉ : State) : Prop := fun_tryParseV1_concrete_of_code.1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos s₀ s₉
 
 lemma fun_tryParseV1_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos} :
   Spec (fun_tryParseV1_concrete_of_code.1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos) s₀ s₉ →
   Spec (A_fun_tryParseV1 var_success var_chainType var_chainReference_mpos var_addr_mpos var_self_mpos) s₀ s₉ := by
-  unfold fun_tryParseV1_concrete_of_code A_fun_tryParseV1
-  sorry
+  intro h
+  simpa [A_fun_tryParseV1] using h
 
 end
 

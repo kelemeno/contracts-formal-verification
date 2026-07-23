@@ -18,13 +18,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
 
-def A_fun_validateBundleDestinationContext  (var_bundleHash var_interopBundle_mpos var_proofChainId : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_validateBundleDestinationContext  (var_bundleHash var_interopBundle_mpos var_proofChainId : Literal) (s₀ s₉ : State) : Prop := fun_validateBundleDestinationContext_concrete_of_code.1 var_bundleHash var_interopBundle_mpos var_proofChainId s₀ s₉
 
 lemma fun_validateBundleDestinationContext_abs_of_concrete {s₀ s₉ : State} { var_bundleHash var_interopBundle_mpos var_proofChainId} :
   Spec (fun_validateBundleDestinationContext_concrete_of_code.1  var_bundleHash var_interopBundle_mpos var_proofChainId) s₀ s₉ →
   Spec (A_fun_validateBundleDestinationContext  var_bundleHash var_interopBundle_mpos var_proofChainId) s₀ s₉ := by
-  unfold fun_validateBundleDestinationContext_concrete_of_code A_fun_validateBundleDestinationContext
-  sorry
+  intro h
+  simpa [A_fun_validateBundleDestinationContext] using h
 
 end
 

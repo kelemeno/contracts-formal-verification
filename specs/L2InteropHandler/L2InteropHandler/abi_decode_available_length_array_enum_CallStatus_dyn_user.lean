@@ -16,13 +16,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
 
-def A_abi_decode_available_length_array_enum_CallStatus_dyn (array : Identifier) (offset length end_clear_sanitised_hrafn : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_abi_decode_available_length_array_enum_CallStatus_dyn (array : Identifier) (offset length end_clear_sanitised_hrafn : Literal) (s₀ s₉ : State) : Prop := abi_decode_available_length_array_enum_CallStatus_dyn_concrete_of_code.1 array offset length end_clear_sanitised_hrafn s₀ s₉
 
 lemma abi_decode_available_length_array_enum_CallStatus_dyn_abs_of_concrete {s₀ s₉ : State} {array offset length end_clear_sanitised_hrafn} :
   Spec (abi_decode_available_length_array_enum_CallStatus_dyn_concrete_of_code.1 array offset length end_clear_sanitised_hrafn) s₀ s₉ →
   Spec (A_abi_decode_available_length_array_enum_CallStatus_dyn array offset length end_clear_sanitised_hrafn) s₀ s₉ := by
-  unfold abi_decode_available_length_array_enum_CallStatus_dyn_concrete_of_code A_abi_decode_available_length_array_enum_CallStatus_dyn
-  sorry
+  intro h
+  simpa [A_abi_decode_available_length_array_enum_CallStatus_dyn] using h
 
 end
 
