@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
+import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
 
 /-
   `fun_formatEvmV1` ARC (L2InteropHandler) — the interop-address encoder.
@@ -29,6 +30,11 @@ set_option linter.dupNamespace false
 
 @[simp] private lemma insert_Ok {evm : EVMState} {store : VarStore} {var : Identifier} {val : Literal} :
     (Ok evm store)⟦var ↦ val⟧ = Ok evm (store.insert var val) := rfl
+
+private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
+
+private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
+    (Ok e σ).setEvm E = Ok E σ := rfl
 
 private lemma lookup_insert_ne_fin {evm : EVMState} {σ : VarStore}
     {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
@@ -283,6 +289,85 @@ private lemma magnitude_probe_small
   try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
   try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
   try simp only [show fromBool true = (1 : UInt256) from by decide]
+
+/-! ### The small-case allocation chunk -/
+
+/-- The allocation chunk that runs when the byte-length probe concluded a
+single byte would NOT suffice for the padded format — for the small-chain-id
+class this is the 32-byte staging write: put the chain id at `F + 32`, the
+length `32` at `F`, and bump the free pointer by 64. -/
+@[reducible] private def formatAllocChunk : Stmt := <s
+  {
+      let expr_mpos := mload(64)
+      let split_expr_6 := add(expr_mpos, 32)
+      mstore(split_expr_6, var_chainid)
+      mstore(expr_mpos, 32)
+      finalize_allocation(expr_mpos, 64)
+  }
+>
+
+/-- **Allocation chunk closed form** (`F := mload 64`): stage the chain id and
+the length word, bump the free pointer to `F + 64`. -/
+private lemma format_allocA_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {C : Literal}
+    (hC : (Ok evm σ)["var_chainid"]!! = C)
+    (hf1 : ¬ (evm.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hf2 : ¬ (evm.mload 64 + 64 < evm.mload 64)) :
+    exec (fuel+1) formatAllocChunk (Ok evm σ)
+      = Ok (((evm.mstore (evm.mload 64 + 32) C).mstore (evm.mload 64) 32).mstore
+            64 (evm.mload 64 + 64))
+          ((σ.insert "expr_mpos" (evm.mload 64)).insert
+            "split_expr_6" (evm.mload 64 + 32)) := by
+  unfold formatAllocChunk
+  -- let expr_mpos := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  -- let split_expr_6 := add(expr_mpos, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- mstore(split_expr_6, var_chainid)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hC]
+  -- mstore(expr_mpos, 32)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  -- finalize_allocation(expr_mpos, 64)
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [finalize_alloc_call
+    (by rw [show Fin.land ((64 : UInt256) + 31) (Clear.UInt256.lnot 31)
+          = (64 : UInt256) from by decide]
+        exact hf1)
+    (by rw [show Fin.land ((64 : UInt256) + 31) (Clear.UInt256.lnot 31)
+          = (64 : UInt256) from by decide]
+        exact hf2)]
+  rw [show Fin.land ((64 : UInt256) + 31) (Clear.UInt256.lnot 31)
+    = (64 : UInt256) from by decide]
 
 end
 
