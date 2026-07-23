@@ -494,6 +494,105 @@ theorem leafSetOf_insert {σ : EVMState} {v ni nv w : UInt256}
   · exact Ne.symm (leafSlot_ne_low 1 hc (by decide))
   · exact Ne.symm (leafSlot_add_ne_low 2 1 hc (by decide) (by decide))
 
+/-! ### Node-array separation: array-element slots never hit leaf slots
+
+`padWalk`/`updateWalk` write only node-array elements (`arrOut`-derived
+slots, 32-byte preimages) and reserved low slots; leaf structs live at
+64-byte-preimage slots.  `mkInterval_ne_of_len_ne` (32 ≠ 64) plus the
+slot-separation axiom keep the two families disjoint at any small offsets. -/
+
+/-- The cached-hash success witness for an array data slot. -/
+private lemma arrOut_keccak {σ : EVMState} {a w : UInt256}
+    (hc : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some w) :
+    (σ.mstore 0 a).keccak256 0 32 = some (w, σ.mstore 0 a)
+    ∧ (arrOut σ a).1 = w := by
+  have hkm : (σ.mstore 0 a).keccak_map = σ.keccak_map := keccak_map_mstore σ 0 a
+  constructor
+  · exact keccak256_of_cached (by rw [hkm]; exact hc)
+  · unfold arrOut
+    exact keccakOut_fst_cached (by rw [hkm]; exact hc)
+
+/-- **General two-sided keccak offset separation**: hashes of distinct
+preimages stay distinct under any two small offsets (either order). -/
+private lemma keccak_off_ne_off
+    {σ₁ σ₂ σ₁' σ₂' : EVMState} {p₁ n₁ p₂ n₂ r₁ r₂ k₁ k₂ : UInt256}
+    (hk1 : σ₁.keccak256 p₁ n₁ = some (r₁, σ₁'))
+    (hk2 : σ₂.keccak256 p₂ n₂ = some (r₂, σ₂'))
+    (hne : mkInterval σ₁.machine_state p₁ n₁ ≠ mkInterval σ₂.machine_state p₂ n₂)
+    (hs₁ : k₁.val < Clear.KeccakInjective.lowSlotBound)
+    (hs₂ : k₂.val < Clear.KeccakInjective.lowSlotBound) :
+    r₁ + k₁ ≠ r₂ + k₂ := by
+  rcases Nat.le_total k₁.val k₂.val with hle | hle
+  all_goals intro heq
+  · -- k₁ ≤ k₂ : cancel k₁, offset (k₂ − k₁) on the r₂ side
+    have hd : ((k₂.val - k₁.val : ℕ) : UInt256).val = k₂.val - k₁.val := by
+      apply Nat.mod_eq_of_lt
+      calc k₂.val - k₁.val ≤ k₂.val := Nat.sub_le _ _
+      _ < UInt256.size := k₂.isLt
+    have hk2eq : k₁ + ((k₂.val - k₁.val : ℕ) : UInt256) = k₂ := by
+      apply Fin.ext
+      show (k₁.val + ((k₂.val - k₁.val : ℕ) : UInt256).val) % UInt256.size = k₂.val
+      rw [hd, Nat.add_sub_cancel' hle]
+      exact Nat.mod_eq_of_lt k₂.isLt
+    have heq' : r₁ + k₁ = (r₂ + ((k₂.val - k₁.val : ℕ) : UInt256)) + k₁ := by
+      rw [heq]
+      conv_lhs => rw [← hk2eq]
+      ring
+    have hcore : r₁ = r₂ + ((k₂.val - k₁.val : ℕ) : UInt256) :=
+      add_right_cancel heq'
+    exact Clear.KeccakInjective.keccak256_slot_sep hk2 hk1 (Ne.symm hne)
+      (by rw [hd]; exact lt_of_le_of_lt (Nat.sub_le _ _) hs₂) hcore.symm
+  · -- k₂ ≤ k₁ : symmetric
+    have hd : ((k₁.val - k₂.val : ℕ) : UInt256).val = k₁.val - k₂.val := by
+      apply Nat.mod_eq_of_lt
+      calc k₁.val - k₂.val ≤ k₁.val := Nat.sub_le _ _
+      _ < UInt256.size := k₁.isLt
+    have hk1eq : k₂ + ((k₁.val - k₂.val : ℕ) : UInt256) = k₁ := by
+      apply Fin.ext
+      show (k₂.val + ((k₁.val - k₂.val : ℕ) : UInt256).val) % UInt256.size = k₁.val
+      rw [hd, Nat.add_sub_cancel' hle]
+      exact Nat.mod_eq_of_lt k₁.isLt
+    have heq' : (r₁ + ((k₁.val - k₂.val : ℕ) : UInt256)) + k₂ = r₂ + k₂ := by
+      rw [← heq]
+      conv_rhs => rw [← hk1eq]
+      ring
+    have hcore : r₁ + ((k₁.val - k₂.val : ℕ) : UInt256) = r₂ :=
+      add_right_cancel heq'
+    exact Clear.KeccakInjective.keccak256_slot_sep hk1 hk2 hne
+      (by rw [hd]; exact lt_of_le_of_lt (Nat.sub_le _ _) hs₁) hcore
+
+/-- **A node-array element never hits a leaf-field slot** (any small element
+index vs the `+0/+2` struct offsets — the preimage lengths differ, 32 vs 64). -/
+theorem arr_elem_ne_leafSlot_add
+    {σₐ σ : EVMState} {a j i k wa w : UInt256}
+    (hca : Finmap.lookup (mkInterval (σₐ.mstore 0 a).machine_state 0 32)
+        σₐ.keccak_map = some wa)
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    (arrOut σₐ a).1 + j ≠ leafSlot σ i + k := by
+  obtain ⟨hka, hva⟩ := arrOut_keccak hca
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  rw [hva, hvi]
+  exact keccak_off_ne_off hka hki
+    (Clear.KeccakInjective.mkInterval_ne_of_len_ne (by decide))
+    hj hk
+
+/-- **Leaf decoding survives a node-array write.** -/
+theorem decodeLeaf_arrWrite
+    {σₐ σ : EVMState} {a j i v wa w : UInt256}
+    (hca : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    decodeLeaf (σ.sstore ((arrOut σ a).1 + j) v) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · have := arr_elem_ne_leafSlot_add (σₐ := σ) (σ := σ)
+      (k := 0) hca hci hj (by decide)
+    simpa using this
+  · exact arr_elem_ne_leafSlot_add (σₐ := σ) (σ := σ) hca hci hj (by decide)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
