@@ -497,6 +497,38 @@ lemma index_access_call
   simp only [insert_Ok]
   rw [he5]
 
+/-! ### The loop-step boundary doctrine and recipe
+
+**Model fact (decisive for the step lemma's shape):** `EVMCall'` — like
+`EVMStaticcall'` — is `primCall s .Call [...] = (s, [])`: an external call
+returns NOTHING, so `let _7/_11 := call(...)` leaves the result variable
+unbound and any subsequent read sees the lookup default `0`.  The model can
+therefore express a failed call's aftermath (the `fail_forward_reverts`
+family) but can NEVER drive past a *successful* one.  This is the same
+boundary as #38's staticcall doctrine, now confirmed for the dispatch loop.
+
+**Consequently the correct maximal per-iteration lemma is a PREFIX closed
+form** — not an "oracle-pack" over call results:
+
+`executeCalls_step_prefix` (zero-value, version-1, in-bounds, small-chain-id
+iteration `i`): from the loop-entry state, the body executes deterministically
+up to `_11 := call(gas, cleaned, _8, ...)`, pinning
+- the element address (via `index_access_call`) and the struct reads,
+- the version acceptance (`call_version_pass` values inline),
+- the skipped value path (`_3 = 0` ⇒ the give-branch if is not entered),
+- the per-call commitment `expr = keccak(bundleHash ‖ i)`
+  (`primCall_keccakOut` + the accOut alignment, junk-window style),
+- the formatted source address (`formatEvmV1_small_call`),
+- the encoded payload and its extent (`abi_encode3_call`),
+- the dispatch TARGET `cleaned = interopCall.to &&& 2^160-1` and VALUE
+  `_8 = interopCall.value` as the call's argument values.
+
+Everything after a successful dispatch — including the loop's continuation —
+is outside the model (A8-class boundary); the failed-dispatch direction is
+`dispatch_call_failure_forwards`.  All nine ingredient lemmas above are
+proven; the prefix drive follows the formatEvmV1 assembly workflow
+(recipe → counted peels → transcription). -/
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
