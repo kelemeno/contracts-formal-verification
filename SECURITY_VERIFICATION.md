@@ -1473,6 +1473,19 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   `evolution_sound`) and `hfresh : V ∉ keys` — whose concrete pin `valueToIndex[V] = 0`
   awaits the vti-coherence invariant (#69), the single genuinely new obligation left.
   Axiom base: trusted keccak only.
+- **#69 VTI-COHERENCE — THE ARC CLOSES (2026-07-23).**  `imt_vti_user.lean` (new):
+  `VtiCoherent` (every nonzero decoded key has a nonzero `valueToIndex` entry; the key-0
+  carve-out is forced by genesis, which seeds `leaves[0]=⟨0,0,0⟩` without a vti entry) with
+  the bridge `hfresh_of_dedup_gate` — the dedup gate's `valueToIndex[V]=0` pin IS abstract
+  key-freshness (definitional at the entry state) — and full preservation through the
+  deployed insert (`Sep32` walk-frame family: every 32-byte-preimage array slot misses every
+  64-byte-preimage leaf/vti slot; the key set gains exactly V by #67's equation; V's new
+  entry is the count, nonzero by the contract's own initialized guard).  CAPSTONE
+  `insertGlue_evolution_closed`: #68's step theorem with freshness REPLACED by the invariant,
+  and the invariant re-established at the post-state — invariant in, invariant out.  The
+  leaf-set arc is now closed end-to-end: every hypothesis is either a contract guard pin,
+  a documented junk-window cache pack (model artifact), or `NextClosed` (free along any
+  history from sound genesis).  Axiom base: trusted keccak only.
 
 ## Part C — What a reviewer should do
 

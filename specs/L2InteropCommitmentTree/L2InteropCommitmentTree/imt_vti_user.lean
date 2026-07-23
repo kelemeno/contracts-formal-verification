@@ -1,0 +1,968 @@
+import Clear.ReasoningPrinciple
+
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_weld_user
+
+/-
+  VTI-COHERENCE (#69): the `valueToIndex` storage invariant that closes the
+  `hfresh` residue of the Evolution packaging (#68).
+
+  #68 (`insertGlue_evolution_step`, imt_weld_user) proved that the insert
+  dispatcher's pass state IS the abstract `Evolution` insert step — up to ONE
+  genuinely new obligation, `hfresh : V ∉ keys (leafSetOf evm)`.  Its concrete
+  pin exists (the dedup gate: `insertGlue_prefix`'s `hz` says the sload of
+  `valueToIndex[V]` is 0), but identifying storage-zero with abstract
+  key-freshness needs a storage invariant.  This file builds it:
+
+  * `vtiAt σ v` — the `valueToIndex[v]` storage read (`vtiSlot`, base slot 5);
+  * `VtiCoherent σ` — every decoded leaf key EXCEPT 0 has a NONZERO
+    `valueToIndex` entry.  The `key ≠ 0` carve-out is forced by the genesis:
+    `IndexedMerkleTree.setup` seeds `leaves[0] = ⟨0,0,0⟩` but never writes
+    `valueToIndex[0]` (IndexedMerkleTree.sol:42-50), so the genesis leaf's key
+    0 has vti entry 0 along every real history;
+  * THE BRIDGE (`hfresh_of_vtiCoherent` / `hfresh_of_dedup_gate`):
+    coherence + the dedup-gate zero + `V ≠ 0` (the `insert_valueZero` guard)
+    give exactly `hfresh`.  `hz` is stated at the guards-threaded state; the
+    accessor is storage-transparent when clean, so the entry-state transport
+    is definitional — no extra pack word is needed for the bridge;
+  * PRESERVATION (`vtiCoherent_preserved`): coherence survives the WHOLE
+    dispatcher write chain `wFinal`.  Old keys' vti slots are untouched (the
+    single vti write is at `V`'s slot — keccak injectivity separates distinct
+    keys' base-5 slots; leaf-struct copies are base-4 — the preimages differ
+    at word 32; walk/pad/level-0 writes are 32-byte-preimage array slots —
+    the preimage LENGTHS differ; the count bump is a low slot).  `V`'s new
+    entry is the old count `NI = evm.sload 1`, nonzero by the glue's own
+    initialized guard (`h1nz` — genesis seeds leaf 0, so the count ≥ 1 on any
+    real history AND the contract reverts otherwise);
+  * THE CLOSED CAPSTONE (`insertGlue_evolution_closed`): #68 restated with
+    `hfresh` REPLACED by `VtiCoherent evm` + the gate pins, AND concluding
+    `VtiCoherent (wFinal …)` — invariant in, invariant out: the theorem is
+    self-sustaining along a history.
+
+  CACHE-PACK DISCIPLINE: as everywhere in the fidelity corpus, keccak slots
+  drift with the junk window (bytes [64,95)), so cross-state slot identity is
+  carried by cached words.  The vti slots need only TWO anchors per key —
+  entry and `H3` (the last allocator bump; everything after `wH3` preserves
+  bytes ≥ 64) — plus, for `V`, the write-site anchor `F5` tied to the same
+  word (`hvtiV`).  These pack entries are the concrete shadow of "keccak is a
+  function of the preimage bytes", which the model's junk-window artifact
+  otherwise loses; they are hypotheses in exactly the five-anchor style of
+  the weld's leaf pack.
+-/
+
+namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
+
+section
+
+open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas
+     OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
+     IMTAbstract Clear.KeccakDeterminism
+
+set_option maxRecDepth 8000
+set_option maxHeartbeats 2000000
+set_option linter.dupNamespace false
+
+/-! ### Local re-derivations of small private helpers
+
+The fidelity file keeps these `private`; they are tiny and re-derived here
+verbatim rather than widening that file's surface. -/
+
+/-- `sstore` leaves the machine state (memory) unchanged. -/
+private lemma machine_state_sstoreV (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).machine_state = σ.machine_state := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- `sstore` leaves the keccak cache unchanged. -/
+private lemma keccak_map_sstoreV (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).keccak_map = σ.keccak_map := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- `sstore` leaves the collision flag unchanged. -/
+private lemma hash_collision_sstoreV (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).hash_collision = σ.hash_collision := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- Cached preimage ⇒ `keccakOut` returns the cached word. -/
+private lemma keccakOut_fst_cachedV {σ : EVMState} {p n w : UInt256}
+    (h : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map = some w) :
+    (keccakOut σ p n).1 = w := by
+  unfold keccakOut EVMState.keccak256
+  simp only [h]
+
+/-- The cached-hash success witness for a `valueToIndex` slot (base 5). -/
+private lemma vtiSlot_keccakV {σ : EVMState} {v w : UInt256}
+    (hc : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some w) :
+    ((σ.mstore 0 v).mstore 32 5).keccak256 0 64
+      = some (w, (σ.mstore 0 v).mstore 32 5)
+    ∧ vtiSlot σ v = w := by
+  have hkm : ((σ.mstore 0 v).mstore 32 5).keccak_map = σ.keccak_map := by
+    rw [keccak_map_mstore, keccak_map_mstore]
+  constructor
+  · exact Clear.KeccakInjective.keccak256_of_cached (by rw [hkm]; exact hc)
+  · exact keccakOut_fst_cachedV (by rw [hkm]; exact hc)
+
+/-- Two 64-byte accessor preimages differ when the word at address 0 (the
+mapping KEY word) differs. -/
+private lemma mkInterval_word0_neV {ms₁ ms₂ : MachineState}
+    (h0 : ms₁.lookupMemory (0 : UInt256) ≠ ms₂.lookupMemory (0 : UInt256)) :
+    mkInterval ms₁ 0 64 ≠ mkInterval ms₂ 0 64 := by
+  intro heq
+  apply h0
+  have ev : ∀ ms : MachineState,
+      (mkInterval ms 0 64).get? 0 = some (ms.lookupMemory (0 : UInt256)) := by
+    intro ms
+    unfold Clear.EVMState.mkInterval
+    simp only [List.get?_map]
+    have hidx : (List.range' (↑(0 : UInt256)) (↑(64 : UInt256))).get? 0
+        = some ↑(0 : UInt256) := by decide
+    rw [hidx]
+    rfl
+  have h := ev ms₁
+  rw [heq, ev ms₂] at h
+  exact (Option.some.inj h).symm
+
+/-- The accessor scratch reads the key back at address 0. -/
+private lemma accWord0V (σ : EVMState) (key base : UInt256) :
+    ((σ.mstore 0 key).mstore 32 base).machine_state.lookupMemory (0 : UInt256)
+      = key := by
+  show ((σ.mstore 0 key).mstore 32 base).mload 0 = key
+  rw [mload_mstore_outside _ _ _ _ (by decide) (by decide) (Or.inl (by decide))]
+  exact mload_mstore_self_at σ 0 key (by decide)
+
+/-- Distinct keys give distinct base-5 accessor preimages (word 0). -/
+private lemma vtiInterval_neV {σ₁ σ₂ : EVMState} {x y : UInt256} (hxy : x ≠ y) :
+    mkInterval ((σ₁.mstore 0 x).mstore 32 5).machine_state 0 64
+      ≠ mkInterval ((σ₂.mstore 0 y).mstore 32 5).machine_state 0 64 := by
+  apply mkInterval_word0_neV
+  rw [accWord0V, accWord0V]
+  exact hxy
+
+/-- Base-5 and base-4 accessor preimages differ (word 32). -/
+private lemma base54_interval_neV {σ₁ σ₂ : EVMState} {x y : UInt256} :
+    mkInterval ((σ₁.mstore 0 x).mstore 32 5).machine_state 0 64
+      ≠ mkInterval ((σ₂.mstore 0 y).mstore 32 4).machine_state 0 64 := by
+  apply Clear.KeccakInjective.mkInterval_0_64_ne_of_word32_ne
+  have h5 : ((σ₁.mstore 0 x).mstore 32 5).machine_state.lookupMemory (32 : UInt256)
+      = 5 := by
+    have := Clear.KeccakInjective.mload_mstore_self (σ₁.mstore 0 x) 5
+    unfold EVMState.mload at this
+    exact this
+  have h4 : ((σ₂.mstore 0 y).mstore 32 4).machine_state.lookupMemory (32 : UInt256)
+      = 4 := by
+    have := Clear.KeccakInjective.mload_mstore_self (σ₂.mstore 0 y) 4
+    unfold EVMState.mload at this
+    exact this
+  rw [h5, h4]
+  decide
+
+/-- The keccak success witness of a clean `arrOut` step, `keccak256` form. -/
+private lemma arrOut_pairV {σ : EVMState} {a : UInt256}
+    (h : (arrOut σ a).2.hash_collision = false) :
+    (σ.mstore 0 a).keccak256 0 32 = some ((arrOut σ a).1, (arrOut σ a).2) := by
+  have hksome := keccakOut_some_of_clean
+    (σ := σ.mstore 0 a) (p := 0) (n := 32) (by exact h)
+  rw [hksome]
+  rfl
+
+/-- Collision-flag monotonicity, backwards through `arrOut`. -/
+private lemma arrOut_clean_bwV {σ : EVMState} {a : UInt256}
+    (h : (arrOut σ a).2.hash_collision = false) : σ.hash_collision = false := by
+  have := keccakOut_clean_backward (σ := σ.mstore 0 a) (p := 0) (n := 32)
+    (by exact h)
+  rwa [hash_collision_mstore] at this
+
+/-- The scratch `mstore`s preserve the junk window. -/
+private lemma mstore_junkV {σ : EVMState} {a v : UInt256} {b : UInt256}
+    (ha : a.val + 32 ≤ 64) (hb : 64 ≤ b.val) :
+    Finmap.lookup b (σ.mstore a v).machine_state.memory
+      = Finmap.lookup b σ.machine_state.memory := by
+  apply lookup_updateMemory_outside_val
+  · omega
+  · right
+    omega
+
+/-- `arrOut` preserves the junk window (its scratch is `[0, 32)`). -/
+private lemma arrOut_junkV {σ : EVMState} {a : UInt256} {b : UInt256}
+    (hb : 64 ≤ b.val) :
+    Finmap.lookup b (arrOut σ a).2.machine_state.memory
+      = Finmap.lookup b σ.machine_state.memory := by
+  unfold arrOut
+  rw [keccakOut_machine_state]
+  exact mstore_junkV (by rw [(by decide : ((0 : UInt256)).val = 0)]; omega) hb
+
+/-- `arrOut` only grows the keccak cache. -/
+private lemma arrOut_monoV {σ : EVMState} {a : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (hI : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (arrOut σ a).2.keccak_map = some w := by
+  unfold arrOut
+  apply keccakOut_lookup_mono
+  rwa [keccak_map_mstore]
+
+/-- The three-field struct copy over an accessor thread preserves any slot
+separated from its three write slots. -/
+private lemma copyChain_sload_neV {σ4 : EVMState} {I x y z t : UInt256}
+    (hclean : (accOut σ4 I 4).2.hash_collision = false)
+    (h0 : (accOut σ4 I 4).1 ≠ t)
+    (h1 : (accOut σ4 I 4).1 + 1 ≠ t)
+    (h2 : (accOut σ4 I 4).1 + 2 ≠ t) :
+    ((((accOut σ4 I 4).2.sstore ((accOut σ4 I 4).1) x).sstore
+        ((accOut σ4 I 4).1 + 1) y).sstore ((accOut σ4 I 4).1 + 2) z).sload t
+      = σ4.sload t := by
+  rw [sload_sstore_ne h2, sload_sstore_ne h1, sload_sstore_ne h0,
+      sload_accOut_of_clean t hclean]
+
+/-- The level-0 leaf write preserves any slot separated from its element
+slot. -/
+private lemma leafWrite_sload_neV {σ : EVMState} {ss idx leaf t : UInt256}
+    (hA1 : (arrOut σ (ss + 2)).2.hash_collision = false)
+    (hA2 : (arrOut (arrOut σ (ss + 2)).2 (arrOut σ (ss + 2)).1).2.hash_collision
+      = false)
+    (hne : (arrOut (arrOut σ (ss + 2)).2 (arrOut σ (ss + 2)).1).1 + idx ≠ t) :
+    (leafWriteEvm σ ss idx leaf).sload t = σ.sload t := by
+  unfold leafWriteEvm
+  rw [sload_sstore_ne hne, sload_arrOut_of_clean t hA2,
+      sload_arrOut_of_clean t hA1]
+
+/-! ### THE INVARIANT -/
+
+/-- The `valueToIndex[v]` storage read (mapping base slot 5, `vtiSlot`). -/
+def vtiAt (σ : EVMState) (v : UInt256) : UInt256 :=
+  σ.sload (vtiSlot σ v)
+
+/-- **VTI-COHERENCE**: every decoded leaf key except 0 has a nonzero
+`valueToIndex` entry.  The `key ≠ 0` carve-out is the genesis leaf:
+`setup` seeds `leaves[0] = ⟨0,0,0⟩` but never writes `valueToIndex[0]`
+(IndexedMerkleTree.sol:42-50), so key 0's vti entry is 0 along any real
+history.  The dedup gate is unaffected: inserted values pass the
+`insert_valueZero` guard (`V ≠ 0`), so the bridge below never needs key 0. -/
+def VtiCoherent (σ : EVMState) : Prop :=
+  ∀ L ∈ leafSetOf σ, L.key ≠ 0 → vtiAt σ L.key ≠ 0
+
+/-! ### THE BRIDGE: the dedup-gate zero IS abstract freshness -/
+
+/-- The dedup gate's threaded read transports to the entry state: the guards'
+vti accessor runs ON the entry state (its slot is `vtiSlot evm V` by
+definition), and a clean accessor is storage-transparent.  `hz` is verbatim
+`insertGlue_prefix`'s dedup hypothesis. -/
+theorem vti_entry_zero {evm : EVMState} {V : UInt256}
+    (hclean : (accOut evm V 5).2.hash_collision = false)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0) :
+    vtiAt evm V = 0 := by
+  unfold vtiAt vtiSlot
+  rw [← sload_accOut_of_clean ((accOut evm V 5).1) hclean]
+  exact hz
+
+/-- **THE FRESHNESS BRIDGE**: coherence + a zero vti entry + `V ≠ 0` give the
+abstract key-freshness `V ∉ keys (leafSetOf evm)` — exactly the `hfresh`
+residue of #68. -/
+theorem hfresh_of_vtiCoherent {evm : EVMState} {V : UInt256}
+    (hco : VtiCoherent evm) (hz : vtiAt evm V = 0) (hvnz : V ≠ 0) :
+    V ∉ IMTAbstract.keys (leafSetOf evm) := by
+  intro hmem
+  unfold IMTAbstract.keys at hmem
+  obtain ⟨L, hL, hLk⟩ := Finset.mem_image.mp hmem
+  exact hco L hL (by rw [hLk]; exact hvnz) (by rw [hLk]; exact hz)
+
+/-- The bridge composed with the gate pins, in `insertGlue_prefix`'s exact
+hypothesis shapes: `hz` (dedup gate), `hvnz` (`insert_valueZero` guard,
+selector 3172853053), and the guards-stage cleanliness. -/
+theorem hfresh_of_dedup_gate {evm : EVMState} {V IX : UInt256}
+    (hco : VtiCoherent evm)
+    (hvnz : V ≠ 0)
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0) :
+    V ∉ IMTAbstract.keys (leafSetOf evm) :=
+  hfresh_of_vtiCoherent hco
+    (vti_entry_zero (accOut_clean_backward hcleanG) hz) hvnz
+
+/-! ### The 32-byte-preimage separation discipline
+
+Every storage write of the walk/pad/level-0 family lands at
+`keccak(32-byte preimage) + small offset`.  A 64-byte-preimage keccak slot
+(any mapping slot — base 4 or 5) is separated from ALL of them at once by
+the preimage-length split.  `Sep32 s` packages that separation for a fixed
+target slot `s`; the `_sep` walk frames below are the `_low` twins of
+`imt_walk_discharge_user` with the low-slot axiom replaced by `Sep32`. -/
+
+/-- `s` is missed by every 32-byte-preimage keccak slot at any small offset. -/
+def Sep32 (s : UInt256) : Prop :=
+  ∀ (σa σa' : EVMState) (p r j : UInt256),
+    σa.keccak256 p 32 = some (r, σa') →
+    j.val < Clear.KeccakInjective.lowSlotBound →
+    r + j ≠ s
+
+/-- Any 64-byte-preimage keccak slot satisfies `Sep32` (lengths 32 ≠ 64). -/
+lemma sep32_of_keccak64 {σ σ' : EVMState} {p u : UInt256}
+    (hk : σ.keccak256 p 64 = some (u, σ')) : Sep32 u := by
+  intro σa σa' pa r j hpair hj
+  exact Clear.KeccakInjective.keccak256_slot_sep hpair hk
+    (Clear.KeccakInjective.mkInterval_ne_of_len_ne (by decide)) hj
+
+/-- A `nodeStore` write misses a `Sep32` slot. -/
+private lemma nodeStore_sload_sep
+    {σ : EVMState} {base l j v s : UInt256}
+    (hclean : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).2.hash_collision = false)
+    (hcleanA : (arrOut σ base).2.hash_collision = false)
+    (hsep : Sep32 s)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    (nodeStore σ base l j v).sload s = σ.sload s := by
+  unfold nodeStore
+  have hksome := keccakOut_some_of_clean
+    (σ := ((arrOut σ base).2.mstore 0 ((arrOut σ base).1 + l))) (p := 0) (n := 32)
+    (by exact hclean)
+  have hpair : ((arrOut σ base).2.mstore 0 ((arrOut σ base).1 + l)).keccak256 0 32
+      = some ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).1,
+              (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).2) := by
+    rw [hksome]
+    rfl
+  have hne : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).1 + j ≠ s :=
+    hsep _ _ _ _ _ hpair hj
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne)]
+  rw [sload_arrOut_of_clean s hclean]
+  rw [sload_arrOut_of_clean s hcleanA]
+
+/-- The odd step misses a `Sep32` slot. -/
+private lemma stepOdd_sload_sep
+    {σ : EVMState} {base i idx cur s : UInt256}
+    (hsep : Sep32 s)
+    (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hfin : oddFinClean σ base i idx cur) :
+    ((stepOdd σ base i idx cur).2).sload s = σ.sload s := by
+  unfold oddFinClean at hfin
+  have h4 := arrOut_clean_bwV hfin
+  have h3 := arrOut_clean_bwV h4
+  have h2 := accOut_clean_backward h3
+  have h1 := arrOut_clean_bwV h2
+  show (nodeStore (accOut (sibRead σ base i (idx - 1)).2
+      (sibRead σ base i (idx - 1)).1 cur).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).1).sload s
+    = σ.sload s
+  rw [nodeStore_sload_sep hfin h4 hsep hj]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+  rw [sload_arrOut_of_clean s h1]
+
+/-- The even step misses a `Sep32` slot. -/
+private lemma stepEven_sload_sep
+    {σ : EVMState} {base i idx cur s : UInt256}
+    (hsep : Sep32 s)
+    (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hfin : evenFinClean σ base i idx cur) :
+    ((stepEven σ base i idx cur).2).sload s = σ.sload s := by
+  unfold evenFinClean at hfin
+  have h4 := arrOut_clean_bwV hfin
+  have h3 := arrOut_clean_bwV h4
+  have h2 := accOut_clean_backward h3
+  have h1 := arrOut_clean_bwV h2
+  show (nodeStore (accOut (sibRead σ base i (idx + 1)).2 cur
+      (sibRead σ base i (idx + 1)).1).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).1).sload s
+    = σ.sload s
+  rw [nodeStore_sload_sep hfin h4 hsep hj]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+  rw [sload_arrOut_of_clean s h1]
+
+/-- The edge step misses a `Sep32` slot. -/
+private lemma stepEdge_sload_sep
+    {σ : EVMState} {ss base i idx cur s : UInt256}
+    (hsep : Sep32 s)
+    (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hfin : edgeFinClean σ ss base i idx cur) :
+    ((stepEdge σ ss base i idx cur).2).sload s = σ.sload s := by
+  unfold edgeFinClean at hfin
+  have h4 := arrOut_clean_bwV hfin
+  have h3 := arrOut_clean_bwV h4
+  have h2 := accOut_clean_backward h3
+  show (nodeStore (accOut (sideRead σ (ss + 3) i).2 cur
+      (sideRead σ (ss + 3) i).1).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).1).sload s
+    = σ.sload s
+  rw [nodeStore_sload_sep hfin h4 hsep hj]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut σ (ss + 3)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+
+/-- The dispatched walk step misses a `Sep32` slot. -/
+private lemma updateStep_sload_sep
+    {σ : EVMState} {ss base i idx maxN cur s : UInt256}
+    (hsep : Sep32 s)
+    (hok : StepLowOK ss base (σ, i, idx, maxN, cur)) :
+    ((updateStep σ ss base i idx maxN cur).2).sload s = σ.sload s := by
+  obtain ⟨hj, hflag⟩ := hok
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      rw [if_pos hpar, if_pos hedge] at hflag
+      exact stepEdge_sload_sep hsep hj hflag
+    · rw [if_pos hpar, if_neg hedge]
+      rw [if_pos hpar, if_neg hedge] at hflag
+      exact stepEven_sload_sep hsep hj hflag
+  · rw [if_neg hpar]
+    rw [if_neg hpar] at hflag
+    exact stepOdd_sload_sep hsep hj hflag
+
+/-- **The Merkle walk misses every `Sep32` slot** (the `updateWalk_sload_low`
+twin for keccak-slot targets). -/
+lemma updateWalk_sload_sep :
+    ∀ (kk : ℕ) {σ : EVMState} {ss base i idx maxN cur s : UInt256},
+    Sep32 s →
+    (∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) →
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload s = σ.sload s := by
+  intro kk
+  induction kk with
+  | zero =>
+    intro σ ss base i idx maxN cur s _ _
+    rfl
+  | succ kk ih =>
+    intro σ ss base i idx maxN cur s hsep hok
+    have h0 := hok 0 (by omega)
+    simp only [updateWalk] at h0 ⊢
+    rw [ih hsep (by
+      intro j hj
+      have := hok (j+1) (by omega)
+      simpa only [updateWalk] using this)]
+    exact updateStep_sload_sep hsep h0
+
+/-- The padding step misses a `Sep32` slot. -/
+private lemma padStep_sload_sep
+    {σ : EVMState} {i s : UInt256}
+    (hsep : Sep32 s)
+    (hi : i.val < Clear.KeccakInjective.lowSlotBound)
+    (hlen : (((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i)).val
+      < Clear.KeccakInjective.lowSlotBound)
+    (hfin : padFinClean σ i) :
+    ((padStep σ i).sload s) = σ.sload s := by
+  unfold padFinClean at hfin
+  have hE1 : (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).hash_collision
+        = false :=
+    arrOut_clean_bwV hfin
+  have hB : ((arrOut (arrOut σ 2).2 3).2).hash_collision = false := by
+    rwa [hash_collision_sstoreV] at hE1
+  have hA : ((arrOut σ 2).2).hash_collision = false := arrOut_clean_bwV hB
+  have hpairFin := arrOut_pairV hfin
+  have hpairA := arrOut_pairV hA
+  have hne1 : (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+      ((arrOut σ 2).1 + i)).1
+      + ((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i) ≠ s :=
+    hsep _ _ _ _ _ hpairFin hlen
+  have hne2 : (arrOut σ 2).1 + i ≠ s :=
+    hsep _ _ _ _ _ hpairA hi
+  show ((pushEvm (arrOut (arrOut σ 2).2 3).2 ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut (arrOut σ 2).2 3).1 + i))).sload s)
+    = σ.sload s
+  unfold pushEvm
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne1)]
+  rw [sload_arrOut_of_clean s hfin]
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne2)]
+  rw [sload_arrOut_of_clean s hB]
+  rw [sload_arrOut_of_clean s hA]
+
+/-- **The padding walk misses every `Sep32` slot** (the `padWalk_sload_low`
+twin). -/
+lemma padWalk_sload_sep :
+    ∀ (kk : ℕ) {σ : EVMState} {i om m s : UInt256},
+    Sep32 s →
+    (∀ j, j < kk → PadLowOK (padWalk j σ i om m)) →
+    ((padWalk kk σ i om m).1).sload s = σ.sload s := by
+  intro kk
+  induction kk with
+  | zero =>
+    intro σ i om m s _ _
+    rfl
+  | succ kk ih =>
+    intro σ i om m s hsep hok
+    have h0 := hok 0 (by omega)
+    simp only [padWalk] at h0 ⊢
+    rw [ih hsep (by
+      intro j hj
+      have := hok (j+1) (by omega)
+      simpa only [padWalk] using this)]
+    exact padStep_sload_sep hsep h0.1 h0.2.1 h0.2.2
+
+/-! ### The push-tail composites (count bump → pad → level-0 write → walk) -/
+
+/-- The whole push tail (bump, pad walk, level-0 write, root walk) misses
+every `Sep32` slot off slot 1. -/
+private lemma pushOut_sload_sep {E : EVMState} {P s : UInt256} {kp kk : ℕ}
+    (hsep : Sep32 s) (h1s : (1 : UInt256) ≠ s)
+    (hA1 : (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hA2 : (arrOut (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2
+        (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hnidx : ((pushEH E P).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hokp : ∀ j, j < kp → PadLowOK (pushPadW E P j))
+    (hok₂ : ∀ j, j < kk → StepLowOK 0 ((0 : UInt256) + 2) (pushOutW E P kp j)) :
+    (pushOutW E P kp kk).1.sload s = (pushEH E P).sload s := by
+  have h1 : (pushOutW E P kp kk).1.sload s
+      = (leafWriteEvm (pushPadW E P kp).1 0 ((pushEH E P).sload 1) (pushHL E P)).sload s :=
+    updateWalk_sload_sep kk hsep hok₂
+  have h2 : (leafWriteEvm (pushPadW E P kp).1 0 ((pushEH E P).sload 1) (pushHL E P)).sload s
+      = (pushPadW E P kp).1.sload s :=
+    leafWrite_sload_neV hA1 hA2 (hsep _ _ _ _ _ (arrOut_pairV hA2) hnidx)
+  have h3 : (pushPadW E P kp).1.sload s
+      = ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)).sload s :=
+    padWalk_sload_sep kp hsep hokp
+  have h4 : ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)).sload s
+      = (pushEH E P).sload s := sload_sstore_ne h1s
+  rw [h1, h2, h3, h4]
+
+/-- The push tail preserves the junk window (bytes ≥ 64). -/
+private lemma pushOut_junk {E : EVMState} {P : UInt256} {kp kk : ℕ} {b : UInt256}
+    (hb : 64 ≤ b.val) :
+    Finmap.lookup b (pushOutW E P kp kk).1.machine_state.memory
+      = Finmap.lookup b (pushEH E P).machine_state.memory := by
+  have h1 : Finmap.lookup b (pushOutW E P kp kk).1.machine_state.memory
+      = Finmap.lookup b (leafWriteEvm (pushPadW E P kp).1 0
+          ((pushEH E P).sload 1) (pushHL E P)).machine_state.memory :=
+    updateWalk_junk kk hb
+  have h2 : Finmap.lookup b (leafWriteEvm (pushPadW E P kp).1 0
+      ((pushEH E P).sload 1) (pushHL E P)).machine_state.memory
+      = Finmap.lookup b (pushPadW E P kp).1.machine_state.memory := by
+    unfold leafWriteEvm
+    rw [machine_state_sstoreV, arrOut_junkV hb, arrOut_junkV hb]
+  have h3 : Finmap.lookup b (pushPadW E P kp).1.machine_state.memory
+      = Finmap.lookup b ((pushEH E P).sstore 1
+          ((pushEH E P).sload 1 + 1)).machine_state.memory :=
+    padWalk_junk kp hb
+  have h4 : Finmap.lookup b ((pushEH E P).sstore 1
+      ((pushEH E P).sload 1 + 1)).machine_state.memory
+      = Finmap.lookup b (pushEH E P).machine_state.memory := by
+    rw [machine_state_sstoreV]
+  rw [h1, h2, h3, h4]
+
+/-- The push tail only grows the keccak cache. -/
+private lemma pushOut_mono {E : EVMState} {P : UInt256} {kp kk : ℕ}
+    {I : List UInt256} {u : UInt256}
+    (hI : Finmap.lookup I (pushEH E P).keccak_map = some u) :
+    Finmap.lookup I (pushOutW E P kp kk).1.keccak_map = some u := by
+  refine updateWalk_lookup_mono kk ?_
+  show Finmap.lookup I (leafWriteEvm (pushPadW E P kp).1 0
+      ((pushEH E P).sload 1) (pushHL E P)).keccak_map = some u
+  unfold leafWriteEvm
+  rw [keccak_map_sstoreV]
+  refine arrOut_monoV (arrOut_monoV ?_)
+  refine padWalk_lookup_mono kp ?_
+  rw [keccak_map_sstoreV]
+  exact hI
+
+/-- An `H3`-anchored cached vti word pins the FINAL state's vti slot: the
+push tail preserves the junk window (interval equality) and the cache. -/
+private lemma vtiSlot_pushOut {E : EVMState} {P x u : UInt256} {kp kk : ℕ}
+    (hcu : Finmap.lookup (accInterval (pushEH E P) x 5)
+        (pushEH E P).keccak_map = some u) :
+    vtiSlot (pushOutW E P kp kk).1 x = u := by
+  have hInt : accInterval (pushOutW E P kp kk).1 x 5
+      = accInterval (pushEH E P) x 5 :=
+    accInterval_eq (fun b hb1 _ => pushOut_junk hb1)
+  have hc : Finmap.lookup (accInterval (pushOutW E P kp kk).1 x 5)
+      (pushOutW E P kp kk).1.keccak_map = some u := by
+    rw [hInt]
+    exact pushOut_mono hcu
+  exact (vtiSlot_keccakV hc).2
+
+/-! ### PRESERVATION, per slot -/
+
+open Clear.KeccakDeterminism in
+/-- **Old keys' vti entries survive the whole insert chain**: for `x ≠ V`
+with its vti word cached at the entry and `H3` anchors, the final state's
+`valueToIndex[x]` read equals the entry state's.  Write inventory: the two
+base-4 struct copies (word-32 preimage split), the vti write at `V` (word-0
+split, keccak injectivity), the two `hashLeaf` steps (no `sstore`), the
+level-0 writes and both walks (32-vs-64 length split), the count bump (low
+slot). -/
+theorem vtiAt_wFinal_old
+    {evm : EVMState} {V IX x u : UInt256} {k k2 k3 : ℕ}
+    (hxV : x ≠ V)
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    (hclean4 : (accOut (wE4 evm V IX) IX 4).2.hash_collision = false)
+    (hcleanF : (accOut (wF4 evm V IX k) (evm.sload 1) 4).2.hash_collision = false)
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH1 : (wH1 evm V IX).hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanB1 : (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanB2 : (arrOut (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2
+        (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hIXlow : IX.val < Clear.KeccakInjective.lowSlotBound)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hok₁ : ∀ j, j < k → StepLowOK 0 2
+        (updTreeW (wS1 evm V IX) ((guardsEvm evm V IX).mload 64) IX j))
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j))
+    -- the two-anchor vti cache pack for `x`
+    (hcu : Finmap.lookup (accInterval evm x 5) evm.keccak_map = some u)
+    (hcuH : Finmap.lookup (accInterval (wH3 evm V IX k) x 5)
+        (wH3 evm V IX k).keccak_map = some u) :
+    vtiAt (wFinal evm V IX k k2 k3) x = vtiAt evm x := by
+  -- the entry-anchor keccak witness for `u`
+  have hku := (vtiSlot_keccakV hcu).1
+  have hvu : vtiSlot evm x = u := (vtiSlot_keccakV hcu).2
+  have hsep : Sep32 u := sep32_of_keccak64 hku
+  have h1u : (1 : UInt256) ≠ u :=
+    Ne.symm (Clear.KeccakInjective.keccak256_ne_lowSlot 1 hku (by decide))
+  -- base-4 copy-slot witnesses (thread-stable accessor caches)
+  have hkE := (leafSlot_keccak (cached_accThread hclean4)).1
+  have hkF := (leafSlot_keccak (cached_accThread hcleanF)).1
+  have hE0 : (accOut (wE4 evm V IX) IX 4).1 ≠ u := by
+    have h := Clear.KeccakInjective.keccak256_slot_sep (i := 0) hkE hku
+      (Ne.symm base54_interval_neV) (by decide)
+    simpa using h
+  have hE1 : (accOut (wE4 evm V IX) IX 4).1 + 1 ≠ u :=
+    Clear.KeccakInjective.keccak256_slot_sep (i := 1) hkE hku
+      (Ne.symm base54_interval_neV) (by decide)
+  have hE2 : (accOut (wE4 evm V IX) IX 4).1 + 2 ≠ u :=
+    Clear.KeccakInjective.keccak256_slot_sep (i := 2) hkE hku
+      (Ne.symm base54_interval_neV) (by decide)
+  have hF0 : (accOut (wF4 evm V IX k) (evm.sload 1) 4).1 ≠ u := by
+    have h := Clear.KeccakInjective.keccak256_slot_sep (i := 0) hkF hku
+      (Ne.symm base54_interval_neV) (by decide)
+    simpa using h
+  have hF1 : (accOut (wF4 evm V IX k) (evm.sload 1) 4).1 + 1 ≠ u :=
+    Clear.KeccakInjective.keccak256_slot_sep (i := 1) hkF hku
+      (Ne.symm base54_interval_neV) (by decide)
+  have hF2 : (accOut (wF4 evm V IX k) (evm.sload 1) 4).1 + 2 ≠ u :=
+    Clear.KeccakInjective.keccak256_slot_sep (i := 2) hkF hku
+      (Ne.symm base54_interval_neV) (by decide)
+  -- the vti write slot (base 5, key V ≠ x — keccak injectivity, word 0)
+  have hcvPost : Finmap.lookup (accInterval ((accOut (wF5 evm V IX k) V 5).2) V 5)
+      ((accOut (wF5 evm V IX k) V 5).2).keccak_map
+      = some ((accOut (wF5 evm V IX k) V 5).1) := by
+    rw [show accInterval ((accOut (wF5 evm V IX k) V 5).2) V 5
+        = accInterval (wF5 evm V IX k) V 5 from
+      accInterval_eq (fun b hb1 _ => accOut_junk_window hb1)]
+    exact accOut_caches_of_clean hcleanV
+  have hkSLV := (vtiSlot_keccakV hcvPost).1
+  have hSLVne : (accOut (wF5 evm V IX k) V 5).1 ≠ u :=
+    Clear.KeccakInjective.keccak256_inj hkSLV hku (vtiInterval_neV (Ne.symm hxV))
+  -- the final-state slot pin (H3 anchor + junk frame + cache monotonicity)
+  have hslotF : vtiSlot (wFinal evm V IX k k2 k3) x = u :=
+    vtiSlot_pushOut (E := wS3 evm V IX k) (P := (wS2 evm V IX k).mload 64)
+      (kp := k2) (kk := k3) hcuH
+  -- assemble
+  show (wFinal evm V IX k k2 k3).sload (vtiSlot (wFinal evm V IX k k2 k3) x)
+      = evm.sload (vtiSlot evm x)
+  rw [hslotF, hvu]
+  calc (wFinal evm V IX k k2 k3).sload u
+      = (wH3 evm V IX k).sload u :=
+        pushOut_sload_sep hsep h1u hcleanA1 hcleanA2 hnidx hokp hok₂
+    _ = (wS3 evm V IX k).sload u := sload_hashLeafOut_of_clean u hcleanH3
+    _ = ((accOut (wF5 evm V IX k) V 5).2).sload u := sload_sstore_ne hSLVne
+    _ = (wF5 evm V IX k).sload u := sload_accOut_of_clean u hcleanV
+    _ = (wF4 evm V IX k).sload u := copyChain_sload_neV hcleanF hF0 hF1 hF2
+    _ = (wS2 evm V IX k).sload u := rfl
+    _ = (leafWriteEvm (wH1 evm V IX) 0 IX
+          (hashLeafOut (wS1 evm V IX) ((guardsEvm evm V IX).mload 64)).1).sload u :=
+        updateWalk_sload_sep k hsep hok₁
+    _ = (wH1 evm V IX).sload u :=
+        leafWrite_sload_neV hcleanB1 hcleanB2
+          (hsep _ _ _ _ _ (arrOut_pairV hcleanB2) hIXlow)
+    _ = (wS1 evm V IX).sload u := sload_hashLeafOut_of_clean u hcleanH1
+    _ = (wE4 evm V IX).sload u := copyChain_sload_neV hclean4 hE0 hE1 hE2
+    _ = (guardsEvm evm V IX).sload u := rfl
+    _ = evm.sload u := guards_sload hcleanG u
+
+open Clear.KeccakDeterminism in
+/-- **`V`'s final vti entry is the old count**: the S3 registration writes
+`NI = evm.sload 1` at `valueToIndex[V]`, and the push tail preserves both
+the value and (via the H3-anchored cached word, tied to the write-site F5
+anchor by lookup functionality) the slot. -/
+theorem vtiAt_wFinal_V
+    {evm : EVMState} {V IX wv : UInt256} {k k2 k3 : ℕ}
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (haccV : (((accOut (wF5 evm V IX k) V 5).2).lookupAccount
+        ((accOut (wF5 evm V IX k) V 5).2).execution_env.code_owner).isSome)
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j))
+    -- the two-anchor vti cache pack for `V` (write-site F5 + H3)
+    (hcvF : Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+        (wF5 evm V IX k).keccak_map = some wv)
+    (hcvH : Finmap.lookup (accInterval (wH3 evm V IX k) V 5)
+        (wH3 evm V IX k).keccak_map = some wv) :
+    vtiAt (wFinal evm V IX k k2 k3) V = evm.sload 1 := by
+  -- functionality at the F5 anchor: the pack word IS the write slot
+  have htrans : Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+      ((accOut (wF5 evm V IX k) V 5).2).keccak_map = some wv :=
+    accOut_lookup_mono hcvF
+  have hpost : Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+      ((accOut (wF5 evm V IX k) V 5).2).keccak_map
+      = some ((accOut (wF5 evm V IX k) V 5).1) :=
+    accOut_caches_of_clean hcleanV
+  have hwv : wv = (accOut (wF5 evm V IX k) V 5).1 :=
+    Option.some.inj (htrans.symm.trans hpost)
+  -- the write-slot keccak witness → Sep32 + low-slot separation
+  have hcvPost : Finmap.lookup (accInterval ((accOut (wF5 evm V IX k) V 5).2) V 5)
+      ((accOut (wF5 evm V IX k) V 5).2).keccak_map
+      = some ((accOut (wF5 evm V IX k) V 5).1) := by
+    rw [show accInterval ((accOut (wF5 evm V IX k) V 5).2) V 5
+        = accInterval (wF5 evm V IX k) V 5 from
+      accInterval_eq (fun b hb1 _ => accOut_junk_window hb1)]
+    exact accOut_caches_of_clean hcleanV
+  have hkSLV := (vtiSlot_keccakV hcvPost).1
+  have hsepV : Sep32 ((accOut (wF5 evm V IX k) V 5).1) := sep32_of_keccak64 hkSLV
+  have h1V : (1 : UInt256) ≠ (accOut (wF5 evm V IX k) V 5).1 :=
+    Ne.symm (Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkSLV (by decide))
+  -- the final-state slot pin
+  have hslotF : vtiSlot (wFinal evm V IX k k2 k3) V
+      = (accOut (wF5 evm V IX k) V 5).1 :=
+    (vtiSlot_pushOut (E := wS3 evm V IX k) (P := (wS2 evm V IX k).mload 64)
+      (kp := k2) (kk := k3) hcvH).trans hwv
+  -- assemble
+  show (wFinal evm V IX k k2 k3).sload (vtiSlot (wFinal evm V IX k k2 k3) V)
+      = evm.sload 1
+  rw [hslotF]
+  calc (wFinal evm V IX k k2 k3).sload ((accOut (wF5 evm V IX k) V 5).1)
+      = (wH3 evm V IX k).sload ((accOut (wF5 evm V IX k) V 5).1) :=
+        pushOut_sload_sep hsepV h1V hcleanA1 hcleanA2 hnidx hokp hok₂
+    _ = (wS3 evm V IX k).sload ((accOut (wF5 evm V IX k) V 5).1) :=
+        sload_hashLeafOut_of_clean _ hcleanH3
+    _ = evm.sload 1 := sload_sstore_self haccV
+
+/-! ### The abstract key-set corollary of `imtInsert` -/
+
+/-- Every key of the inserted set is `v` or an old key (`imtInsert` erases
+the window leaf but re-adds its KEY, retargeted). -/
+private lemma mem_imtInsert_key {s : Finset AbsLeaf} {W₀ L : AbsLeaf} {v : UInt256}
+    (hW : W₀ ∈ s) (hL : L ∈ imtInsert s W₀ v) :
+    L.key = v ∨ ∃ L', L' ∈ s ∧ L'.key = L.key := by
+  unfold imtInsert at hL
+  rcases Finset.mem_insert.mp hL with h1 | hL2
+  · subst h1
+    exact Or.inr ⟨W₀, hW, rfl⟩
+  · rcases Finset.mem_insert.mp hL2 with h2 | hL3
+    · subst h2
+      exact Or.inl rfl
+    · exact Or.inr ⟨L, Finset.mem_of_mem_erase hL3, rfl⟩
+
+/-! ### PRESERVATION -/
+
+open Clear.KeccakDeterminism in
+/-- **VTI-COHERENCE IS PRESERVED by the deployed insert** (#69).  Under the
+weld surface (which gives `leafSetOf (wFinal …) = imtInsert …`) plus the vti
+cache pack, the invariant transports: old keys' entries are untouched
+(`vtiAt_wFinal_old`), and `V`'s new entry is the old count, nonzero by the
+glue's own initialized guard `h1nz` (genesis seeds leaf 0, so the count is
+≥ 1 along any real history — and the dispatcher reverts otherwise). -/
+theorem vtiCoherent_preserved
+    {evm : EVMState} {V IX : UInt256} {k k2 k3 : ℕ}
+    (hco : VtiCoherent evm)
+    (hVfresh : V ∉ IMTAbstract.keys (leafSetOf evm))
+    (h1nz : evm.sload 1 ≠ 0)
+    -- ===== the weld surface (verbatim `insertGlue_leafSetOf`) =====
+    (hbound : IX < evm.sload 1)
+    (hnw : (evm.sload 1).val + 1 < 2 ^ 256)
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    (hpG : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hpW : ((guardsEvm evm V IX).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowW : 96 ≤ ((guardsEvm evm V IX).mload 64).val)
+    (hpN : ((wS2 evm V IX k).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowN : 96 ≤ ((wS2 evm V IX k).mload 64).val)
+    (hclean4 : (accOut (wE4 evm V IX) IX 4).2.hash_collision = false)
+    (hcleanF : (accOut (wF4 evm V IX k) (evm.sload 1) 4).2.hash_collision = false)
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH1 : (wH1 evm V IX).hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanB1 : (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanB2 : (arrOut (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2
+        (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (haccEK : (((accOut (wE4 evm V IX) IX 4).2).lookupAccount
+        ((accOut (wE4 evm V IX) IX 4).2).execution_env.code_owner).isSome)
+    (haccFK : (((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).lookupAccount
+        ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).execution_env.code_owner).isSome)
+    (haccH3 : ((wH3 evm V IX k).lookupAccount
+        (wH3 evm V IX k).execution_env.code_owner).isSome)
+    (hIXlow : IX.val < Clear.KeccakInjective.lowSlotBound)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hcach : ∀ m : ℕ, m ≤ (evm.sload 1).val → ∃ wm,
+      Finmap.lookup (accInterval evm (m : UInt256) 4) evm.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (guardsEvm evm V IX) (m : UInt256) 4)
+          (guardsEvm evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wE4 evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wF4 evm V IX k) (m : UInt256) 4)
+          (wF4 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (evm.sload 1).val → ∀ m' : ℕ, m' < (evm.sload 1).val →
+      decodeLeaf evm (m : UInt256) = decodeLeaf evm (m' : UInt256) → m = m')
+    (hok₁ : ∀ j, j < k → StepLowOK 0 2
+        (updTreeW (wS1 evm V IX) ((guardsEvm evm V IX).mload 64) IX j))
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j))
+    -- ===== the vti pack =====
+    (haccV : (((accOut (wF5 evm V IX k) V 5).2).lookupAccount
+        ((accOut (wF5 evm V IX k) V 5).2).execution_env.code_owner).isSome)
+    (hvtiV : ∃ wv, Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+        (wF5 evm V IX k).keccak_map = some wv
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) V 5)
+          (wH3 evm V IX k).keccak_map = some wv)
+    (hvtiOld : ∀ L ∈ leafSetOf evm, L.key ≠ 0 → ∃ u,
+      Finmap.lookup (accInterval evm L.key 5) evm.keccak_map = some u
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) L.key 5)
+          (wH3 evm V IX k).keccak_map = some u) :
+    VtiCoherent (wFinal evm V IX k k2 k3) := by
+  have hset := insertGlue_leafSetOf hbound hnw hcleanG hpG hpW hplowW hpN hplowN
+    hclean4 hcleanF hcleanV hcleanH1 hcleanH3 hcleanB1 hcleanB2 hcleanA1
+    hcleanA2 haccEK haccFK haccH3 hIXlow hnidx hcach hinj hok₁ hokp hok₂
+  have hwlt : IX.val < (evm.sload 1).val := hbound
+  have hW₀ : decodeLeaf evm IX ∈ leafSetOf evm := by
+    unfold leafSetOf
+    exact Finset.mem_image.mpr
+      ⟨IX.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
+  intro L hL hLnz
+  rw [hset] at hL
+  rcases mem_imtInsert_key hW₀ hL with hkeyV | ⟨L', hL', hLk⟩
+  · -- the new key V: its entry is the old count, nonzero by the init guard
+    rw [hkeyV]
+    obtain ⟨wv, hcvF, hcvH⟩ := hvtiV
+    rw [vtiAt_wFinal_V hcleanV hcleanH3 hcleanA1 hcleanA2 hnidx haccV
+      hokp hok₂ hcvF hcvH]
+    exact h1nz
+  · -- an old key: its vti slot is untouched by the whole chain
+    have hknz : L'.key ≠ 0 := by rw [hLk]; exact hLnz
+    have hxV : L.key ≠ V := by
+      intro h
+      apply hVfresh
+      unfold IMTAbstract.keys
+      exact Finset.mem_image.mpr ⟨L', hL', by rw [hLk, h]⟩
+    obtain ⟨u, hcu, hcuH⟩ := hvtiOld L' hL' hknz
+    rw [hLk] at hcu hcuH
+    rw [vtiAt_wFinal_old hxV hcleanG hclean4 hcleanF hcleanV hcleanH1 hcleanH3
+      hcleanB1 hcleanB2 hcleanA1 hcleanA2 hIXlow hnidx hok₁ hokp hok₂ hcu hcuH]
+    have h := hco L' hL' hknz
+    rw [hLk] at h
+    exact h
+
+/-! ### THE CLOSED CAPSTONE -/
+
+open Clear.KeccakDeterminism in
+/-- **THE EVOLUTION PACKAGING, CLOSED (#69)** — `insertGlue_evolution_step`
+with the `hfresh` residue REPLACED by the storage invariant: under
+`VtiCoherent evm`, the contract's own gate pins (`hz` — the dedup gate;
+`hvnz` — the `insert_valueZero` guard; `h1nz` — the initialized guard,
+count ≥ 1), the weld surface and the vti cache pack, the dispatcher's pass
+state is a WITNESSED abstract `Evolution` insert step AND the invariant
+holds again at the post-state.  Invariant in, invariant out — the theorem
+is self-sustaining along any history whose genesis satisfies `VtiCoherent`
+(the freshly-`setup` tree does: its only leaf has key 0, carved out). -/
+theorem insertGlue_evolution_closed
+    {evm : EVMState} {V IX : UInt256} {k k2 k3 : ℕ}
+    -- THE INVARIANT (in)
+    (hco : VtiCoherent evm)
+    -- the contract's own gate pins (verbatim `insertGlue_prefix` shapes)
+    (h1nz : evm.sload 1 ≠ 0)
+    (hvnz : V ≠ 0)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0)
+    (hbound : IX < evm.sload 1)
+    (hnw : (evm.sload 1).val + 1 < 2 ^ 256)
+    (hvo : (guardsEvm evm V IX).mload (guardsLM evm V IX) < V)
+    (hwin : (guardsEvm evm V IX).mload (guardsLM evm V IX + 64) = 0
+        ∨ ¬ ((guardsEvm evm V IX).mload (guardsLM evm V IX + 64) < V))
+    -- the abstract list well-formedness (free along history, #68 header)
+    (hclosed : NextClosed (leafSetOf evm))
+    -- ===== the weld surface =====
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    (hpG : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hpW : ((guardsEvm evm V IX).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowW : 96 ≤ ((guardsEvm evm V IX).mload 64).val)
+    (hpN : ((wS2 evm V IX k).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowN : 96 ≤ ((wS2 evm V IX k).mload 64).val)
+    (hclean4 : (accOut (wE4 evm V IX) IX 4).2.hash_collision = false)
+    (hcleanF : (accOut (wF4 evm V IX k) (evm.sload 1) 4).2.hash_collision = false)
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH1 : (wH1 evm V IX).hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanB1 : (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanB2 : (arrOut (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2
+        (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (haccEK : (((accOut (wE4 evm V IX) IX 4).2).lookupAccount
+        ((accOut (wE4 evm V IX) IX 4).2).execution_env.code_owner).isSome)
+    (haccFK : (((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).lookupAccount
+        ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).execution_env.code_owner).isSome)
+    (haccH3 : ((wH3 evm V IX k).lookupAccount
+        (wH3 evm V IX k).execution_env.code_owner).isSome)
+    (hIXlow : IX.val < Clear.KeccakInjective.lowSlotBound)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hcach : ∀ m : ℕ, m ≤ (evm.sload 1).val → ∃ wm,
+      Finmap.lookup (accInterval evm (m : UInt256) 4) evm.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (guardsEvm evm V IX) (m : UInt256) 4)
+          (guardsEvm evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wE4 evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wF4 evm V IX k) (m : UInt256) 4)
+          (wF4 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (evm.sload 1).val → ∀ m' : ℕ, m' < (evm.sload 1).val →
+      decodeLeaf evm (m : UInt256) = decodeLeaf evm (m' : UInt256) → m = m')
+    (hok₁ : ∀ j, j < k → StepLowOK 0 2
+        (updTreeW (wS1 evm V IX) ((guardsEvm evm V IX).mload 64) IX j))
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j))
+    -- ===== the vti pack =====
+    (haccV : (((accOut (wF5 evm V IX k) V 5).2).lookupAccount
+        ((accOut (wF5 evm V IX k) V 5).2).execution_env.code_owner).isSome)
+    (hvtiV : ∃ wv, Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+        (wF5 evm V IX k).keccak_map = some wv
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) V 5)
+          (wH3 evm V IX k).keccak_map = some wv)
+    (hvtiOld : ∀ L ∈ leafSetOf evm, L.key ≠ 0 → ∃ u,
+      Finmap.lookup (accInterval evm L.key 5) evm.keccak_map = some u
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) L.key 5)
+          (wH3 evm V IX k).keccak_map = some u) :
+    (∃ W₀ v', W₀ ∈ leafSetOf evm ∧ W₀.key < v'
+      ∧ (W₀.nextKey = 0 ∨ v' < W₀.nextKey)
+      ∧ leafSetOf (wFinal evm V IX k k2 k3)
+          = imtInsert (leafSetOf evm) W₀ v')
+    ∧ VtiCoherent (wFinal evm V IX k k2 k3) := by
+  -- the freshness residue of #68, DERIVED from the invariant + the gate pin
+  have hfresh : V ∉ IMTAbstract.keys (leafSetOf evm) :=
+    hfresh_of_dedup_gate hco hvnz hcleanG hz
+  refine ⟨insertGlue_evolution_step hbound hnw hvo hwin hclosed hfresh hcleanG
+    hpG hpW hplowW hpN hplowN hclean4 hcleanF hcleanV hcleanH1 hcleanH3
+    hcleanB1 hcleanB2 hcleanA1 hcleanA2 haccEK haccFK haccH3 hIXlow hnidx
+    hcach hinj hok₁ hokp hok₂, ?_⟩
+  exact vtiCoherent_preserved hco hfresh h1nz hbound hnw hcleanG hpG hpW
+    hplowW hpN hplowN hclean4 hcleanF hcleanV hcleanH1 hcleanH3 hcleanB1
+    hcleanB2 hcleanA1 hcleanA2 haccEK haccFK haccH3 hIXlow hnidx hcach hinj
+    hok₁ hokp hok₂ haccV hvtiV hvtiOld
+
+end
+
+end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
