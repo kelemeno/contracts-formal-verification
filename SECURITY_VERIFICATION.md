@@ -1266,7 +1266,9 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   base-token holder `0x10011`; codeless holder reverts), `fail_forward_reverts` (generic
   external-call failure arm, identifier-parametric, rfl-checked against the verbatim quotes) with
   instances `give_call_failure_forwards` (unfunded ⇒ revert) and `dispatch_call_failure_forwards`
-  (any failed receiveMessage ⇒ whole delivery reverts — all-or-nothing bundles).
+  (any failed receiveMessage ⇒ whole delivery reverts — all-or-nothing DELIVERY on the
+  executing chain; distinct from the AtomicFlow's cross-chain atomicity, i.e. executed on one
+  chain ⇒ executable on all chains, which lives at the AtomicFlowManager layer).
 - **#53 executeCalls loop, base case.** `executeCalls_empty` — full-function closed form: an empty
   bundle returns with caller store and evm untouched (`execCall` in = `Ok evm store` out);
   `index_access_call` — the in-bounds element address closed form (first step-case dependency).

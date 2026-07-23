@@ -305,9 +305,12 @@ theorem give_call_failure_forwards
 /-- The verbatim quote IS the generic shape. -/
 example : dispatchFailIf = failForwardIf "_11" "pos_1" := rfl
 
-/-- **BUNDLE ATOMICITY (per-call leg)**: if ANY call's `receiveMessage`
-dispatch fails, the whole delivery reverts, forwarding the recipient's revert
-data — a bundle executes all of its calls or none of them. -/
+/-- **ALL-OR-NOTHING DELIVERY (single-chain, per-call leg)**: if ANY call's
+`receiveMessage` dispatch fails, the whole delivery reverts, forwarding the
+recipient's revert data — on this chain the bundle executes all of its calls
+or none of them.  (NOT "atomicity" in this project's sense: that term is
+reserved for the AtomicFlow's cross-chain guarantee — a bundle executed on
+one chain is executable on all other chains.) -/
 theorem dispatch_call_failure_forwards
     {evm : EVMState} {store : VarStore} {fuel : ℕ}
     (h11 : (Ok evm store)["_11"]!! = 0) :
@@ -1740,9 +1743,9 @@ theorem fail_forward_reverts_split
     rfl
   }
 
-/-- **BUNDLE ATOMICITY (per-call leg), generated form**: the split-form
-dispatch failure arm — the one the generated body actually carries — always
-reverts the delivery on a zero call result. -/
+/-- **ALL-OR-NOTHING DELIVERY (single-chain), generated form**: the
+split-form dispatch failure arm — the one the generated body actually
+carries — always reverts the delivery on a zero call result. -/
 theorem dispatch_call_failure_forwards_split
     {evm : EVMState} {store : VarStore} {fuel : ℕ}
     (h11 : (Ok evm store)["_11"]!! = 0) :
