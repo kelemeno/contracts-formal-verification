@@ -1338,6 +1338,20 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   *Interpretation caveat: lossless A-specs carry exactly the concrete content; where a spec
   bottoms out at a True-AFor inner loop or the #38 call boundary, the semantic content lives
   in the corresponding concrete closed forms (#31, #50-#55, #57).*
+- **#59 THE FULL ATOMIC-INTEROP ABSTRACTION LAYER (2026-07-23, second wave).**  #58's method
+  extended to every corpus of the feature: **L2AssetRouter** 300/312 templates lossless (incl.
+  `fun_isValidInteropSender`, `fun_recoverAtomicCall_inner`, `fun_burn`, `fun_setAssetHandler`;
+  14 function pipelines built + axiom-clean), **L2InteropCommitmentTree** 33/33 (all 9 function
+  pipelines axiom-clean: `fun_updateLeaf`×3, `fun_pushNewLeaf`, `fun_publishRoot`, `fun_root`,
+  `fun_hashLeaf`, `fun_efficientHash`, `fun_uncheckedInc`), **AtomicFlowManager** 164/174
+  (incl. `fun_checkSettlementLayerIsL1`, `fun_readAggregationHopPath`,
+  `fun_verifyLastBatchInRoot`).  L1AssetRouter, L1Nullifier, DiamondProxy were already clean.
+  Every unfilled residue is a dependent of a VC-GENERATOR bug, now catalogued: the known
+  `EVMCleanup_bool'` cluster (AtomicFlowManager, gates `fun_verifyInclusion`/
+  `fun_verifyTimeoutAbsence`), plus three new classes found in L2AssetRouter — a `log4`
+  emission proof gap, two quotation parse failures (`unexpected ':'`), and an unbound-`hs`
+  generated proof.  *The old pre-relocation InteropHandler corpus (316 templates) is
+  deliberately skipped as superseded.*
 
 ## Part C — What a reviewer should do
 
