@@ -1019,6 +1019,59 @@ theorem retargetStage_decode
   rw [decodeLeaf_after_write hacc (cached_accThread hclean)]
   rw [hf0, hf2]
 
+/-! ### Cross-accessor slot stability -/
+
+/-- A cached interval survives an `accOut` step (any key, any base): the
+accessor's scratch `mstore`s leave the cache untouched and its keccak call
+preserves cached entries. -/
+private lemma cached_after_accOut {σ : EVMState} {k b : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (accOut σ k b).2.keccak_map = some w := by
+  unfold Clear.KeccakDeterminism.accOut
+  refine cached_after_keccakOut ?_
+  rw [keccak_map_mstore, keccak_map_mstore]
+  exact h
+
+/-- **Cross-accessor slot frame**: a leaf slot whose hash is cached
+survives ANY interleaved accessor step (the vti registration, other keys'
+reads) — junk-window frame + cache survival + cleanliness. -/
+theorem leafSlot_accOut_frame {σ : EVMState} {i k b w : UInt256}
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hclean : (accOut σ i 4).2.hash_collision = false) :
+    leafSlot (accOut σ k b).2 i = leafSlot σ i := by
+  show (accOut ((accOut σ k b).2) i 4).1 = (accOut σ i 4).1
+  refine accOut_deterministic ?_ ?_ hclean
+  · intro x hx1 _
+    exact (accOut_junk_window hx1).symm
+  · intro w' hw'
+    -- the σ-side accessor's cached entry: transport hc through the k-thread
+    have hcw : w' = w := by
+      have h1 := cached_after_keccakOut (p := 0) (n := 64)
+        (σ := (σ.mstore 0 i).mstore 32 4) (I := accInterval σ i 4) (w := w)
+        (by rw [keccak_map_mstore, keccak_map_mstore]; exact hc)
+      have h2 : (accOut σ i 4).2.keccak_map
+          = (Clear.KeccakDeterminism.keccakOut ((σ.mstore 0 i).mstore 32 4) 0 64).2.keccak_map := rfl
+      rw [h2] at hw'
+      rw [h1] at hw'
+      exact (Option.some.inj hw').symm
+    rw [hcw]
+    exact cached_after_accOut hc
+
+/-- **Decode survives any accessor thread**: the slot is frame-stable and
+accessors never write storage. -/
+theorem decodeLeaf_accOut_frame {σ : EVMState} {i k b w : UInt256}
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hclean : (accOut σ i 4).2.hash_collision = false)
+    (hcleanK : (accOut σ k b).2.hash_collision = false) :
+    decodeLeaf (accOut σ k b).2 i = decodeLeaf σ i := by
+  unfold decodeLeaf
+  rw [leafSlot_accOut_frame hc hclean]
+  rw [generated.L2InteropCommitmentTree.L2InteropCommitmentTree.sload_accOut_of_clean
+      _ hcleanK,
+    generated.L2InteropCommitmentTree.L2InteropCommitmentTree.sload_accOut_of_clean
+      _ hcleanK]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
