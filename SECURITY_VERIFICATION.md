@@ -1364,7 +1364,7 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   concrete root-publication transport between chains is upstream infrastructure.*
 - **#61 IMT FIDELITY, the storage-side insert agreement (2026-07-23).**
   `imt_fidelity_user.lean` (L2ICT): the abstraction function from concrete storage to the
-  abstract model — `leafSlot` (`keccak(i ‖ 5)`), `decodeLeaf` (the `value`/`nextValue` fields
+  abstract model — `leafSlot` (`keccak(i ‖ 4)` — the `leaves` mapping base; base 5 is `valueToIndex`), `decodeLeaf` (the `value`/`nextValue` fields
   at `slot`/`+2`; `nextIndex` has no abstract counterpart), `leafSetOf` (imaged over the count
   at slot 1) — with its `sstore` frames on the CACHED branch (`sstore` grows `used_range`,
   which steers `keccak256`'s fresh-branch choice, so keccak values are `sstore`-stable only

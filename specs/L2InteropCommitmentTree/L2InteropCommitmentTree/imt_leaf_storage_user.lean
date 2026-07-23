@@ -86,10 +86,12 @@ private lemma mload_sstore (σ : EVMState) (a v p : UInt256) :
   show (σ.sstore a v).machine_state.lookupMemory p = σ.machine_state.lookupMemory p
   rw [machine_state_sstore]
 
-/-! ### The leaf-slot accessor: `keccak256(key ‖ 5)` as one `accOut` step -/
+/-! ### The mapping accessor: `keccak256(key ‖ 5)` as one `accOut` step -/
 
-/-- **Closed form of `mapping_…_5196(key)`** — the `leaves` mapping accessor
-at storage slot 5: one `accOut` step at `(key, 5)`. -/
+/-- **Closed form of `mapping_…_5196(key)`** — the `valueToIndex` mapping
+accessor at base slot 5 (NOT the `leaves` mapping, which is `mapping_…_5199`
+at base slot 4 — see the Yul source; earlier revisions of this comment
+mislabeled it): one `accOut` step at `(key, 5)`. -/
 lemma mapping_leaves_call
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} {v : Identifier} :
     execCall (fuel+1) mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196

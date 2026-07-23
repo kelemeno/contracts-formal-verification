@@ -16,8 +16,10 @@ import specs.KeccakInjective
   frames:
 
   * `leafSlot σ i`   — the storage slot of leaf `i`: the `leaves` mapping
-    lives at slot 5 (`mapping_leaves_call`), so the slot is one `accOut`
-    step at `(i, 5)`;
+    lives at BASE SLOT 4 (`mapping_…_5199` in the Yul; base 5 is the
+    `valueToIndex` mapping — `mapping_…_5196`, whose doc comment in
+    `imt_leaf_storage_user` mislabels it), so the slot is one `accOut`
+    step at `(i, 4)`;
   * `decodeLeaf σ i` — the abstract leaf at index `i`: the concrete
     `IMTLeaf` struct is `{value, nextIndex, nextValue}` at `slot`/`+1`/`+2`
     (IndexedMerkleTree.sol), and `AbsLeaf ⟨key, nextKey⟩` reads the
@@ -80,9 +82,9 @@ private lemma keccakOut_fst_cached {σ : EVMState} {p n w : UInt256}
 
 /-! ### The abstraction function -/
 
-/-- The storage slot of leaf `i`: the `leaves` mapping at base slot 5. -/
+/-- The storage slot of leaf `i`: the `leaves` mapping at base slot 4. -/
 def leafSlot (σ : EVMState) (i : UInt256) : UInt256 :=
-  (accOut σ i 5).1
+  (accOut σ i 4).1
 
 /-- The abstract leaf at index `i`: the `value`/`nextValue` fields of the
 concrete `IMTLeaf` struct. -/
@@ -97,21 +99,21 @@ def leafSetOf (σ : EVMState) : Finset AbsLeaf :=
 
 /-- **The mapping slot is `sstore`-invariant once cached.** -/
 theorem leafSlot_sstore {σ : EVMState} {a v i w : UInt256}
-    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w) :
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w) :
     leafSlot (σ.sstore a v) i = leafSlot σ i := by
   unfold leafSlot accOut
-  have hms : (((σ.sstore a v).mstore 0 i).mstore 32 5).machine_state
-      = ((σ.mstore 0 i).mstore 32 5).machine_state := by
-    show ((σ.sstore a v).machine_state.updateMemory 0 i).updateMemory 32 5
-      = (σ.machine_state.updateMemory 0 i).updateMemory 32 5
+  have hms : (((σ.sstore a v).mstore 0 i).mstore 32 4).machine_state
+      = ((σ.mstore 0 i).mstore 32 4).machine_state := by
+    show ((σ.sstore a v).machine_state.updateMemory 0 i).updateMemory 32 4
+      = (σ.machine_state.updateMemory 0 i).updateMemory 32 4
     rw [machine_state_sstore']
-  have hkm : (((σ.sstore a v).mstore 0 i).mstore 32 5).keccak_map
+  have hkm : (((σ.sstore a v).mstore 0 i).mstore 32 4).keccak_map
       = σ.keccak_map := by
     rw [keccak_map_mstore, keccak_map_mstore, keccak_map_sstore']
-  have hkm0 : ((σ.mstore 0 i).mstore 32 5).keccak_map = σ.keccak_map := by
+  have hkm0 : ((σ.mstore 0 i).mstore 32 4).keccak_map = σ.keccak_map := by
     rw [keccak_map_mstore, keccak_map_mstore]
   have hc' : Finmap.lookup
-      (mkInterval ((σ.mstore 0 i).mstore 32 5).machine_state 0 64)
+      (mkInterval ((σ.mstore 0 i).mstore 32 4).machine_state 0 64)
       σ.keccak_map = some w := hc
   rw [keccakOut_fst_cached (by rw [hms, hkm]; exact hc'),
       keccakOut_fst_cached (by rw [hkm0]; exact hc')]
@@ -120,7 +122,7 @@ theorem leafSlot_sstore {σ : EVMState} {a v i w : UInt256}
 field slots** (cached mapping hash; the write may target other leaves, the
 count, or any node array). -/
 theorem decodeLeaf_sstore_outside {σ : EVMState} {a v i w : UInt256}
-    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
     (h0 : a ≠ leafSlot σ i) (h2 : a ≠ leafSlot σ i + 2) :
     decodeLeaf (σ.sstore a v) i = decodeLeaf σ i := by
   unfold decodeLeaf
@@ -147,8 +149,8 @@ private lemma accInterval_sstore (σ : EVMState) (a v key base : UInt256) :
 
 /-- A cached accessor hash stays cached across any `sstore`. -/
 private lemma cache_sstore {σ : EVMState} {a v key w : UInt256}
-    (hc : Finmap.lookup (accInterval σ key 5) σ.keccak_map = some w) :
-    Finmap.lookup (accInterval (σ.sstore a v) key 5)
+    (hc : Finmap.lookup (accInterval σ key 4) σ.keccak_map = some w) :
+    Finmap.lookup (accInterval (σ.sstore a v) key 4)
         (σ.sstore a v).keccak_map = some w := by
   rw [accInterval_sstore, keccak_map_sstore']
   exact hc
@@ -167,7 +169,7 @@ index `n` is exactly `⟨v, nv⟩`.  Cached mapping hash; executing account
 present (an absent account makes `sstore` a no-op). -/
 theorem decodeLeaf_after_write {σ : EVMState} {n v ni nv w : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
-    (hc : Finmap.lookup (accInterval σ n 5) σ.keccak_map = some w) :
+    (hc : Finmap.lookup (accInterval σ n 4) σ.keccak_map = some w) :
     decodeLeaf (((σ.sstore (leafSlot σ n) v).sstore
         (leafSlot σ n + 1) ni).sstore (leafSlot σ n + 2) nv) n
       = ⟨v, nv⟩ := by
@@ -211,10 +213,10 @@ slot hashes, hashes avoid the small scalar slots, and the `+1/+2` field
 offsets of distinct 3-word windows stay disjoint). -/
 theorem leafSetOf_after_write {σ : EVMState} {v ni nv w : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
-    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some w)
+    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some w)
     (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
     (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
-      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm)
     (hdisj0 : ∀ m : ℕ, m < (σ.sload 1).val →
       leafSlot σ (σ.sload 1) ≠ leafSlot σ (m : UInt256)
       ∧ leafSlot σ (σ.sload 1) ≠ leafSlot σ (m : UInt256) + 2)
@@ -364,11 +366,11 @@ private lemma accInterval_ne {σ₁ σ₂ : EVMState} {i j base : UInt256}
 
 /-- The cached-hash success witness for a leaf slot. -/
 private lemma leafSlot_keccak {σ : EVMState} {i w : UInt256}
-    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w) :
-    ((σ.mstore 0 i).mstore 32 5).keccak256 0 64
-      = some (w, (σ.mstore 0 i).mstore 32 5)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w) :
+    ((σ.mstore 0 i).mstore 32 4).keccak256 0 64
+      = some (w, (σ.mstore 0 i).mstore 32 4)
     ∧ leafSlot σ i = w := by
-  have hkm : ((σ.mstore 0 i).mstore 32 5).keccak_map = σ.keccak_map := by
+  have hkm : ((σ.mstore 0 i).mstore 32 4).keccak_map = σ.keccak_map := by
     rw [keccak_map_mstore, keccak_map_mstore]
   constructor
   · exact keccak256_of_cached (by rw [hkm]; exact hc)
@@ -376,8 +378,8 @@ private lemma leafSlot_keccak {σ : EVMState} {i w : UInt256}
 
 /-- **Slot injectivity**: distinct cached keys live at distinct slots. -/
 theorem leafSlot_inj {σ : EVMState} {i j wi wj : UInt256}
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
-    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
     (hij : i ≠ j) : leafSlot σ i ≠ leafSlot σ j := by
   obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
   obtain ⟨hkj, hvj⟩ := leafSlot_keccak hcj
@@ -387,8 +389,8 @@ theorem leafSlot_inj {σ : EVMState} {i j wi wj : UInt256}
 /-- **Offset separation**: a small offset of one leaf slot never hits
 another leaf's slot. -/
 theorem leafSlot_add_ne {σ : EVMState} {i j wi wj k : UInt256}
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
-    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
     (hij : i ≠ j) (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
     leafSlot σ i + k ≠ leafSlot σ j := by
   obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
@@ -400,8 +402,8 @@ theorem leafSlot_add_ne {σ : EVMState} {i j wi wj k : UInt256}
 `k₁.val ≤ k₂.val` both small, `slot_i + k₁ ≠ slot_j + k₂` for `i ≠ j`
 (cancel `k₁`, then offset separation with `k₂ − k₁`). -/
 theorem leafSlot_off_ne_off {σ : EVMState} {i j wi wj k₁ k₂ : UInt256}
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
-    (hcj : Finmap.lookup (accInterval σ j 5) σ.keccak_map = some wj)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
     (hij : i ≠ j)
     (hk₁ : k₁.val < Clear.KeccakInjective.lowSlotBound)
     (hk₂ : k₂.val < Clear.KeccakInjective.lowSlotBound)
@@ -431,7 +433,7 @@ theorem leafSlot_off_ne_off {σ : EVMState} {i j wi wj k₁ k₂ : UInt256}
 
 /-- **Slots avoid the reserved low slots** (count at 1, roots, sizes …). -/
 theorem leafSlot_ne_low {σ : EVMState} {i w : UInt256} (c : UInt256)
-    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
     (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
     leafSlot σ i ≠ c := by
   obtain ⟨hki, hvi⟩ := leafSlot_keccak hc
@@ -440,7 +442,7 @@ theorem leafSlot_ne_low {σ : EVMState} {i w : UInt256} (c : UInt256)
 
 /-- **Offset slots avoid the reserved low slots.** -/
 theorem leafSlot_add_ne_low {σ : EVMState} {i w : UInt256} (k c : UInt256)
-    (hc : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
     leafSlot σ i + k ≠ c := by
@@ -458,9 +460,9 @@ first use). -/
 theorem leafSetOf_insert {σ : EVMState} {v ni nv w : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
     (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
-    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some w)
+    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some w)
     (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
-      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm) :
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm) :
     leafSetOf ((((σ.sstore (leafSlot σ (σ.sload 1)) v).sstore
         (leafSlot σ (σ.sload 1) + 1) ni).sstore
         (leafSlot σ (σ.sload 1) + 2) nv).sstore 1 (σ.sload 1 + 1))
@@ -568,7 +570,7 @@ theorem arr_elem_ne_leafSlot_add
     {σₐ σ : EVMState} {a j i k wa w : UInt256}
     (hca : Finmap.lookup (mkInterval (σₐ.mstore 0 a).machine_state 0 32)
         σₐ.keccak_map = some wa)
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
     (hj : j.val < Clear.KeccakInjective.lowSlotBound)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
     (arrOut σₐ a).1 + j ≠ leafSlot σ i + k := by
@@ -584,7 +586,7 @@ theorem decodeLeaf_arrWrite
     {σₐ σ : EVMState} {a j i v wa w : UInt256}
     (hca : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
         σ.keccak_map = some wa)
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some w)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
     (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
     decodeLeaf (σ.sstore ((arrOut σ a).1 + j) v) i = decodeLeaf σ i := by
   refine decodeLeaf_sstore_outside hci ?_ ?_
@@ -636,14 +638,14 @@ theorem decodeLeaf_deterministic {σ₁ σ₂ : EVMState} {i : UInt256}
       Finmap.lookup b σ₁.machine_state.memory
         = Finmap.lookup b σ₂.machine_state.memory)
     (hmono : ∀ w : UInt256,
-      Finmap.lookup (accInterval σ₁ i 5) (accOut σ₁ i 5).2.keccak_map = some w →
-        Finmap.lookup (accInterval σ₁ i 5) σ₂.keccak_map = some w)
-    (hclean : (accOut σ₁ i 5).2.hash_collision = false)
+      Finmap.lookup (accInterval σ₁ i 4) (accOut σ₁ i 4).2.keccak_map = some w →
+        Finmap.lookup (accInterval σ₁ i 4) σ₂.keccak_map = some w)
+    (hclean : (accOut σ₁ i 4).2.hash_collision = false)
     (hs0 : σ₂.sload (leafSlot σ₁ i) = σ₁.sload (leafSlot σ₁ i))
     (hs2 : σ₂.sload (leafSlot σ₁ i + 2) = σ₁.sload (leafSlot σ₁ i + 2)) :
     decodeLeaf σ₂ i = decodeLeaf σ₁ i := by
   have hslot : leafSlot σ₂ i = leafSlot σ₁ i := by
-    show (accOut σ₂ i 5).1 = (accOut σ₁ i 5).1
+    show (accOut σ₂ i 4).1 = (accOut σ₁ i 4).1
     exact accOut_deterministic hframe hmono hclean
   unfold decodeLeaf
   rw [hslot, hs0, hs2]
@@ -656,7 +658,7 @@ theorem decodeLeaf_deterministic {σ₁ σ₂ : EVMState} {i : UInt256}
 cache-stable. -/
 theorem decodeLeaf_retarget {σ : EVMState} {idx v w : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
-    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w) :
+    (hc : Finmap.lookup (accInterval σ idx 4) σ.keccak_map = some w) :
     decodeLeaf (σ.sstore (leafSlot σ idx + 2) v) idx
       = ⟨(decodeLeaf σ idx).key, v⟩ := by
   unfold decodeLeaf
@@ -666,8 +668,8 @@ theorem decodeLeaf_retarget {σ : EVMState} {idx v w : UInt256}
 
 /-- **Retarget frame**: every other cached leaf decodes unchanged. -/
 theorem decodeLeaf_retarget_outside {σ : EVMState} {idx i v w wi : UInt256}
-    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w)
-    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
+    (hc : Finmap.lookup (accInterval σ idx 4) σ.keccak_map = some w)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
     (hne : idx ≠ i) :
     decodeLeaf (σ.sstore (leafSlot σ idx + 2) v) i = decodeLeaf σ i := by
   refine decodeLeaf_sstore_outside hci ?_ ?_
@@ -676,7 +678,7 @@ theorem decodeLeaf_retarget_outside {σ : EVMState} {idx i v w wi : UInt256}
 
 /-- **Retarget count frame**: the count survives (field slots avoid slot 1). -/
 theorem leafCount_retarget {σ : EVMState} {idx v w : UInt256}
-    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w) :
+    (hc : Finmap.lookup (accInterval σ idx 4) σ.keccak_map = some w) :
     (σ.sstore (leafSlot σ idx + 2) v).sload 1 = σ.sload 1 :=
   sload_sstore_ne (leafSlot_add_ne_low 2 1 hc (by decide) (by decide))
 
@@ -732,10 +734,10 @@ theorem leafSetOf_imtInsert {σ : EVMState} {widx v ni w wc : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
     (hwlt : widx.val < (σ.sload 1).val)
     (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
-    (hcw : Finmap.lookup (accInterval σ widx 5) σ.keccak_map = some w)
-    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some wc)
+    (hcw : Finmap.lookup (accInterval σ widx 4) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some wc)
     (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
-      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm)
     (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
       decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m') :
     leafSetOf (((((retargetEvm σ widx v).sstore
@@ -773,12 +775,12 @@ theorem leafSetOf_imtInsert {σ : EVMState} {widx v ni w wc : UInt256}
   have haccr : (σᵣ.lookupAccount σᵣ.execution_env.code_owner).isSome :=
     acct_sstore hacc
   have hnwr : (σᵣ.sload 1).val + 1 < 2 ^ 256 := by rw [hcnt]; exact hnw
-  have hccr : Finmap.lookup (accInterval σᵣ (σᵣ.sload 1) 5) σᵣ.keccak_map
+  have hccr : Finmap.lookup (accInterval σᵣ (σᵣ.sload 1) 4) σᵣ.keccak_map
       = some wc := by
     rw [hcnt, hσᵣ]
     exact cache_sstore hcc
   have hcachesr : ∀ m : ℕ, m < (σᵣ.sload 1).val →
-      ∃ wm, Finmap.lookup (accInterval σᵣ (m : UInt256) 5) σᵣ.keccak_map
+      ∃ wm, Finmap.lookup (accInterval σᵣ (m : UInt256) 4) σᵣ.keccak_map
         = some wm := by
     rw [hcnt]
     intro m hm
@@ -805,10 +807,10 @@ theorem leafSetOf_evolution_step {σ : EVMState} {widx v ni w wc : UInt256}
     (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
     (hwlt : widx.val < (σ.sload 1).val)
     (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
-    (hcw : Finmap.lookup (accInterval σ widx 5) σ.keccak_map = some w)
-    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some wc)
+    (hcw : Finmap.lookup (accInterval σ widx 4) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some wc)
     (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
-      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm)
     (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
       decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m')
     (hlow : (decodeLeaf σ widx).key < v)
