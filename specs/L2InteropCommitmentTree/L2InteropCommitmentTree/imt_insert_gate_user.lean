@@ -4,6 +4,8 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.constant_L2_ATO
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
 import specs.KeccakDeterminism
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_hashLeaf
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 
 /-
   THE INSERT GATES (L2InteropCommitmentTree dispatcher glue).
@@ -32,16 +34,11 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas
      OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
+     L2InteropCommitmentTree.Common
 
 set_option maxRecDepth 4000
 set_option maxHeartbeats 1000000
 set_option linter.dupNamespace false
-
-@[simp] private lemma insert_Ok {evm : EVMState} {store : VarStore}
-    {var : Identifier} {val : Literal} :
-    (Ok evm store)⟦var ↦ val⟧ = Ok evm (store.insert var val) := rfl
-
-private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
 
 private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
     (Ok e σ).setEvm E = Ok E σ := rfl
@@ -57,10 +54,6 @@ private lemma lookup_insert_self_local {evm : EVMState} {σ : VarStore}
   rw [← insert_Ok]; exact lookup_insert' (by trivial)
 
 private lemma reviveJump_of_isOk_local {s : State} (h : isOk s) : 🧟 s = s := by
-  obtain ⟨e₀, σ₀, rfl⟩ := State_of_isOk h; rfl
-
-private lemma evm_setEvm_of_isOk {s : State} {e : EVMState} (h : isOk s) :
-    (s🇪⟦e⟧).evm = e := by
   obtain ⟨e₀, σ₀, rfl⟩ := State_of_isOk h; rfl
 
 private lemma evm_insert {s : State} {k : Identifier} {v : Literal} :
@@ -398,6 +391,100 @@ theorem insert_dedup_reverts
              List.singleton_append, multifill_cons, multifill_nil,
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
+
+/-! ### `fun_hashLeaf`, call level -/
+
+open Clear.KeccakDeterminism in
+/-- **`fun_hashLeaf`, call level** — the leaf-struct hash in pair form for
+its expression-position occurrences in the insert glue
+(`updateLeaf(…, hashLeaf(e))`, `pushNewLeaf(hashLeaf(e))`).  Transplant of
+`hashLeaf_call_acc`. -/
+lemma hashLeaf_vcall
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {leaf : Literal}
+    (hp : (evm.mload 64).val + 128 ≤ 18446744073709551615) :
+    call (fuel+1) [leaf] fun_hashLeaf (Ok evm σ)
+      = (Ok (hashLeafOut evm leaf).2 σ, [(hashLeafOut evm leaf).1]) := by
+  have hbody : fun_hashLeaf.body
+      = [block_1948431615937796266, block_2512525436326504558,
+         block_5488197900316908801, block_7615139809432579602] := by
+    rfl
+  have hparams : fun_hashLeaf.params = ["var_leaf_mpos"] := rfl
+  have hrets : fun_hashLeaf.rets = ["var"] := rfl
+  unfold call
+  simp only [hparams, hrets, hbody]
+  simp only [multifill', mkOk_initcall_Ok, List.map_nil, List.map_cons]
+  rw [cons, cons, cons, cons, nil]
+  have hok0 : isOk ((Ok evm σ)☎️⟦["var_leaf_mpos"], [leaf]⟧) := isOk_initcall_of_isOk trivial
+  obtain ⟨e0, σ0, h0⟩ := State_of_isOk hok0
+  have hleaf0 : ((Ok evm σ)☎️⟦["var_leaf_mpos"], [leaf]⟧)["var_leaf_mpos"]!! = leaf :=
+    lookup_initcall_1
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm h0
+    rw [show ((Ok evm σ)☎️⟦["var_leaf_mpos"], [leaf]⟧).evm = evm from by
+      unfold initcall; simp only [evm_multifill, evm_setStore]; rfl] at h
+    exact h.symm
+  rw [h0, he0] at hleaf0
+  simp only [h0, he0]
+  simp only [hashLeaf_chunk1 hleaf0]
+  have h1 : (Ok evm (((((σ0.insert "_1" (evm.mload leaf)).insert
+      "split_expr_0" (leaf + 32)).insert "_2" (evm.mload (leaf + 32))).insert
+      "split_expr_1" (leaf + 64)).insert "_3" (evm.mload (leaf + 64))))["_1"]!!
+      = evm.mload leaf := by
+    rw [lookup_insert_ne_fin_local (by decide), lookup_insert_ne_fin_local (by decide),
+        lookup_insert_ne_fin_local (by decide), lookup_insert_ne_fin_local (by decide)]
+    exact lookup_insert_self_local
+  have h2 : (Ok evm (((((σ0.insert "_1" (evm.mload leaf)).insert
+      "split_expr_0" (leaf + 32)).insert "_2" (evm.mload (leaf + 32))).insert
+      "split_expr_1" (leaf + 64)).insert "_3" (evm.mload (leaf + 64))))["_2"]!!
+      = evm.mload (leaf + 32) := by
+    rw [lookup_insert_ne_fin_local (by decide), lookup_insert_ne_fin_local (by decide)]
+    exact lookup_insert_self_local
+  simp only [hashLeaf_chunk2 h1 h2]
+  set σ2 := ((((((σ0.insert "_1" (evm.mload leaf)).insert
+      "split_expr_0" (leaf + 32)).insert "_2" (evm.mload (leaf + 32))).insert
+      "split_expr_1" (leaf + 64)).insert "_3" (evm.mload (leaf + 64))).insert
+      "expr_mpos" (evm.mload 64)).insert "_4" (evm.mload 64 + 32) with hσ2
+  set E2 := (evm.mstore (evm.mload 64 + 32) (evm.mload leaf)).mstore (evm.mload 64 + 64)
+      (evm.mload (leaf + 32)) with hE2
+  have hP : (Ok E2 (σ2.insert "split_expr_2" (evm.mload 64 + 64)))["expr_mpos"]!!
+      = evm.mload 64 := by
+    rw [lookup_insert_ne_fin_local (by decide), hσ2,
+        lookup_insert_ne_fin_local (by decide)]
+    exact lookup_insert_self_local
+  have h3 : (Ok E2 (σ2.insert "split_expr_2" (evm.mload 64 + 64)))["_3"]!!
+      = evm.mload (leaf + 64) := by
+    rw [lookup_insert_ne_fin_local (by decide), hσ2,
+        lookup_insert_ne_fin_local (by decide), lookup_insert_ne_fin_local (by decide)]
+    exact lookup_insert_self_local
+  simp only [hashLeaf_chunk3 hP h3 hp]
+  set E5 := ((E2.mstore (evm.mload 64 + 96) (evm.mload (leaf + 64))).mstore
+      (evm.mload 64) 96).mstore 64 (evm.mload 64 + 128) with hE5
+  set σ3 := ((σ2.insert "split_expr_2" (evm.mload 64 + 64)).insert
+      "split_expr_3" (evm.mload 64 + 96)).insert "split_expr_4" (E5.mload (evm.mload 64)) with hσ3
+  have hx : (Ok E5 σ3)["_4"]!! = evm.mload 64 + 32 := by
+    rw [hσ3, lookup_insert_ne_fin_local (by decide), lookup_insert_ne_fin_local (by decide),
+        lookup_insert_ne_fin_local (by decide), hσ2]
+    exact lookup_insert_self_local
+  have hl : (Ok E5 σ3)["split_expr_4"]!! = E5.mload (evm.mload 64) := by
+    rw [hσ3]
+    exact lookup_insert_self_local
+  simp only [hashLeaf_chunk4 hx hl]
+  have hokF : isOk (Ok (keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))).2
+      (σ3.insert "var" (keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))).1)) := trivial
+  have hvar : (Ok (keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))).2
+      (σ3.insert "var" (keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))).1))["var"]!!
+      = (keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))).1 :=
+    lookup_insert_self_local
+  simp only [hvar]
+  rw [reviveJump_of_isOk_local hokF]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  have halign : keccakOut E5 (evm.mload 64 + 32) (E5.mload (evm.mload 64))
+      = hashLeafOut evm leaf := by
+    rw [hE5, hE2]
+    unfold hashLeafOut leafScratchEvm
+    rfl
+  rw [halign]
 
 end
 
