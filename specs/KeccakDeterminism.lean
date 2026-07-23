@@ -1106,6 +1106,17 @@ theorem mload_mstore_outside (σ : EVMState) (a v i : UInt256)
   unfold EVMState.mstore EVMState.mload EVMState.updateMemory
   exact lookupMemory_updateMemory_outside σ.machine_state a v i ha hi hdisj
 
+/-- **Two-write framing composite**: a read at `i` disjoint from two
+(non-wrapping) writes passes through both. -/
+theorem mload_mstore_outside₂ (σ : EVMState) (a₁ v₁ a₂ v₂ i : UInt256)
+    (ha₁ : a₁.val + 32 ≤ 2 ^ 256) (ha₂ : a₂.val + 32 ≤ 2 ^ 256)
+    (hi : i.val + 32 ≤ 2 ^ 256)
+    (hd₁ : i.val + 32 ≤ a₁.val ∨ a₁.val + 32 ≤ i.val)
+    (hd₂ : i.val + 32 ≤ a₂.val ∨ a₂.val + 32 ≤ i.val) :
+    ((σ.mstore a₁ v₁).mstore a₂ v₂).mload i = σ.mload i := by
+  rw [mload_mstore_outside _ a₂ v₂ i ha₂ hi hd₂,
+      mload_mstore_outside σ a₁ v₁ i ha₁ hi hd₁]
+
 /-- The junk window `[64, 95)` survives *two* consecutive accessor steps — the
 frame that lets a multi-level fold read scratch state after any number of
 pair-hash steps (base atom for the fold agreement induction). -/
