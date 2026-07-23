@@ -830,6 +830,78 @@ theorem leafSetOf_evolution_step {σ : EVMState} {widx v ni w wc : UInt256}
   exact Finset.mem_image.mpr
     ⟨widx.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
 
+/-! ### The valueToIndex family (base 5) and its separation from the leaves -/
+
+/-- The `valueToIndex` slot: base slot 5 (`mapping_…_5196`,
+`mapping_leaves_call`). -/
+def vtiSlot (σ : EVMState) (v : UInt256) : UInt256 :=
+  (accOut σ v 5).1
+
+/-- The cached-hash success witness for a `valueToIndex` slot. -/
+private lemma vtiSlot_keccak {σ : EVMState} {v w : UInt256}
+    (hc : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some w) :
+    ((σ.mstore 0 v).mstore 32 5).keccak256 0 64
+      = some (w, (σ.mstore 0 v).mstore 32 5)
+    ∧ vtiSlot σ v = w := by
+  have hkm : ((σ.mstore 0 v).mstore 32 5).keccak_map = σ.keccak_map := by
+    rw [keccak_map_mstore, keccak_map_mstore]
+  constructor
+  · exact keccak256_of_cached (by rw [hkm]; exact hc)
+  · exact keccakOut_fst_cached (by rw [hkm]; exact hc)
+
+/-- Base-4 and base-5 preimages differ at the word stored at address 32. -/
+private lemma accInterval_base_ne {σ₁ σ₂ : EVMState} {x y : UInt256} :
+    mkInterval ((σ₁.mstore 0 x).mstore 32 5).machine_state 0 64
+      ≠ mkInterval ((σ₂.mstore 0 y).mstore 32 4).machine_state 0 64 := by
+  apply Clear.KeccakInjective.mkInterval_0_64_ne_of_word32_ne
+  have h5 : ((σ₁.mstore 0 x).mstore 32 5).machine_state.lookupMemory (32 : UInt256)
+      = 5 := by
+    have := Clear.KeccakInjective.mload_mstore_self (σ₁.mstore 0 x) 5
+    unfold EVMState.mload at this
+    exact this
+  have h4 : ((σ₂.mstore 0 y).mstore 32 4).machine_state.lookupMemory (32 : UInt256)
+      = 4 := by
+    have := Clear.KeccakInjective.mload_mstore_self (σ₂.mstore 0 y) 4
+    unfold EVMState.mload at this
+    exact this
+  rw [h5, h4]
+  decide
+
+/-- **The `valueToIndex` slot never hits a leaf-field slot** (base words 5
+vs 4 make the preimages distinct at address 32). -/
+theorem vtiSlot_ne_leafSlot_add {σ : EVMState} {v i k wv wi : UInt256}
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    vtiSlot σ v ≠ leafSlot σ i + k := by
+  obtain ⟨hkv, hvv⟩ := vtiSlot_keccak hcv
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  rw [hvv, hvi]
+  have hne := keccak_off_ne_off (k₁ := (0 : UInt256)) (k₂ := k)
+    hkv hki accInterval_base_ne (by decide) hk
+  intro heq
+  exact hne (by simpa using heq)
+
+/-- **Leaf decoding survives the `valueToIndex` write.** -/
+theorem decodeLeaf_vtiWrite {σ : EVMState} {v u i wv wi : UInt256}
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi) :
+    decodeLeaf (σ.sstore (vtiSlot σ v) u) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · have h0 : vtiSlot σ v ≠ leafSlot σ i + 0 :=
+      vtiSlot_ne_leafSlot_add hcv hci (by decide)
+    simpa using h0
+  · exact vtiSlot_ne_leafSlot_add hcv hci (by decide)
+
+/-- **The count survives the `valueToIndex` write.** -/
+theorem leafCount_vtiWrite {σ : EVMState} {v u wv : UInt256}
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv) :
+    (σ.sstore (vtiSlot σ v) u).sload 1 = σ.sload 1 := by
+  obtain ⟨hkv, hvv⟩ := vtiSlot_keccak hcv
+  refine sload_sstore_ne ?_
+  rw [hvv]
+  exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkv (by decide)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
