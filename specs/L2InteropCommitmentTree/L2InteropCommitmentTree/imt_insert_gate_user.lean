@@ -7,6 +7,7 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_a
 import specs.KeccakDeterminism
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_hashLeaf
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory_5179
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.read_from_storage_reference_type_struct_IMTLeaf
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
 
@@ -976,6 +977,62 @@ lemma newLeafStage_arm
              evm_Ok, setEvm_Ok, insert_Ok]
   rw [lookup_insert_ne_fin_local (by decide),
       lookup_ok_evm_local _ evm, h1]
+
+/-! ### The low-leaf read chunk of the insert glue -/
+
+/-- The initial low-leaf read, source-verbatim (yul 194-198): pin the
+candidate index, materialize `self.leaves[lowLeafIndex]` in memory, read
+its `value` field. -/
+@[reducible] def lowLeafReadChunk : Stmt := <s
+  {
+      let var_lowLeafIndex := value1
+      let var_lowLeaf_mpos := read_from_storage_reference_type_struct_IMTLeaf(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199(value1))
+      let _2 := mload(var_lowLeaf_mpos)
+  }
+>
+
+open Clear.KeccakDeterminism in
+/-- **Low-leaf read closed form**: the leaves-slot keccak step, the struct
+materialization (`leafReadEvm`), and the `value`-field readback. -/
+lemma lowLeafRead_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {IX : Literal}
+    (hix : (Ok evm σ)["value1"]!! = IX)
+    (hp : ((accOut evm IX 4).2.mload 64).val + 96 ≤ 18446744073709551615) :
+    exec (fuel+1) lowLeafReadChunk (Ok evm σ)
+      = Ok (leafReadEvm (accOut evm IX 4).2 (accOut evm IX 4).1)
+          (((σ.insert "var_lowLeafIndex" IX).insert
+            "var_lowLeaf_mpos" ((accOut evm IX 4).2.mload 64)).insert
+            "_2" ((leafReadEvm (accOut evm IX 4).2 (accOut evm IX 4).1).mload
+              ((accOut evm IX 4).2.mload 64))) := by
+  unfold lowLeafReadChunk
+  rw [cons, LetEq']
+  simp only [Var', insert_Ok]
+  rw [hix]
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin_local (by decide), hix]
+  rw [mapping_leaves4_call]
+  try simp only [List.head!]
+  try simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [read_leaf_call hp]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_local]
 
 end
 
