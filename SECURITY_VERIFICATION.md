@@ -1463,3 +1463,27 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   which can't use this directly (their `eq`+revert is inlined in the un-buildable dispatch switch, not a
   standalone guard function).
 - Liveness, cross-contract end-to-end, L2/prover — out of model scope (A8).
+
+### Part D addendum — atomic-interop gaps as of 2026-07-23 evening
+
+- **The grand fidelity stitch** — #65's concrete insert closed form and #62's abstract
+  `imtInsert` are one composition apart: remaining are the walk/pad sload-at-leaf frames
+  (all separations and cache/junk transports exist — `updateWalk_junk` shows the walk
+  preserves bytes ≥ 64 entirely), the new-leaf decode agreement (in progress), and the
+  end-to-end assembly.  Until then, "the deployed insert IS an `Evolution` step" holds at
+  the storage-write level (#62 capstone) but not yet as a single theorem from
+  `insertGlue_prefix`.
+- **VC-generator bugs** (GENERATOR_BUGS.md): four classes gate 22 templates —
+  `EVMCleanup_bool'` (gates `fun_verifyInclusion`/`fun_verifyTimeoutAbsence` pipelines;
+  their CONCRETE coverage exists in #22–#36), raw revert-strings in quotations, a lone-callee
+  `hs` bug, and a `log4` shape gap.  Upstream fixes make ~22 templates fill mechanically.
+- **Loop abstractions carry `True`-`AFor`** everywhere except `fun_executeCalls` (free
+  inductive) — per-loop effect content lives in the concrete closed forms (#31, #55, #65),
+  not the abstraction pipelines.
+- **Trusted base**: the keccak idealizations (`keccak256_inj`/`slot_sep`/`ne_lowSlot`/
+  `add_ne_lowSlot`), A3/A2a/A8 model caveats, and the junk-window discipline (cached-branch
+  hypotheses throughout the storage layer).  All uses traceable via `#print axioms`.
+- **Verification hygiene** (added after today's audits): `lake env lean` does not check
+  import-olean freshness — corpus-level claims require fresh-compile audits; two silent
+  regressions (renamed helpers, a renumbered enum) were found and repaired this way (#64,
+  b696185).  The old pre-relocation InteropHandler corpus is deliberately unmaintained.
