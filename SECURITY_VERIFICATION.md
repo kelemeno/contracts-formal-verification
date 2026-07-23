@@ -1390,9 +1390,11 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   discharged internally over the trusted keccak base.  With #60
   (`delivered_leg_available_forever`) this grounds the cross-chain atomicity story in the
   deployed storage layout: the concrete insert IS an `Evolution` step's set effect.
-  *Remaining: the hash-tree side (`pushNewLeaf_call` composition — the node arrays are
-  disjoint from the leaves mapping by #61's separations), the glue-sequence quotation
-  (source-verbatim (B) boundary), and the `GapSound`-window precondition transport.*
+  `leafSetOf_evolution_step` packages it with the glue's own window
+  guards into the literal insert disjunct of `IMTAbstract.Evolution` — the exact step shape
+  consumed by `evolution_invariant`, #34 and #60.  *Remaining: the hash-tree side
+  (`pushNewLeaf_call` composition — node arrays disjoint from the leaves mapping by the
+  slice-5 separations) and the glue-sequence quotation (source-verbatim (B) boundary).*
 
 ## Part C — What a reviewer should do
 

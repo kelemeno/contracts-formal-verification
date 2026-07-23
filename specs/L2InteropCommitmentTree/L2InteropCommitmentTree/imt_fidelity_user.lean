@@ -791,6 +791,43 @@ theorem leafSetOf_imtInsert {σ : EVMState} {widx v ni w wc : UInt256}
   unfold imtInsert
   exact Finset.Insert.comm _ _ _
 
+/-! ### The Evolution-step packaging -/
+
+/-- **THE CONCRETE INSERT IS AN ABSTRACT `Evolution` STEP.**  With the
+glue's own window guards (`W₀.key < v` and `nextKey = 0 ∨ v < nextKey` —
+exactly what the insert's `require`s check), the storage write sequence
+witnesses the insert disjunct of `IMTAbstract.Evolution`: some window leaf
+in the current abstract set, a fresh key through its window, and the next
+snapshot equal to `imtInsert`.  This is the exact step shape consumed by
+`evolution_invariant`, `delivered_and_reclaimed_impossible` (#34) and
+`delivered_leg_available_forever` (#60). -/
+theorem leafSetOf_evolution_step {σ : EVMState} {widx v ni w wc : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hwlt : widx.val < (σ.sload 1).val)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hcw : Finmap.lookup (accInterval σ widx 5) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some wc)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
+      decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m')
+    (hlow : (decodeLeaf σ widx).key < v)
+    (hwin : (decodeLeaf σ widx).nextKey = 0 ∨ v < (decodeLeaf σ widx).nextKey) :
+    ∃ W₀ v', W₀ ∈ leafSetOf σ ∧ W₀.key < v'
+      ∧ (W₀.nextKey = 0 ∨ v' < W₀.nextKey)
+      ∧ leafSetOf (((((retargetEvm σ widx v).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1)) v).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 1) ni).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 2)
+            (decodeLeaf σ widx).nextKey).sstore
+          1 ((retargetEvm σ widx v).sload 1 + 1))
+        = imtInsert (leafSetOf σ) W₀ v' := by
+  refine ⟨decodeLeaf σ widx, v, ?_, hlow, hwin,
+    leafSetOf_imtInsert hacc hwlt hnw hcw hcc hcaches hinj⟩
+  unfold leafSetOf
+  exact Finset.mem_image.mpr
+    ⟨widx.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
