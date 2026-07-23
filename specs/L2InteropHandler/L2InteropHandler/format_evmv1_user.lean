@@ -951,7 +951,13 @@ h2v/hemp deep) → `format_finalI_arm` (h3 top; hemp deep) → ret chunk
 (`rw [cons,nil]; rw [cons,nil,Assign']` + `expr_mpos_1` deep peel) → ret
 lookup + wrapper collapse (State_of_isOk + reviveJump/overwrite?/setStore).
 Read exact towers from goals (`trace_state` where `rfl` recurses); expect
-`lookup_ok_evm` hops at every evm-crossing transport. -/
+`lookup_ok_evm` hops at every evm-crossing transport.
+
+**Computed peel counts** (ne-peels before the closing self/transport):
+probe var_chainid 2 (then hcJ); var_value reads 3/5/7/9; allocA hC 12+hop;
+sliceB hres 12, hmp 1; tagD hvm 0; byteE hemp 2, h1v 3; copyF hvm 8, hemp 6;
+addrG h2 0, ha 31+hop→initcall_2; addrH h22 0, h21 1, h2v 4, hemp 14;
+finalI h3 0, hemp 18; ret expr_mpos_1 21; ret-multifill self. -/
 
 /-! ### Readback dischargers -/
 
