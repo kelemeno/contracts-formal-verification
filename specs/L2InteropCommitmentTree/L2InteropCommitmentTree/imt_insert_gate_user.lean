@@ -1913,6 +1913,407 @@ theorem insertGlue_guards
     rfl
     hwin]
 
+/-! ### The writes-stage join of the insert glue
+
+The four mutation arms — retarget staging, the low-leaf tree update, the
+new-leaf staging + registration, and the final push — as ONE
+cons-composition over a generic tail `rest`.  Evm/store tower:
+
+```
+  entry              Ok evm σ
+  retargetChunk      Ok RS σ_r,  RS  = retargetStageEvm evm LM NI V IX
+                                 σ_r = σ + {_4, _5, _6, expr_mpos}
+  updateInterleave   Ok UW σ_r,  UW  = insertUpdEvm evm LM NI V IX k
+  newLeafChunk       Ok NL σ_p,  NL  = insertNewEvm evm LM NI V IX k
+                                 σ_p = σ_r + {expr_mpos_1 ↦ UW.mload 64}
+  pushInterleave     Ok (pushOutW NL (UW.mload 64) k2 k3).1
+                        (σ_p + {var_newRoot ↦ (pushOutW …).2.2.2.2})
+```
+-/
+
+/-- The updateLeaf walk tuple over a staged entry `E` (struct at `P`,
+target index `IX`, `j` walk levels): hash the struct, level-0 write of the
+hash at `IX`, `j` walk steps toward `count − 1`.  `.1` is the threaded
+evm. -/
+@[reducible] def updTreeW (E : EVMState) (P IX : UInt256) (j : ℕ) :=
+  updateWalk 0 2 j
+    (leafWriteEvm (hashLeafOut E P).2 0 IX (hashLeafOut E P).1) 0 IX
+    ((hashLeafOut E P).2.sload 1 - 1) (hashLeafOut E P).1
+
+/-- The evm after retargetChunk + updateInterleave (writes stage 2). -/
+@[reducible] def insertUpdEvm (evm : EVMState) (LM NI V IX : UInt256) (k : ℕ) : EVMState :=
+  (updTreeW (retargetStageEvm evm LM NI V IX) (evm.mload 64) IX k).1
+
+/-- The evm after newLeafChunk (writes stage 3). -/
+@[reducible] def insertNewEvm (evm : EVMState) (LM NI V IX : UInt256) (k : ℕ) : EVMState :=
+  newLeafStageEvm (insertUpdEvm evm LM NI V IX k) V
+    (evm.mload (LM + 32)) (evm.mload (LM + 64)) NI
+
+/-- The push pad-walk tuple over a push-entry state `E` (new-leaf struct at
+`P`, `j` pad levels) — P5's frontier padding on the post-increment state. -/
+@[reducible] def pushPadW (E : EVMState) (P : UInt256) (j : ℕ) :=
+  padWalk j ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)) 0
+    ((pushEH E P).sload 1 - 1) ((pushEH E P).sload 1)
+
+/-- The push update-walk tuple after `k` pad levels: level-0 write of the
+pushed hash at the old count, then `j` walk levels.  `.1` is the final evm,
+`.2.2.2.2` the returned root. -/
+@[reducible] def pushOutW (E : EVMState) (P : UInt256) (k j : ℕ) :=
+  updateWalk 0 ((0 : UInt256) + 2) j
+    (leafWriteEvm (pushPadW E P k).1 0 ((pushEH E P).sload 1) (pushHL E P))
+    0 ((pushEH E P).sload 1)
+    ((pushPadW E P k).1.sload ((0 : UInt256) + 1) - 1) (pushHL E P)
+
+/-- **THE WRITES-STAGE JOIN of the insert glue**: from the post-guards
+entry, the four mutation arms drive deterministically — retarget staging,
+the low-leaf tree update (`k` walk levels), new-leaf staging +
+registration, and the final push (`k2` pad levels, `k3` walk levels).  The
+store gains exactly the four staging scratch bindings and the new root.
+Generic in the remaining statement list `rest`. -/
+theorem insertGlue_writes
+    {evm : EVMState} {σ : VarStore} {fuel k k2 k3 : ℕ} {LM NI V IX : Literal}
+    {rest : List Stmt}
+    (hlm : (Ok evm σ)["var_lowLeaf_mpos"]!! = LM)
+    (h1 : (Ok evm σ)["_1"]!! = NI)
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hix : (Ok evm σ)["var_lowLeafIndex"]!! = IX)
+    (hp : (evm.mload 64).val + 96 ≤ 18446744073709551615)
+    -- the updateLeaf-interleave pack (over the retarget-staged evm)
+    (hpU : ((retargetStageEvm evm LM NI V IX).mload 64).val + 128
+        ≤ 18446744073709551615)
+    (hsub0U : (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2.sload 1 ≠ 0)
+    (hleU : ¬ (IX > (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2.sload 1 - 1))
+    (hne2U : (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2.sload 2 ≠ 0)
+    (hbidxU : IX < (arrOut (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2 2).2.sload
+        (arrOut (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2 2).1)
+    (hkU : ((leafWriteEvm (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2 0 IX
+        (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).1).sload 0).val = k)
+    (hpassU : ∀ j, j < k → WalkOK 0 2
+        (updTreeW (retargetStageEvm evm LM NI V IX) (evm.mload 64) IX j))
+    (hssinvU : ∀ j, j ≤ k →
+        ((updTreeW (retargetStageEvm evm LM NI V IX) (evm.mload 64) IX j).1).sload 0
+          = (leafWriteEvm (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).2 0 IX
+              (hashLeafOut (retargetStageEvm evm LM NI V IX) (evm.mload 64)).1).sload 0)
+    (hfuelU : 2 * k + 2 ≤ fuel + 1 + 1)
+    -- the new-leaf allocator bound (over the updated-tree evm)
+    (hpN : ((insertUpdEvm evm LM NI V IX k).mload 64).val + 96 ≤ 18446744073709551615)
+    -- the P5 push pack (over the new-leaf-staged evm)
+    (hpP : ((insertNewEvm evm LM NI V IX k).mload 64).val + 128 ≤ 18446744073709551615)
+    (hcmax : (pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1
+      ≠ (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256))
+    (hc0 : (pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1 ≠ 0)
+    (hnp : ¬ ((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1
+      = Fin.shiftLeft 1
+          (((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sstore 1
+            ((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1 + 1)).sload 0)))
+    (hcont : ∀ j, j < k2 →
+      (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) j).2.1
+          < (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) j).1.sload 0
+        ∧ (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) j).2.2.1
+          ≠ (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) j).2.2.2)
+    (hstop : ¬ ((pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).2.1
+          < (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1.sload 0)
+      ∨ (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).2.2.1
+          = (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).2.2.2)
+    (hpassP : ∀ j, j < k2 →
+      PadOK (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) j))
+    (hsub0P : (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1.sload
+        ((0 : UInt256) + 1) ≠ 0)
+    (hleP : ¬ ((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1
+      > (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1.sload
+          ((0 : UInt256) + 1) - 1))
+    (hne2P : (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1.sload
+        ((0 : UInt256) + 2) ≠ 0)
+    (hbidxP : (pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1
+      < (arrOut (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1
+            ((0 : UInt256) + 2)).2.sload
+          (arrOut (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1
+            ((0 : UInt256) + 2)).1)
+    (hk2P : ((leafWriteEvm
+        (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1
+        0 ((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1)
+        (pushHL (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64))).sload 0).val = k3)
+    (hpass2 : ∀ j, j < k3 → WalkOK 0 ((0 : UInt256) + 2)
+        (pushOutW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2 j))
+    (hssinv2 : ∀ j, j ≤ k3 →
+        ((pushOutW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2 j).1).sload 0
+          = (leafWriteEvm
+              (pushPadW (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64) k2).1
+              0 ((pushEH (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64)).sload 1)
+              (pushHL (insertNewEvm evm LM NI V IX k) ((insertUpdEvm evm LM NI V IX k).mload 64))).sload 0)
+    (hfuelP : 2 * k2 + 2 ≤ fuel + 1 + 1)
+    (hfuelP2 : 2 * k3 + 2 ≤ fuel + 1 + 1) :
+    exec (fuel+1+1+1) (Stmt.Block (retargetChunk :: updateInterleaveStmt ::
+        newLeafChunk :: pushInterleaveStmt :: rest)) (Ok evm σ)
+      = exec (fuel+1+1+1) (Stmt.Block rest)
+          (Ok (pushOutW (insertNewEvm evm LM NI V IX k)
+                ((insertUpdEvm evm LM NI V IX k).mload 64) k2 k3).1
+            ((((((σ.insert "_4" (evm.mload (LM + 32))).insert
+              "_5" (evm.mload (LM + 64))).insert
+              "_6" (evm.mload LM)).insert
+              "expr_mpos" (evm.mload 64)).insert
+              "expr_mpos_1" ((insertUpdEvm evm LM NI V IX k).mload 64)).insert
+              "var_newRoot" (pushOutW (insertNewEvm evm LM NI V IX k)
+                ((insertUpdEvm evm LM NI V IX k).mload 64) k2 k3).2.2.2.2)) := by
+  -- retarget staging
+  rw [cons]
+  rw [retargetStage_arm (fuel := fuel+1+1) (LM := LM) (NI := NI) (V := V) (IX := IX)
+    hlm h1 hv hix hp]
+  -- the low-leaf tree update
+  rw [cons]
+  rw [updateInterleave_arm (fuel := fuel+1+1) (k := k)
+    (evm := retargetStageEvm evm LM NI V IX) (IX := IX) (PTR := evm.mload 64)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact hix)
+    lookup_insert_self_local
+    hpU hsub0U hleU hne2U hbidxU hkU hpassU hssinvU hfuelU]
+  -- new-leaf staging + registration
+  rw [cons]
+  rw [newLeafStage_arm (fuel := fuel+1+1)
+    (evm := insertUpdEvm evm LM NI V IX k) (V := V)
+    (NI4 := evm.mload (LM + 32)) (NV5 := evm.mload (LM + 64)) (IX1 := NI)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact hv)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact h1)
+    hpN]
+  -- the final push
+  rw [cons]
+  rw [pushInterleave_arm (fuel := fuel+1+1) (k := k2) (k2 := k3)
+    (evm := insertNewEvm evm LM NI V IX k)
+    (PTR := (insertUpdEvm evm LM NI V IX k).mload 64)
+    lookup_insert_self_local
+    hpP hcmax hc0 hnp hcont hstop hpassP hsub0P hleP hne2P hbidxP hk2P
+    hpass2 hssinv2 hfuelP hfuelP2]
+
+/-! ### The full prefix join: guards + writes -/
+
+open Clear.KeccakDeterminism in
+/-- The guards' final threaded evm (dedup keccak step, leaves keccak step,
+low-leaf struct materialization). -/
+@[reducible] def guardsEvm (evm : EVMState) (V IX : UInt256) : EVMState :=
+  leafReadEvm (accOut (accOut evm V 5).2 IX 4).2 (accOut (accOut evm V 5).2 IX 4).1
+
+open Clear.KeccakDeterminism in
+/-- The guards' low-leaf struct pointer (the free pointer of the
+accessor-threaded evm). -/
+@[reducible] def guardsLM (evm : EVMState) (V IX : UInt256) : UInt256 :=
+  (accOut (accOut evm V 5).2 IX 4).2.mload 64
+
+open Clear.KeccakDeterminism in
+/-- **THE FULL PREFIX JOIN of the insert glue**: guards stage + writes
+stage.  For an AFM-sent, fresh, nonzero value inserted against an in-bounds
+low leaf whose window already closes, the dispatcher glue drives
+deterministically from entry through the final push: the seven guard
+bindings, the four staging bindings, and the new root land in the store;
+the evm threads the two accessor keccak steps, the retarget staging + tree
+update, the new-leaf staging + registration, and the push (pad + walk).
+Generic in the remaining statement list `rest`. -/
+theorem insertGlue_prefix
+    {evm : EVMState} {σ : VarStore} {fuel k k2 k3 : ℕ} {V IX : Literal}
+    {rest : List Stmt}
+    (hv0 : (Ok evm σ)["value0"]!! = V)
+    (hv1 : (Ok evm σ)["value1"]!! = IX)
+    (hcaller : evm.execution_env.source = (65556 : UInt256))
+    (h1nz : evm.sload 1 ≠ 0)
+    (hvnz : V ≠ 0)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0)
+    (hbound : IX < evm.sload 1)
+    (hpG : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hvo : (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64) < V)
+    (hwin : (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64) = 0
+        ∨ ¬ ((leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64) < V))
+    -- the writes-stage packs, over the guards' final threaded evm
+    (hpW : ((guardsEvm evm V IX).mload 64).val + 96 ≤ 18446744073709551615)
+    (hpU : ((retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX).mload 64).val + 128
+        ≤ 18446744073709551615)
+    (hsub0U : (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+        ((guardsEvm evm V IX).mload 64)).2.sload 1 ≠ 0)
+    (hleU : ¬ (IX > (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+        ((guardsEvm evm V IX).mload 64)).2.sload 1 - 1))
+    (hne2U : (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+        ((guardsEvm evm V IX).mload 64)).2.sload 2 ≠ 0)
+    (hbidxU : IX < (arrOut (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+          ((guardsEvm evm V IX).mload 64)).2 2).2.sload
+        (arrOut (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+          ((guardsEvm evm V IX).mload 64)).2 2).1)
+    (hkU : ((leafWriteEvm (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+          ((guardsEvm evm V IX).mload 64)).2 0 IX
+        (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+          ((guardsEvm evm V IX).mload 64)).1).sload 0).val = k)
+    (hpassU : ∀ j, j < k → WalkOK 0 2
+        (updTreeW (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+          ((guardsEvm evm V IX).mload 64) IX j))
+    (hssinvU : ∀ j, j ≤ k →
+        ((updTreeW (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+            ((guardsEvm evm V IX).mload 64) IX j).1).sload 0
+          = (leafWriteEvm (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+              ((guardsEvm evm V IX).mload 64)).2 0 IX
+            (hashLeafOut (retargetStageEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX)
+              ((guardsEvm evm V IX).mload 64)).1).sload 0)
+    (hfuelU : 2 * k + 2 ≤ fuel + 1 + 1)
+    (hpN : ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hpP : ((insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64).val + 128
+        ≤ 18446744073709551615)
+    (hcmax : (pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1
+      ≠ (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256))
+    (hc0 : (pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1 ≠ 0)
+    (hnp : ¬ ((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1
+      = Fin.shiftLeft 1
+          (((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+              ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sstore 1
+            ((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+              ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1 + 1)).sload 0)))
+    (hcont : ∀ j, j < k2 →
+      (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) j).2.1
+        < (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) j).1.sload 0
+      ∧ (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) j).2.2.1
+        ≠ (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) j).2.2.2)
+    (hstop : ¬ ((pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).2.1
+        < (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1.sload 0)
+      ∨ (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).2.2.1
+        = (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).2.2.2)
+    (hpassP : ∀ j, j < k2 →
+      PadOK (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) j))
+    (hsub0P : (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1.sload
+        ((0 : UInt256) + 1) ≠ 0)
+    (hleP : ¬ ((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1
+      > (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1.sload
+          ((0 : UInt256) + 1) - 1))
+    (hne2P : (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1.sload
+        ((0 : UInt256) + 2) ≠ 0)
+    (hbidxP : (pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+        ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1
+      < (arrOut (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+            ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1
+            ((0 : UInt256) + 2)).2.sload
+          (arrOut (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+            ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1
+            ((0 : UInt256) + 2)).1)
+    (hk2P : ((leafWriteEvm
+        (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1
+        0 ((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1)
+        (pushHL (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64))).sload 0).val = k3)
+    (hpass2 : ∀ j, j < k3 → WalkOK 0 ((0 : UInt256) + 2)
+        (pushOutW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+          ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2 j))
+    (hssinv2 : ∀ j, j ≤ k3 →
+        ((pushOutW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+            ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2 j).1).sload 0
+          = (leafWriteEvm
+              (pushPadW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+                ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2).1
+              0 ((pushEH (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+                ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).sload 1)
+              (pushHL (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+                ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64))).sload 0)
+    (hfuelP : 2 * k2 + 2 ≤ fuel + 1 + 1)
+    (hfuelP2 : 2 * k3 + 2 ≤ fuel + 1 + 1) :
+    exec (fuel+1+1+1) (Stmt.Block (appenderIf :: glueLet1 :: initGuardIf ::
+        valueZeroGuardIf :: dedupIf :: boundsGuardIf :: lowLeafReadChunk ::
+        valueOrderIf :: glueLetAttempts :: searchLoopFor ::
+        retargetChunk :: updateInterleaveStmt :: newLeafChunk ::
+        pushInterleaveStmt :: rest)) (Ok evm σ)
+      = exec (fuel+1+1+1) (Stmt.Block rest)
+          (Ok (pushOutW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+                ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2 k3).1
+            ((((((( Finmap.insert "expr" 0 (Finmap.insert "_3"
+                ((guardsEvm evm V IX).mload (guardsLM evm V IX + 64))
+                (((((σ.insert "_1" (evm.sload 1)).insert
+                  "var_lowLeafIndex" IX).insert
+                  "var_lowLeaf_mpos" (guardsLM evm V IX)).insert
+                  "_2" ((guardsEvm evm V IX).mload (guardsLM evm V IX))).insert
+                  "var_attempts" 0))).insert
+              "_4" ((guardsEvm evm V IX).mload (guardsLM evm V IX + 32))).insert
+              "_5" ((guardsEvm evm V IX).mload (guardsLM evm V IX + 64))).insert
+              "_6" ((guardsEvm evm V IX).mload (guardsLM evm V IX))).insert
+              "expr_mpos" ((guardsEvm evm V IX).mload 64)).insert
+              "expr_mpos_1" ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64)).insert
+              "var_newRoot" (pushOutW (insertNewEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k)
+                ((insertUpdEvm (guardsEvm evm V IX) (guardsLM evm V IX) (evm.sload 1) V IX k).mload 64) k2 k3).2.2.2.2)) := by
+  -- the guards stage
+  rw [insertGlue_guards hv0 hv1 hcaller h1nz hvnz hz hbound hpG hvo hwin]
+  -- the writes stage, entered at the guards' final state
+  rw [insertGlue_writes (fuel := fuel) (k := k) (k2 := k2) (k3 := k3)
+    (evm := guardsEvm evm V IX) (LM := guardsLM evm V IX)
+    (NI := evm.sload 1) (V := V) (IX := IX)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact hv0)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    hpW hpU hsub0U hleU hne2U hbidxU hkU hpassU hssinvU hfuelU
+    hpN hpP hcmax hc0 hnp hcont hstop hpassP hsub0P hleP hne2P hbidxP hk2P
+    hpass2 hssinv2 hfuelP hfuelP2]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

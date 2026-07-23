@@ -1420,6 +1420,18 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   `no_theft_refund` claims unchanged.  Selector recomputed independently
   (`0x83562707 = 2203461383`).  *Two regeneration renames absorbed; earlier ledger prose
   describing a single mark-3 refund should be read through this entry.*
+- **#65 THE INSERT CLOSED FORM — the full glue join (2026-07-23).**
+  `imt_insert_gate_user.lean`, `insertGlue_prefix`: the L2ICT `insert` dispatcher arm drives
+  deterministically through all fourteen statements — appender gate, count read, the four
+  guards, low-leaf read, value-order gate, the zero-iteration search, the retarget staging,
+  the `updateLeaf_5205` hash interleave, the new-leaf + `valueToIndex` writes, and the
+  `pushNewLeaf` interleave — under the oracle packs, ending in a 13-insert store tower and
+  the composed storage/tree state (`pushOutW ∘ insertNewEvm ∘ insertUpdEvm ∘ guardsEvm`).
+  Two-stage composition (`insertGlue_guards` + `insertGlue_writes`) in the
+  `executeCalls_step_prefix` style; every callee at both call positions; reducible stage
+  abbreviations keep the P5/5205 packs statable.  With #61-#63 and the decode agreements,
+  this is the concrete half of the insert-fidelity story; the grand composition onto
+  `leafSetOf_evolution_step` (#62) is the remaining stitch.
 
 ## Part C — What a reviewer should do
 
