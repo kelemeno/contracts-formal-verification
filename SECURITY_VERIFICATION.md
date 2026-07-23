@@ -1378,6 +1378,21 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   apply toward deployed code.  *Remaining: node-array no-touch frames
   (`padWalk`/`updateWalk`), composition with `pushNewLeaf_call` (P5), and the window-retarget
   half (`fun_updateLeaf`) at the AtomicFlowManager call sequence level.*
+- **#62 THE STORAGE-SIDE `imtInsert` — the fidelity headline (2026-07-23).**
+  `leafSetOf_imtInsert`: the AFM insert glue's leaves-mapping write sequence — retarget the
+  window leaf's `nextValue` to `v`, write the new struct `⟨v, ·, W₀.nextKey⟩` at the count,
+  bump the count — produces EXACTLY the abstract insert:
+  `leafSetOf (…) = imtInsert (leafSetOf σ) (decodeLeaf σ widx) v`.  Hypotheses: account
+  present, window index in range, count no-wrap, cached mapping hashes, and decode
+  injectivity below the count (the concrete shadow of `KeyInj`).  Composed from the retarget
+  agreement + the clean insert agreement + the image-update lemma +
+  `Finset.Insert.comm`; every slot separation, field survival, and cache transport
+  discharged internally over the trusted keccak base.  With #60
+  (`delivered_leg_available_forever`) this grounds the cross-chain atomicity story in the
+  deployed storage layout: the concrete insert IS an `Evolution` step's set effect.
+  *Remaining: the hash-tree side (`pushNewLeaf_call` composition — the node arrays are
+  disjoint from the leaves mapping by #61's separations), the glue-sequence quotation
+  (source-verbatim (B) boundary), and the `GapSound`-window precondition transport.*
 
 ## Part C — What a reviewer should do
 

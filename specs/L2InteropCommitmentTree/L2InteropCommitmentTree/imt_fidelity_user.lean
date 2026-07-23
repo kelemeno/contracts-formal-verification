@@ -710,6 +710,87 @@ private lemma image_update_erase_insert
       have hma : m ≠ a := fun h => hne (by rw [h])
       exact hagree m hm hma
 
+/-! ### THE FIDELITY THEOREM: the glue sequence IS `imtInsert` -/
+
+/-- The retarget write, named. -/
+@[reducible] def retargetEvm (σ : EVMState) (widx v : UInt256) : EVMState :=
+  σ.sstore (leafSlot σ widx + 2) v
+
+/-- **THE STORAGE-SIDE `imtInsert`** — the AFM insert glue's leaves-mapping
+write sequence (retarget the window leaf's `nextValue` to `v`, write the new
+leaf struct `⟨v, ·, W₀.nextKey⟩` at the count, bump the count) produces
+EXACTLY the abstract IMT insert:
+
+`leafSetOf (…) = imtInsert (leafSetOf σ) (decodeLeaf σ widx) v`.
+
+Hypotheses: account present; the window index is in range; the count does
+not wrap; the window/count/all-lower mapping hashes are cached; and decoding
+is injective below the count (the concrete shadow of the abstract `KeyInj`
+invariant).  Everything else — slot separations, field survival, cache
+transport — is discharged internally. -/
+theorem leafSetOf_imtInsert {σ : EVMState} {widx v ni w wc : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hwlt : widx.val < (σ.sload 1).val)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hcw : Finmap.lookup (accInterval σ widx 5) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some wc)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
+      decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m') :
+    leafSetOf (((((retargetEvm σ widx v).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1)) v).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 1) ni).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 2)
+          (decodeLeaf σ widx).nextKey).sstore
+        1 ((retargetEvm σ widx v).sload 1 + 1))
+      = imtInsert (leafSetOf σ) (decodeLeaf σ widx) v := by
+  set σᵣ := retargetEvm σ widx v with hσᵣ
+  have hcnt : σᵣ.sload 1 = σ.sload 1 := leafCount_retarget hcw
+  -- Step A: the retarget write is erase-plus-insert
+  have hstepA : leafSetOf σᵣ
+      = insert (⟨(decodeLeaf σ widx).key, v⟩ : AbsLeaf)
+          ((leafSetOf σ).erase (decodeLeaf σ widx)) := by
+    unfold leafSetOf
+    rw [hcnt]
+    have hfa : decodeLeaf σ ((widx.val : ℕ) : UInt256) = decodeLeaf σ widx := by
+      rw [Fin.cast_val_eq_self widx]
+    rw [← hfa]
+    refine image_update_erase_insert hwlt ?_ ?_ ?_
+    · intro m hm hma
+      obtain ⟨wm, hcm⟩ := hcaches m hm
+      refine decodeLeaf_retarget_outside hcw hcm ?_
+      intro heq
+      apply hma
+      have hmv : ((m : UInt256)).val = m :=
+        Nat.mod_eq_of_lt (lt_trans hm (σ.sload 1).isLt)
+      rw [← heq] at hmv
+      exact hmv.symm
+    · rw [Fin.cast_val_eq_self widx]
+      exact decodeLeaf_retarget hacc hcw
+    · exact hinj
+  -- Step B: the struct write + bump is the set insert (over σᵣ)
+  have haccr : (σᵣ.lookupAccount σᵣ.execution_env.code_owner).isSome :=
+    acct_sstore hacc
+  have hnwr : (σᵣ.sload 1).val + 1 < 2 ^ 256 := by rw [hcnt]; exact hnw
+  have hccr : Finmap.lookup (accInterval σᵣ (σᵣ.sload 1) 5) σᵣ.keccak_map
+      = some wc := by
+    rw [hcnt, hσᵣ]
+    exact cache_sstore hcc
+  have hcachesr : ∀ m : ℕ, m < (σᵣ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σᵣ (m : UInt256) 5) σᵣ.keccak_map
+        = some wm := by
+    rw [hcnt]
+    intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨wm, by rw [hσᵣ]; exact cache_sstore hcm⟩
+  have hstepB := leafSetOf_insert (σ := σᵣ) (v := v) (ni := ni)
+    (nv := (decodeLeaf σ widx).nextKey) haccr hnwr hccr hcachesr
+  -- assemble
+  rw [hstepB, hstepA]
+  unfold imtInsert
+  exact Finset.Insert.comm _ _ _
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
