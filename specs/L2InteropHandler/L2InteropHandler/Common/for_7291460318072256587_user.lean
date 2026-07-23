@@ -34,10 +34,16 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
 exact value the concrete condition evaluates to. -/
 def ACond_for_7291460318072256587 (s₀ : State) : Literal :=
   fromBool (s₀["var_i"]!! < s₀["length"]!!)
-/-- Scaffold layer (to be strengthened): the concrete per-call closed form
-lives in `specs/…/exec_calls_gate_user.lean` (`executeCalls_body_prefix`). -/
-def APost_for_7291460318072256587 (s₀ s₉ : State) : Prop := True
-def ABody_for_7291460318072256587 (s₀ s₉ : State) : Prop := True
+/-- Lossless: the abstract post IS the concrete post spec. -/
+def APost_for_7291460318072256587 (s₀ s₉ : State) : Prop :=
+  for_7291460318072256587_post_concrete_of_code.1 s₀ s₉
+/-- Lossless: the abstract body IS the concrete body spec — the per-call
+closed form (`executeCalls_body_prefix` in
+`specs/…/exec_calls_gate_user.lean`) applies to it directly. -/
+def ABody_for_7291460318072256587 (s₀ s₉ : State) : Prop :=
+  for_7291460318072256587_body_concrete_of_code.1 s₀ s₉
+/-- The whole-loop invariant (the genuinely inductive layer) — still the
+scaffold; strengthening it is the remaining stitching step. -/
 def AFor_for_7291460318072256587 (s₀ s₉ : State) : Prop := True
 
 lemma for_7291460318072256587_cond_abs_of_code {s₀ fuel} : eval fuel for_7291460318072256587_cond (s₀) = (s₀, ACond_for_7291460318072256587 (s₀)) := by
@@ -49,14 +55,14 @@ lemma for_7291460318072256587_cond_abs_of_code {s₀ fuel} : eval fuel for_72914
 lemma for_7291460318072256587_concrete_of_post_abs {s₀ s₉ : State} :
   Spec for_7291460318072256587_post_concrete_of_code s₀ s₉ →
   Spec APost_for_7291460318072256587 s₀ s₉ := by
-  unfold APost_for_7291460318072256587
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [APost_for_7291460318072256587] using h
 
 lemma for_7291460318072256587_concrete_of_body_abs {s₀ s₉ : State} :
   Spec for_7291460318072256587_body_concrete_of_code s₀ s₉ →
   Spec ABody_for_7291460318072256587 s₀ s₉ := by
-  unfold ABody_for_7291460318072256587
-  rcases s₀ with ⟨evm, varstore⟩ | _ | _ <;> aesop_spec
+  intro h
+  simpa [ABody_for_7291460318072256587] using h
 
 lemma AZero_for_7291460318072256587 : ∀ s₀, isOk s₀ → ACond_for_7291460318072256587 (👌 s₀) = 0 → AFor_for_7291460318072256587 s₀ s₀ := by
   intro s₀ _ _
