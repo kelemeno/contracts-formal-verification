@@ -12,12 +12,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common 
 
-def A_if_527260813423657965 (s₀ s₉ : State) : Prop := sorry
+def A_if_527260813423657965 (s₀ s₉ : State) : Prop := if_527260813423657965_concrete_of_code.1 s₀ s₉
 
 lemma if_527260813423657965_abs_of_concrete {s₀ s₉ : State} :
   Spec if_527260813423657965_concrete_of_code s₀ s₉ →
   Spec A_if_527260813423657965 s₀ s₉ := by
-  sorry
+  intro h
+  simpa [A_if_527260813423657965] using h
 
 end
 
