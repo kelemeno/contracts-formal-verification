@@ -856,6 +856,127 @@ lemma retargetStage_arm
   rw [copy_leaf_call]
   simp only [setEvm_Ok]
 
+/-! ### The new-leaf + valueToIndex chunk of the insert glue -/
+
+/-- The new-leaf staging, source-verbatim (yul 252-259): allocate
+`⟨_value, oldNextIndex, oldNextValue⟩`, copy it to `leaves[newIndex]`, and
+register `valueToIndex[_value] := newIndex`. -/
+@[reducible] def newLeafChunk : Stmt := <s
+  {
+      let expr_mpos_1 := allocate_memory_5179()
+      mstore(expr_mpos_1, value0)
+      mstore(add(expr_mpos_1, 32), _4)
+      mstore(add(expr_mpos_1, 64), _5)
+      copy_struct_to_storage_from_struct_IMTLeaf_to_struct_IMTLeaf(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199(_1), expr_mpos_1)
+      sstore(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196(value0), _1)
+  }
+>
+
+open Clear.KeccakDeterminism in
+/-- The evm after the new-leaf staging: allocator bump, three scratch
+writes, the `leaves[newIndex]` keccak step + three-field copy, then the
+`valueToIndex[_value]` keccak step + registration write. -/
+@[reducible] def newLeafStageEvm (evm : EVMState) (V NI4 NV5 IX1 : UInt256) : EVMState :=
+  let P := evm.mload 64
+  let E4 := (((evm.mstore 64 (evm.mload 64 + 96)).mstore P V).mstore
+      (P + 32) NI4).mstore (P + 64) NV5
+  let EK := (accOut E4 IX1 4).2
+  let SL := (accOut E4 IX1 4).1
+  let E5 := ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))).sstore
+      (SL + 2) (EK.mload (P + 64))
+  (accOut E5 V 5).2.sstore (accOut E5 V 5).1 IX1
+
+open Clear.KeccakDeterminism in
+/-- **New-leaf-staging closed form.** -/
+lemma newLeafStage_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {V NI4 NV5 IX1 : Literal}
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (h4 : (Ok evm σ)["_4"]!! = NI4)
+    (h5 : (Ok evm σ)["_5"]!! = NV5)
+    (h1 : (Ok evm σ)["_1"]!! = IX1)
+    (hp : (evm.mload 64).val + 96 ≤ 18446744073709551615) :
+    exec (fuel+1) newLeafChunk (Ok evm σ)
+      = Ok (newLeafStageEvm evm V NI4 NV5 IX1)
+          (σ.insert "expr_mpos_1" (evm.mload 64)) := by
+  unfold newLeafChunk
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [allocate_memory_5179_call hp]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_local]
+  rw [lookup_insert_ne_fin_local (by decide), lookup_ok_evm_local _ evm, hv]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore', EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_local]
+  rw [lookup_insert_ne_fin_local (by decide),
+      lookup_ok_evm_local _ evm, h4]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore', EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_local]
+  rw [lookup_insert_ne_fin_local (by decide),
+      lookup_ok_evm_local _ evm, h5]
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_local]
+  rw [lookup_insert_ne_fin_local (by decide),
+      lookup_ok_evm_local _ evm, h1]
+  rw [mapping_leaves4_call]
+  try simp only [List.head!]
+  try simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [copy_leaf_call]
+  simp only [setEvm_Ok]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin_local (by decide),
+      lookup_ok_evm_local _ evm, hv]
+  rw [mapping_vti_call]
+  try simp only [List.head!]
+  try simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin_local (by decide),
+      lookup_ok_evm_local _ evm, h1]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
