@@ -1337,6 +1337,148 @@ private lemma executeCalls_step_guards
   try simp only [show fromBool false = (0 : UInt256) from by decide]
   rw [if_neg (by exact fun h => h rfl)]
 
+/-! ### The step-prefix join, stage 2: the full pre-dispatch closed form -/
+
+/-- **THE STEP-PREFIX ORACLE-PACK LEMMA**: for a version-1, zero-value call
+in a small-chain-id delivery, the loop body drives deterministically from
+the chunk-1 entry all the way to the dispatch-call boundary.  Everything
+observable before the external call is pinned: the element address, the
+version acceptance, the skipped value path, the commitment
+`keccak(bundleHash ‖ i)`, the formatted source, the encoded payload, and
+the dispatch target/value.  Generic in the remaining statement list. -/
+private lemma executeCalls_step_prefix
+    {evm ek : EVMState} {σ : VarStore} {fuel : ℕ}
+    {BP I BH C B1 LN H : Literal} {rest : List Stmt}
+    (h1v : (Ok evm σ)["_1"]!! = BP)
+    (hi : (Ok evm σ)["var_i"]!! = I)
+    (hbh : (Ok evm σ)["var_bundleHash"]!! = BH)
+    (hsc : (Ok evm σ)["var_sourceChainId"]!! = C)
+    (hlt : I < evm.mload (evm.mload BP))
+    (hver : Fin.land (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+        (Fin.shiftLeft 255 248) = Fin.shiftLeft 1 248)
+    (hv0 : evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 128) = 0)
+    (hcf1 : ¬ (evm.mload 64 + 96 > (18446744073709551615 : UInt256)))
+    (hcf2 : ¬ (evm.mload 64 + 96 < evm.mload 64))
+    (hk : ((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).keccak256 (evm.mload 64 + 32)
+        (((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).mload (evm.mload 64)) = some (H, ek))
+    (h128 : Fin.shiftRight C 128 = 0) (h64 : Fin.shiftRight C 64 = 0)
+    (h32 : Fin.shiftRight C 32 = 0) (h16 : Fin.shiftRight C 16 = 0)
+    (h8 : Fin.shiftRight C 8 = 0)
+    (hf1a : ¬ (ek.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hf2a : ¬ (ek.mload 64 + 64 < ek.mload 64))
+    (hlen32 : (fmtE1 ek C).mload (ek.mload 64) = 32)
+    (hp1 : ¬ ((fmtE1 ek C).mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hp2 : ¬ ((fmtE1 ek C).mload 64 + 64 < (fmtE1 ek C).mload 64))
+    (h1r : (fmtE2 ek C).mload ((fmtE1 ek C).mload 64) = B1)
+    (hlr : (fmtE4 ek C B1).mload ((fmtE1 ek C).mload 64) = LN)
+    (hfI1 : ¬ ((fmtE2 ek C).mload 64
+      + Fin.land ((fmtL3 ek C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hfI2 : ¬ ((fmtE2 ek C).mload 64
+      + Fin.land ((fmtL3 ek C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      < (fmtE2 ek C).mload 64)) :
+    exec (fuel+1) (Stmt.Block (stepChunk1 :: stepChunk2 :: stepVersionGuard ::
+        stepLet2 :: stepLet3 :: stepLet9 :: stepValueGuard ::
+        stepTargetChunk :: stepStagingChunk :: stepCommitChunk ::
+        stepSenderChunk :: stepFormatChunk :: stepEncodeChunk :: rest)) (Ok evm σ)
+      = exec (fuel+1) (Stmt.Block rest)
+          (Ok (stepEncEvm (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)))
+            ((((((((((((((((((((((((((((((((((((σ.insert
+              "split_expr_1" (evm.mload BP)).insert
+              "split_expr_2" (evm.mload BP + Fin.shiftLeft I 5 + 32)).insert
+              "_mpos" (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32))).insert
+              "split_expr_3" (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))).insert
+              "split_expr_4" (Fin.shiftLeft 255 248)).insert
+              "split_expr_5" (Fin.shiftLeft 1 248)).insert
+              "split_expr_6" (Fin.shiftLeft 1 248)).insert
+              "split_expr_7" 1).insert
+              "_2" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 128)).insert
+              "_3" 0).insert
+              "split_expr_9" 1).insert
+              "split_expr_21" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64)).insert
+              "split_expr_22" (evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64))).insert
+              "split_expr_23" (Fin.shiftLeft 1 160)).insert
+              "split_expr_24" (Fin.shiftLeft 1 160 - 1)).insert
+              "cleaned" (Fin.land (evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64)) (Fin.shiftLeft 1 160 - 1))).insert
+              "_8" 0).insert
+              "expr_mpos" (evm.mload 64)).insert
+              "_9" (evm.mload 64 + 32)).insert
+              "split_expr_25" (evm.mload 64 + 64)).insert
+              "split_expr_26" (((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).mload (evm.mload 64))).insert
+              "expr" H).insert
+              "split_expr_27" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)).insert
+              "split_expr_28" (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96))).insert
+              "split_expr_29" (Fin.shiftLeft 1 160)).insert
+              "split_expr_30" (Fin.shiftLeft 1 160 - 1)).insert
+              "split_expr_31" (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).insert
+              "expr_mpos_1" ((fmtE2 ek C).mload 64)).insert
+              "split_expr_32" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)).insert
+              "_mpos_1" ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160))).insert
+              "_10" ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64)).insert
+              "split_expr_33" (Fin.shiftLeft 303658899 225)).insert
+              "split_expr_34" (((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mstore ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225)).gas)).insert
+              "split_expr_35" (((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) + 4)).insert
+              "split_expr_36" (stepEncEnd (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)))).insert
+              "split_expr_37" (stepEncEnd (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)) - ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64)))) := by
+  rw [executeCalls_step_guards h1v hi hlt hver hv0]
+  -- target chunk
+  rw [cons]
+  rw [stepTarget_arm (MP := (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- staging chunk
+  rw [cons]
+  rw [stepStaging_arm (M2 := (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 128) (BH := BH)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact hbh)]
+  rw [hv0]
+  -- commitment chunk
+  rw [cons]
+  rw [stepCommit_arm (S25 := evm.mload 64 + 64) (I := I)
+    (F := evm.mload 64) (N9 := evm.mload 64 + 32)
+    lookup_insert_self_fin
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        rw [lookup_ok_evm _ evm]
+        exact hi)
+    (by rw [lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    hcf1 hcf2 hk]
+  -- sender chunk
+  rw [cons]
+  rw [stepSender_arm (MP := (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- format chunk
+  rw [cons]
+  rw [stepFormat_arm (C := C) (SW := (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) (MP := (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32))) (B1 := B1) (LN := LN)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        rw [lookup_ok_evm _ evm]
+        exact hsc)
+    lookup_insert_self_fin
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    h128 h64 h32 h16 h8 hf1a hf2a hlen32 hp1 hp2 h1r hlr hfI1 hfI2]
+  -- encode chunk
+  rw [cons]
+  rw [stepEncode_arm (P10 := (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (S33 := Fin.shiftLeft 303658899 225)
+    (X := H) (FM := (fmtE2 ek C).mload 64) (PM := (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160))
+    (by rw [lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    lookup_insert_self_fin
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
