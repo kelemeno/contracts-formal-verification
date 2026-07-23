@@ -9,6 +9,7 @@ import specs.KeccakDeterminism
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_hashLeaf
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory_5179
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.read_from_storage_reference_type_struct_IMTLeaf
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
 
@@ -1167,6 +1168,218 @@ theorem valueOrder_reverts
              List.singleton_append, multifill_cons, multifill_nil,
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
+
+/-! ### The low-leaf search loop, zero iterations
+
+The insert glue walks `lowLeaf.nextValue` links (yul 208-240) until the
+window closes: `nextValue = 0` (end of the linked list) or
+`nextValue ≥ _value`.  The ZERO-ITERATION closed form: the first body pass
+hits the `break`, the post (`++attempts`) never runs, the evm is untouched
+— only the loop scratch (`_3`, `expr`) is written. -/
+
+private lemma exec_checkpoint_local {c : Jump} {fuel : ℕ} {stmt : Stmt} :
+    exec fuel stmt (Checkpoint c) = Checkpoint c := by
+  have h := Clear.JumpLemmas.exec_Jump (c := c) (s := Checkpoint c)
+    (fuel := fuel) (stmt := stmt) rfl
+  rcases hres : exec fuel stmt (Checkpoint c) with _ | _ | c'
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h; exact absurd h (by unfold isJump; simp)
+  · rw [hres] at h
+    have : c = c' := h
+    rw [this]
+
+private lemma break_block_local {fuel : ℕ} {evm : EVMState} {σ : VarStore} :
+    exec (fuel+1) (.Block [Stmt.Break]) (Ok evm σ) = Checkpoint (.Break evm σ) := by
+  rw [cons, nil, Break']
+  rfl
+
+/-- The `lt(_3, value0)` retest block of the search loop (the second `&&`
+conjunct), as its own closed form to keep the `cons` drives unambiguous. -/
+private lemma ltAssign_block {fuel : ℕ} {evm : EVMState} {σ : VarStore} {A B : Literal}
+    (h3 : (Ok evm σ)["_3"]!! = A)
+    (hv : (Ok evm σ)["value0"]!! = B) :
+    exec (fuel+1) (.Block [AssignPrimCall ["expr"] .Lt [Var "_3", Var "value0"]])
+        (Ok evm σ)
+      = Ok evm (Finmap.insert "expr" (fromBool (A < B)) σ) := by
+  rw [cons, nil, AssignPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMLt', insert_Ok]
+  rw [h3, hv]
+
+/-- The low-leaf search loop, source-verbatim (yul 208-240; hex selector in
+decimal: `0x6c3f0733 = 1816069939` — `IMTLowLeafNextTooSmall`). -/
+@[reducible] def searchLoopFor : Stmt := <s
+  for { }
+  1
+  {
+      var_attempts := increment_uint256(var_attempts)
+  }
+  {
+      let _3 := mload(add(var_lowLeaf_mpos, 64))
+      let expr := iszero(iszero(_3))
+      if expr
+      {
+          expr := lt(_3, value0)
+      }
+      if iszero(expr) { break }
+      if eq(var_attempts, 5)
+      {
+          mstore(0, shl(225, 1816069939))
+          revert(0, abi_encode_uint256_uint256(_3, value0))
+      }
+      var_lowLeafIndex := mload(add(var_lowLeaf_mpos, 32))
+      var_lowLeaf_mpos := read_from_storage_reference_type_struct_IMTLeaf(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199(var_lowLeafIndex))
+  }
+>
+
+/-- **The first search pass breaks** when the window already closes:
+`nextValue = 0` or `¬ (nextValue < _value)`.  Body-until-break closed form:
+the evm is untouched, the store gains `"_3" ↦ NV` then `"expr" ↦ 0` (in the
+retest case the transient `"expr" ↦ 1` is overwritten, collapsed by
+`Finmap.insert_insert`). -/
+lemma searchBody_break
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {LM V NV : Literal}
+    (hlm : (Ok evm σ)["var_lowLeaf_mpos"]!! = LM)
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hnv : evm.mload (LM + 64) = NV)
+    (hwin : NV = 0 ∨ ¬ (NV < V)) :
+    exec (fuel+1) (.Block <ss
+      {
+          let _3 := mload(add(var_lowLeaf_mpos, 64))
+          let expr := iszero(iszero(_3))
+          if expr
+          {
+              expr := lt(_3, value0)
+          }
+          if iszero(expr) { break }
+          if eq(var_attempts, 5)
+          {
+              mstore(0, shl(225, 1816069939))
+              revert(0, abi_encode_uint256_uint256(_3, value0))
+          }
+          var_lowLeafIndex := mload(add(var_lowLeaf_mpos, 32))
+          var_lowLeaf_mpos := read_from_storage_reference_type_struct_IMTLeaf(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199(var_lowLeafIndex))
+      }
+    >) (Ok evm σ)
+      = Checkpoint (.Break evm
+          (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ))) := by
+  -- let _3 := mload(add(var_lowLeaf_mpos, 64))
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload', EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hlm]
+  try simp only [head', List.head!]
+  rw [hnv]
+  -- let expr := iszero(iszero(_3))
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMIszero', insert_Ok]
+  try simp only [head', List.head!]
+  rw [lookup_insert_self_local]
+  by_cases hz : NV = 0
+  · -- nextValue = 0: expr = 0, the retest if is skipped, iszero(expr) breaks
+    rw [show fromBool (NV = 0) = (1 : UInt256) from by
+      rw [decide_eq_true hz]; rfl]
+    rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) from by decide]
+    -- if expr { … } — skipped
+    rw [cons, If']
+    simp only [evalArgs, evalTail, cons', head', reverse', Lit', Var',
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append]
+    rw [lookup_insert_self_local]
+    try simp only [head', List.head!]
+    rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
+    -- if iszero(expr) { break } — taken
+    rw [cons, If']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, EVMIszero']
+    rw [lookup_insert_self_local]
+    rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+    try simp only [head', List.head!]
+    rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+    rw [break_block_local]
+    rw [cons, exec_checkpoint_local, cons, exec_checkpoint_local,
+        cons, nil, exec_checkpoint_local]
+  · -- nextValue ≠ 0: expr = 1, the retest runs, lt fails, iszero(expr) breaks
+    have hge : ¬ (NV < V) := by
+      rcases hwin with h | h
+      · exact absurd h hz
+      · exact h
+    rw [show fromBool (NV = 0) = (0 : UInt256) from by
+      rw [decide_eq_false hz]; rfl]
+    rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+    -- if expr { … } — taken
+    rw [cons, If']
+    simp only [evalArgs, evalTail, cons', head', reverse', Lit', Var',
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append]
+    rw [lookup_insert_self_local]
+    try simp only [head', List.head!]
+    rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+    -- expr := lt(_3, value0) — the retest fails
+    have h3 : (Ok evm (Finmap.insert "expr" 1
+        (Finmap.insert "_3" NV σ)))["_3"]!! = NV := by
+      rw [lookup_insert_ne_fin_local (by decide), lookup_insert_self_local]
+    have hv2 : (Ok evm (Finmap.insert "expr" 1
+        (Finmap.insert "_3" NV σ)))["value0"]!! = V := by
+      rw [lookup_insert_ne_fin_local (by decide),
+          lookup_insert_ne_fin_local (by decide)]
+      exact hv
+    rw [ltAssign_block h3 hv2]
+    rw [show fromBool (NV < V) = (0 : UInt256) from by
+      rw [decide_eq_false hge]; rfl]
+    rw [Finmap.insert_insert]
+    -- if iszero(expr) { break } — taken
+    rw [cons, If']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, EVMIszero']
+    rw [lookup_insert_self_local]
+    rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+    try simp only [head', List.head!]
+    rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+    rw [break_block_local]
+    rw [cons, exec_checkpoint_local, cons, exec_checkpoint_local,
+        cons, nil, exec_checkpoint_local]
+
+/-- **THE ZERO-ITERATION SEARCH**: when the low leaf already closes the
+window (`nextValue = 0` or `nextValue ≥ _value`), the search loop exits on
+its first pass with the evm untouched — the post never runs, and the store
+gains exactly the loop scratch `"_3" ↦ NV`, `"expr" ↦ 0`. -/
+theorem searchLoop_zero
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {LM V NV : Literal}
+    (hlm : (Ok evm σ)["var_lowLeaf_mpos"]!! = LM)
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hnv : evm.mload (LM + 64) = NV)
+    (hwin : NV = 0 ∨ ¬ (NV < V)) :
+    exec (fuel+1+1+1) searchLoopFor (Ok evm σ)
+      = Ok evm (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ)) := by
+  show exec (Nat.succ (Nat.succ (fuel+1))) searchLoopFor (Ok evm σ)
+      = Ok evm (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ))
+  unfold searchLoopFor
+  rw [For']
+  dsimp only
+  simp only [eval, Lit', mkOk_of_isOk (show isOk (Ok evm σ) from trivial)]
+  rw [if_neg (by decide : ¬ ((1 : UInt256) = 0))]
+  rw [searchBody_break hlm hv hnv hwin]
+  dsimp only
+  rw [show (🧟 (Checkpoint (.Break evm
+        (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ)))) : State)
+      = Ok evm (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ)) from rfl]
+  simp only [overwrite?_of_Ok]
 
 end
 
