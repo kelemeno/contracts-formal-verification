@@ -13,6 +13,8 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint2
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_update_5205_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_pad_user
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_5205
 
 /-
@@ -1441,6 +1443,119 @@ theorem updateInterleave_arm
   rw [updateLeaf_5205_vcall hsub0 hle hne2 hbidx hk hpass hssinv hfuel]
   try simp only [List.head!]
   try simp only [multifill_cons, multifill_nil, EVMPop']
+
+/-- The final push statement, source-verbatim. -/
+@[reducible] def pushInterleaveStmt : Stmt := <s
+  let var_newRoot := fun_pushNewLeaf(fun_hashLeaf(expr_mpos_1))
+>
+
+/-! ### The pushNewLeaf interleave: `let var_newRoot := pushNewLeaf(hashLeaf(ptr))` -/
+
+/-- The hash-threaded entry state of the final push. -/
+@[reducible] def pushEH (evm : EVMState) (PTR : UInt256) : EVMState :=
+  (hashLeafOut evm PTR).2
+
+/-- The pushed leaf hash. -/
+@[reducible] def pushHL (evm : EVMState) (PTR : UInt256) : UInt256 :=
+  (hashLeafOut evm PTR).1
+
+/-- **PushNewLeaf-interleave closed form**: hash the new-leaf struct, then
+P5's full push (count bump, frontier pad, level-0 write, root walk) on the
+hash-threaded state; the new root lands in `var_newRoot`. -/
+theorem pushInterleave_arm
+    {evm : EVMState} {σ : VarStore} {fuel k k2 : ℕ} {PTR : Literal}
+    (hptr : (Ok evm σ)["expr_mpos_1"]!! = PTR)
+    (hp : ((evm.mload 64)).val + 128 ≤ 18446744073709551615)
+    (hcmax : (pushEH evm PTR).sload 1
+      ≠ (115792089237316195423570985008687907853269984665640564039457584007913129639935 : UInt256))
+    (hc0 : (pushEH evm PTR).sload 1 ≠ 0)
+    (hnp : ¬ ((pushEH evm PTR).sload 1
+      = Fin.shiftLeft 1 (((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)).sload 0)))
+    -- the padding pack (over the post-increment (pushEH evm PTR))
+    (hcont : ∀ j, j < k →
+      (padWalk j ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.1
+          < (padWalk j ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload 0
+        ∧ (padWalk j ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.2.1
+          ≠ (padWalk j ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.2.2)
+    (hstop : ¬ ((padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.1
+          < (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload 0)
+      ∨ (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.2.1
+          = (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).2.2.2)
+    (hpass : ∀ j, j < k →
+      PadOK (padWalk j ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)))
+    -- the updateLeaf pack (over the post-padding (pushEH evm PTR))
+    (hsub0 : (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+        ((0 : UInt256) + 1) ≠ 0)
+    (hle : ¬ ((pushEH evm PTR).sload 1
+      > (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+          ((0 : UInt256) + 1) - 1))
+    (hne2 : (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+        ((0 : UInt256) + 2) ≠ 0)
+    (hbidx : (pushEH evm PTR).sload 1
+      < (arrOut (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+            ((0 : UInt256) + 2)).2.sload
+          (arrOut (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+            ((0 : UInt256) + 2)).1)
+    (hk2 : ((leafWriteEvm
+        (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+        0 ((pushEH evm PTR).sload 1) (pushHL evm PTR)).sload 0).val = k2)
+    (hpass2 : ∀ j, j < k2 → WalkOK 0 ((0 : UInt256) + 2)
+        (updateWalk 0 ((0 : UInt256) + 2) j
+          (leafWriteEvm
+            (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+            0 ((pushEH evm PTR).sload 1) (pushHL evm PTR))
+          0 ((pushEH evm PTR).sload 1)
+          ((padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+            ((0 : UInt256) + 1) - 1) (pushHL evm PTR)))
+    (hssinv2 : ∀ j, j ≤ k2 →
+        ((updateWalk 0 ((0 : UInt256) + 2) j
+          (leafWriteEvm
+            (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+            0 ((pushEH evm PTR).sload 1) (pushHL evm PTR))
+          0 ((pushEH evm PTR).sload 1)
+          ((padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+            ((0 : UInt256) + 1) - 1) (pushHL evm PTR)).1).sload 0
+          = (leafWriteEvm
+              (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+              0 ((pushEH evm PTR).sload 1) (pushHL evm PTR)).sload 0)
+    (hfuelp : 2 * k + 2 ≤ fuel)
+    (hfuelu : 2 * k2 + 2 ≤ fuel) :
+
+    exec (fuel+1) pushInterleaveStmt (Ok evm σ)
+      = Ok (updateWalk 0 ((0 : UInt256) + 2) k2
+            (leafWriteEvm
+              (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+              0 ((pushEH evm PTR).sload 1) (pushHL evm PTR))
+            0 ((pushEH evm PTR).sload 1)
+            ((padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+              ((0 : UInt256) + 1) - 1) (pushHL evm PTR)).1
+          (σ.insert "var_newRoot"
+            (updateWalk 0 ((0 : UInt256) + 2) k2
+              (leafWriteEvm
+                (padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1
+                0 ((pushEH evm PTR).sload 1) (pushHL evm PTR))
+              0 ((pushEH evm PTR).sload 1)
+              ((padWalk k ((pushEH evm PTR).sstore 1 ((pushEH evm PTR).sload 1 + 1)) 0 ((pushEH evm PTR).sload 1 - 1) ((pushEH evm PTR).sload 1)).1.sload
+                ((0 : UInt256) + 1) - 1) (pushHL evm PTR)).2.2.2.2)  := by
+  unfold pushInterleaveStmt
+  rw [LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hptr]
+  rw [hashLeaf_vcall hp]
+  try simp only [List.head!]
+  try simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [pushNewLeaf_call hcmax hc0 hnp hcont hstop hpass hsub0 hle hne2 hbidx
+      hk2 hpass2 hssinv2 hfuelp hfuelu]
 
 end
 
