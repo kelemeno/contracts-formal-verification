@@ -593,6 +593,61 @@ theorem decodeLeaf_arrWrite
     simpa using this
   · exact arr_elem_ne_leafSlot_add (σₐ := σ) (σ := σ) hca hci hj (by decide)
 
+/-! ### Cross-state transport (the junk-window discipline)
+
+The walk steps bump the free pointer (bytes `[64, 95)`), and the keccak
+model's junk window makes every accessor preimage depend on those bytes —
+leaf slots can DRIFT across a walk.  As everywhere in this corpus
+(cf. `read_after_mark_two`), the composition therefore transports
+`decodeLeaf` across states with `accOut_deterministic`'s pack: junk-window
+frame + cache monotonicity + cleanliness, plus `sload` agreement at the two
+field slots. -/
+
+/-- Any cached interval survives any `keccakOut` call: the cached branch
+leaves the map alone, the fresh branch inserts at a key whose lookup was
+`none` (≠ ours), and the collision branch only sets the flag. -/
+private lemma cached_after_keccakOut {σ : EVMState} {p n : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (keccakOut σ p n).2.keccak_map = some w := by
+  unfold keccakOut EVMState.keccak256
+  rcases hl : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map with _ | val
+  · -- cache miss: fresh branch or collision
+    simp only [hl]
+    rcases hp : σ.keccak_range.partition (fun x => x ∈ σ.used_range) with ⟨unused, rest⟩
+    rcases rest with _ | ⟨r, rs⟩
+    · simpa [EVMState.addHashCollision] using h
+    · simp only
+      have hne : I ≠ mkInterval σ.machine_state p n := by
+        intro heq
+        rw [heq, hl] at h
+        exact Option.noConfusion h
+      rw [Finmap.lookup_insert_of_ne _ hne]
+      exact h
+  · -- cached: the map is untouched
+    simp only [hl]
+    exact h
+
+/-- **`decodeLeaf` transport across states**: junk-window frame + cache
+monotonicity + cleanliness pin the slot; `sload` agreement at the two field
+slots pins the fields. -/
+theorem decodeLeaf_deterministic {σ₁ σ₂ : EVMState} {i : UInt256}
+    (hframe : ∀ b : UInt256, 64 ≤ b.val → b.val ≤ 94 →
+      Finmap.lookup b σ₁.machine_state.memory
+        = Finmap.lookup b σ₂.machine_state.memory)
+    (hmono : ∀ w : UInt256,
+      Finmap.lookup (accInterval σ₁ i 5) (accOut σ₁ i 5).2.keccak_map = some w →
+        Finmap.lookup (accInterval σ₁ i 5) σ₂.keccak_map = some w)
+    (hclean : (accOut σ₁ i 5).2.hash_collision = false)
+    (hs0 : σ₂.sload (leafSlot σ₁ i) = σ₁.sload (leafSlot σ₁ i))
+    (hs2 : σ₂.sload (leafSlot σ₁ i + 2) = σ₁.sload (leafSlot σ₁ i + 2)) :
+    decodeLeaf σ₂ i = decodeLeaf σ₁ i := by
+  have hslot : leafSlot σ₂ i = leafSlot σ₁ i := by
+    show (accOut σ₂ i 5).1 = (accOut σ₁ i 5).1
+    exact accOut_deterministic hframe hmono hclean
+  unfold decodeLeaf
+  rw [hslot, hs0, hs2]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
