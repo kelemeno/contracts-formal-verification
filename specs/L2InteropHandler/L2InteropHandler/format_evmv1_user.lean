@@ -764,6 +764,153 @@ private lemma format_addrG_arm
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, ha]
 
+/-! ### The address-write and length-fix chunks -/
+
+/-- Chunk H: mask the shifted address and write it; compute the format
+length. -/
+@[reducible] private def formatAddrWriteChunk : Stmt := <s
+  {
+      let split_expr_23 := not(79228162514264337593543950335)
+      let split_expr_24 := and(split_expr_22, split_expr_23)
+      mstore(split_expr_21, split_expr_24)
+      let split_expr_25 := sub(_2, expr_mpos_1)
+      let _3 := add(split_expr_25, 37)
+  }
+>
+
+/-- Chunk I: fix the byte-array length word and finalize the allocation. -/
+@[reducible] private def formatFinalChunk : Stmt := <s
+  {
+      let split_expr_26 := not(10)
+      let split_expr_27 := add(_3, split_expr_26)
+      mstore(expr_mpos_1, split_expr_27)
+      let split_expr_28 := add(_3, 21)
+      finalize_allocation(expr_mpos_1, split_expr_28)
+  }
+>
+
+/-- **Chunk H closed form**: masked address write and length computation. -/
+private lemma format_addrH_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {SA W T2 P2 : Literal}
+    (h22 : (Ok evm σ)["split_expr_22"]!! = SA)
+    (h21 : (Ok evm σ)["split_expr_21"]!! = W)
+    (h2v : (Ok evm σ)["_2"]!! = T2)
+    (hemp : (Ok evm σ)["expr_mpos_1"]!! = P2) :
+    exec (fuel+1) formatAddrWriteChunk (Ok evm σ)
+      = Ok (evm.mstore W
+            (Fin.land SA (Clear.UInt256.lnot 79228162514264337593543950335)))
+          ((((σ.insert "split_expr_23"
+            (Clear.UInt256.lnot 79228162514264337593543950335)).insert
+            "split_expr_24"
+            (Fin.land SA (Clear.UInt256.lnot 79228162514264337593543950335))).insert
+            "split_expr_25" (T2 - P2)).insert
+            "_3" (T2 - P2 + 37)) := by
+  unfold formatAddrWriteChunk
+  -- let split_expr_23 := not(...)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMNot',
+             insert_Ok]
+  -- let split_expr_24 := and(split_expr_22, split_expr_23)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAnd',
+             insert_Ok]
+  rw [lookup_insert_self_fin, lookup_insert_ne_fin (by decide), h22]
+  -- mstore(split_expr_21, split_expr_24)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), h21]
+  -- let split_expr_25 := sub(_2, expr_mpos_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMSub',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_ok_evm _ evm, h2v]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_ok_evm _ evm, hemp]
+  -- let _3 := add(split_expr_25, 37)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+
+/-- **Chunk I closed form**: the length-word fix-up (`_3 - 11`) and the final
+allocation bump. -/
+private lemma format_finalI_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {L3 P2 : Literal}
+    (h3 : (Ok evm σ)["_3"]!! = L3)
+    (hemp : (Ok evm σ)["expr_mpos_1"]!! = P2)
+    (hf1 : ¬ (P2 + Fin.land ((L3 + 21) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hf2 : ¬ (P2 + Fin.land ((L3 + 21) + 31) (Clear.UInt256.lnot 31) < P2)) :
+    exec (fuel+1) formatFinalChunk (Ok evm σ)
+      = Ok ((evm.mstore P2 (L3 + Clear.UInt256.lnot 10)).mstore 64
+            (P2 + Fin.land ((L3 + 21) + 31) (Clear.UInt256.lnot 31)))
+          (((σ.insert "split_expr_26" (Clear.UInt256.lnot 10)).insert
+            "split_expr_27" (L3 + Clear.UInt256.lnot 10)).insert
+            "split_expr_28" (L3 + 21)) := by
+  unfold formatFinalChunk
+  -- let split_expr_26 := not(10)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMNot',
+             insert_Ok]
+  -- let split_expr_27 := add(_3, split_expr_26)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin, lookup_insert_ne_fin (by decide), h3]
+  -- mstore(expr_mpos_1, split_expr_27)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hemp]
+  -- let split_expr_28 := add(_3, 21)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_ok_evm _ evm, h3]
+  -- finalize_allocation(expr_mpos_1, split_expr_28)
+  rw [cons, nil, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, hemp]
+  rw [finalize_alloc_call hf1 hf2]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
