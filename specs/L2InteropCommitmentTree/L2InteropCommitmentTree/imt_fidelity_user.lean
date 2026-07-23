@@ -680,6 +680,36 @@ theorem leafCount_retarget {σ : EVMState} {idx v w : UInt256}
     (σ.sstore (leafSlot σ idx + 2) v).sload 1 = σ.sload 1 :=
   sload_sstore_ne (leafSlot_add_ne_low 2 1 hc (by decide) (by decide))
 
+/-! ### The pure image-update lemma -/
+
+/-- Updating an injective enumeration at one index turns the image into an
+erase-plus-insert — the set form of the retarget write. -/
+private lemma image_update_erase_insert
+    {f g : ℕ → AbsLeaf} {c a : ℕ} {B : AbsLeaf}
+    (ha : a < c)
+    (hagree : ∀ m, m < c → m ≠ a → g m = f m)
+    (hga : g a = B)
+    (hinj : ∀ m, m < c → ∀ m', m' < c → f m = f m' → m = m') :
+    (Finset.range c).image g
+      = insert B (((Finset.range c).image f).erase (f a)) := by
+  ext x
+  simp only [Finset.mem_image, Finset.mem_insert, Finset.mem_erase,
+             Finset.mem_range]
+  constructor
+  · rintro ⟨m, hm, rfl⟩
+    by_cases hma : m = a
+    · left; rw [hma, hga]
+    · right
+      refine ⟨?_, m, hm, (hagree m hm hma).symm ▸ rfl⟩
+      rw [hagree m hm hma]
+      intro heq
+      exact hma (hinj m hm a ha heq)
+  · rintro (rfl | ⟨hne, m, hm, rfl⟩)
+    · exact ⟨a, ha, hga⟩
+    · refine ⟨m, hm, ?_⟩
+      have hma : m ≠ a := fun h => hne (by rw [h])
+      exact hagree m hm hma
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
