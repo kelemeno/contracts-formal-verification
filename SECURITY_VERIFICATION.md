@@ -1324,6 +1324,20 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   re-delivery reverts), both halves of the bundle status machine are machine-checked.
   *Caveats: same transport-frame hypotheses as #50 (junk window, cache monotonicity,
   cleanliness, no intervening slot write).*
+- **#58 THE ENTIRE L2InteropHandler ABSTRACTION LAYER, sorry-free (2026-07-23).**  Following
+  #56's method at corpus scale: all 241 remaining scaffold templates (blocks, ifs, switches,
+  six more for-loops with exactly-driven conditions, abi codecs, require helpers, and the
+  function-level specs) filled with the lossless pass-through idiom by six parallel subagents
+  plus two reconciliation sweeps, each file verified individually; 206 + 260 never-built
+  generated modules compiled to unblock the cones.  Result: `<fn>_abs_of_code`
+  (`execCall ⇒ Spec A_<fn>`) is axiom-clean for EVERY function in the contract —
+  `fun_executeCalls`, `fun_verifyBundle`, `fun_getBundleData`, `fun_tryParseV1`,
+  `fun_tryParseV1Calldata`, `fun_parseEvmV1`, `fun_validateBundleDestinationContext` — with
+  zero sorried templates left in `specs/L2InteropHandler/`.  The L2AssetRouter generated tree
+  is likewise fully built, unblocking its 312 templates as the next corpus.
+  *Interpretation caveat: lossless A-specs carry exactly the concrete content; where a spec
+  bottoms out at a True-AFor inner loop or the #38 call boundary, the semantic content lives
+  in the corresponding concrete closed forms (#31, #50-#55, #57).*
 
 ## Part C — What a reviewer should do
 
