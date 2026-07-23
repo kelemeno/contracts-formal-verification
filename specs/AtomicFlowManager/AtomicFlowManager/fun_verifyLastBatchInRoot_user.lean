@@ -14,13 +14,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
 
-def A_fun_verifyLastBatchInRoot  (var__path_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_verifyLastBatchInRoot  (var__path_mpos : Literal) (s₀ s₉ : State) : Prop := fun_verifyLastBatchInRoot_concrete_of_code.1 var__path_mpos s₀ s₉
 
 lemma fun_verifyLastBatchInRoot_abs_of_concrete {s₀ s₉ : State} { var__path_mpos} :
   Spec (fun_verifyLastBatchInRoot_concrete_of_code.1  var__path_mpos) s₀ s₉ →
   Spec (A_fun_verifyLastBatchInRoot  var__path_mpos) s₀ s₉ := by
   unfold fun_verifyLastBatchInRoot_concrete_of_code A_fun_verifyLastBatchInRoot
-  sorry
+  intro h
+  simpa [A_fun_verifyLastBatchInRoot] using h
 
 end
 

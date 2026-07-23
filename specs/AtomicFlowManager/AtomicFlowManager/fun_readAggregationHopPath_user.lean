@@ -26,13 +26,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
 
-def A_fun_readAggregationHopPath (var_path_4021_mpos : Identifier) (var_proof_4017_offset var_proof_4017_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_readAggregationHopPath (var_path_4021_mpos : Identifier) (var_proof_4017_offset var_proof_4017_length : Literal) (s₀ s₉ : State) : Prop := fun_readAggregationHopPath_concrete_of_code.1 var_path_4021_mpos var_proof_4017_offset var_proof_4017_length s₀ s₉
 
 lemma fun_readAggregationHopPath_abs_of_concrete {s₀ s₉ : State} {var_path_4021_mpos var_proof_4017_offset var_proof_4017_length} :
   Spec (fun_readAggregationHopPath_concrete_of_code.1 var_path_4021_mpos var_proof_4017_offset var_proof_4017_length) s₀ s₉ →
   Spec (A_fun_readAggregationHopPath var_path_4021_mpos var_proof_4017_offset var_proof_4017_length) s₀ s₉ := by
   unfold fun_readAggregationHopPath_concrete_of_code A_fun_readAggregationHopPath
-  sorry
+  intro h
+  simpa [A_fun_readAggregationHopPath] using h
 
 end
 

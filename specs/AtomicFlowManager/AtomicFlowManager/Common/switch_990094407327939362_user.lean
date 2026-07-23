@@ -19,12 +19,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common generated.AtomicFlowManager AtomicFlowManager
 
-def A_switch_990094407327939362 (s₀ s₉ : State) : Prop := sorry
+def A_switch_990094407327939362 (s₀ s₉ : State) : Prop := switch_990094407327939362_concrete_of_code.1 s₀ s₉
 
 lemma switch_990094407327939362_abs_of_concrete {s₀ s₉ : State} :
   Spec switch_990094407327939362_concrete_of_code s₀ s₉ →
   Spec A_switch_990094407327939362 s₀ s₉ := by
-  sorry
+  intro h
+  simpa [A_switch_990094407327939362] using h
 
 end
 

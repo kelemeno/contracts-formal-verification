@@ -15,13 +15,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common 
 
-def A_access_calldata_tail_array_bytes32_dyn_calldata (addr length : Identifier) (base_ref ptr_to_tail : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_access_calldata_tail_array_bytes32_dyn_calldata (addr length : Identifier) (base_ref ptr_to_tail : Literal) (s₀ s₉ : State) : Prop := access_calldata_tail_array_bytes32_dyn_calldata_concrete_of_code.1 addr length base_ref ptr_to_tail s₀ s₉
 
 lemma access_calldata_tail_array_bytes32_dyn_calldata_abs_of_concrete {s₀ s₉ : State} {addr length base_ref ptr_to_tail} :
   Spec (access_calldata_tail_array_bytes32_dyn_calldata_concrete_of_code.1 addr length base_ref ptr_to_tail) s₀ s₉ →
   Spec (A_access_calldata_tail_array_bytes32_dyn_calldata addr length base_ref ptr_to_tail) s₀ s₉ := by
   unfold access_calldata_tail_array_bytes32_dyn_calldata_concrete_of_code A_access_calldata_tail_array_bytes32_dyn_calldata
-  sorry
+  intro h
+  simpa [A_access_calldata_tail_array_bytes32_dyn_calldata] using h
 
 end
 

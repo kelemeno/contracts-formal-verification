@@ -12,13 +12,14 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities AtomicFlowManager.Common 
 
-def A_update_storage_value_offset_enum_LegState_to_enum_LegState_7852  (slot : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_update_storage_value_offset_enum_LegState_to_enum_LegState_7852  (slot : Literal) (s₀ s₉ : State) : Prop := update_storage_value_offset_enum_LegState_to_enum_LegState_7852_concrete_of_code.1 slot s₀ s₉
 
 lemma update_storage_value_offset_enum_LegState_to_enum_LegState_7852_abs_of_concrete {s₀ s₉ : State} { slot} :
   Spec (update_storage_value_offset_enum_LegState_to_enum_LegState_7852_concrete_of_code.1  slot) s₀ s₉ →
   Spec (A_update_storage_value_offset_enum_LegState_to_enum_LegState_7852  slot) s₀ s₉ := by
   unfold update_storage_value_offset_enum_LegState_to_enum_LegState_7852_concrete_of_code A_update_storage_value_offset_enum_LegState_to_enum_LegState_7852
-  sorry
+  intro h
+  simpa [A_update_storage_value_offset_enum_LegState_to_enum_LegState_7852] using h
 
 end
 
