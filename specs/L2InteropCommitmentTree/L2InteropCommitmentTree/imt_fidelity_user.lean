@@ -902,6 +902,22 @@ theorem leafCount_vtiWrite {σ : EVMState} {v u wv : UInt256}
   rw [hvv]
   exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkv (by decide)
 
+/-! ### The accessor thread does not move the slot -/
+
+/-- **Self-thread stability**: recomputing the leaf slot on the accessor's
+own output state returns the same slot — the accessor caches its hash, its
+scratch stays in `[0, 64)` (`accOut_junk_window`), and with `σ₂` the
+accessor's own output the cache transport is the identity.  This is what
+lets the glue's copy write (which runs on the threaded state) be read as a
+write at `leafSlot` of the pre-accessor state. -/
+theorem leafSlot_accThread {σ : EVMState} {i : UInt256}
+    (hclean : (accOut σ i 4).2.hash_collision = false) :
+    leafSlot (accOut σ i 4).2 i = leafSlot σ i := by
+  show (accOut ((accOut σ i 4).2) i 4).1 = (accOut σ i 4).1
+  refine accOut_deterministic ?_ (fun w hw => hw) hclean
+  intro b hb1 _
+  exact (accOut_junk_window hb1).symm
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
