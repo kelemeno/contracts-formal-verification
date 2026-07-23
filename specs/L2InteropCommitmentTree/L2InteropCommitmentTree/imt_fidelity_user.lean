@@ -942,6 +942,83 @@ theorem cached_accThread {σ : EVMState} {i : UInt256}
   rw [accInterval_accThread]
   exact accOut_caches_of_clean hclean
 
+/-! ### The retarget-stage decode: the staged writes ARE the retargeted leaf -/
+
+open Clear.KeccakDeterminism in
+/-- **RETARGET-STAGE DECODE**: on the glue's staged state
+(`retargetStageEvm` from `imt_insert_gate_user`; spelled out here to keep
+the files decoupled), the window index decodes to exactly the retargeted
+leaf `⟨lowLeaf.value, v⟩`: the copy's three writes land at the
+thread-stable slot (`leafSlot_accThread` + `cached_accThread` +
+`decodeLeaf_after_write`), and the field readbacks survive the accessor
+scratch (`accOut_mload_high`) and resolve through the staging mstores. -/
+theorem retargetStage_decode
+    {evm : EVMState} {LM NI V IX : UInt256}
+    (hclean : (accOut ((((evm.mstore 64 (evm.mload 64 + 96)).mstore
+        (evm.mload 64) (evm.mload LM)).mstore
+        (evm.mload 64 + 32) NI).mstore
+        (evm.mload 64 + 64) V) IX 4).2.hash_collision = false)
+    (hacc : (((accOut ((((evm.mstore 64 (evm.mload 64 + 96)).mstore
+        (evm.mload 64) (evm.mload LM)).mstore
+        (evm.mload 64 + 32) NI).mstore
+        (evm.mload 64 + 64) V) IX 4).2).lookupAccount
+        ((accOut ((((evm.mstore 64 (evm.mload 64 + 96)).mstore
+        (evm.mload 64) (evm.mload LM)).mstore
+        (evm.mload 64 + 32) NI).mstore
+        (evm.mload 64 + 64) V) IX 4).2).execution_env.code_owner).isSome)
+    (hplow : 96 ≤ (evm.mload 64).val)
+    (hnw : (evm.mload 64).val + 128 ≤ 2 ^ 256) :
+    decodeLeaf
+      (let P := evm.mload 64
+       let E4 := (((evm.mstore 64 (evm.mload 64 + 96)).mstore P (evm.mload LM)).mstore
+           (P + 32) NI).mstore (P + 64) V
+       let EK := (accOut E4 IX 4).2
+       let SL := (accOut E4 IX 4).1
+       ((EK.sstore SL (EK.mload P)).sstore
+           (SL + 1) (EK.mload (P + 32))).sstore
+           (SL + 2) (EK.mload (P + 64))) IX
+      = ⟨evm.mload LM, V⟩ := by
+  set P := evm.mload 64 with hP
+  set E4 := (((evm.mstore 64 (P + 96)).mstore P (evm.mload LM)).mstore
+      (P + 32) NI).mstore (P + 64) V with hE4
+  set EK := (accOut E4 IX 4).2 with hEK
+  have hsz : UInt256.size = 2 ^ 256 := by norm_num
+  have hv64 : (P + 64).val = P.val + 64 := by
+    show (P.val + ((64 : UInt256)).val) % UInt256.size = P.val + 64
+    have : ((64 : UInt256)).val = 64 := rfl
+    rw [this]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hv32 : (P + 32).val = P.val + 32 := by
+    show (P.val + ((32 : UInt256)).val) % UInt256.size = P.val + 32
+    have : ((32 : UInt256)).val = 32 := rfl
+    rw [this]
+    exact Nat.mod_eq_of_lt (by omega)
+  -- field readbacks on the threaded state
+  have hf2 : EK.mload (P + 64) = V := by
+    rw [hEK]
+    rw [accOut_mload_high (by rw [hv64]; omega) (by rw [hv64]; omega)]
+    rw [hE4]
+    exact mload_mstore_self_at _ _ _ (by rw [hv64]; omega)
+  have hf0 : EK.mload P = evm.mload LM := by
+    rw [hEK]
+    rw [accOut_mload_high (by omega) (by omega)]
+    rw [hE4]
+    rw [mload_mstore_outside _ (P + 64) V P (by rw [hv64]; omega) (by omega)
+      (Or.inl (by rw [hv64]; omega))]
+    rw [mload_mstore_outside _ (P + 32) NI P (by rw [hv32]; omega) (by omega)
+      (Or.inl (by rw [hv32]))]
+    exact mload_mstore_self_at _ _ _ (by omega)
+  -- the writes are at the thread-stable slot
+  have hsl : leafSlot EK IX = (accOut E4 IX 4).1 := by
+    rw [hEK, leafSlot_accThread hclean]
+    rfl
+  show decodeLeaf (((EK.sstore ((accOut E4 IX 4).1) (EK.mload P)).sstore
+      ((accOut E4 IX 4).1 + 1) (EK.mload (P + 32))).sstore
+      ((accOut E4 IX 4).1 + 2) (EK.mload (P + 64))) IX = ⟨evm.mload LM, V⟩
+  rw [← hsl]
+  rw [decodeLeaf_after_write hacc (cached_accThread hclean)]
+  rw [hf0, hf2]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
