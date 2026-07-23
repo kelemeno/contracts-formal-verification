@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism
 import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
+import specs.CalldatacopyFrame
 
 /-
   `fun_formatEvmV1` ARC (L2InteropHandler) — the interop-address encoder.
@@ -969,6 +970,25 @@ lemma alloc_len_readback
   rw [mload_mstore_outside _ 64 _ _ (by rw [h64v]; norm_num) hF32
       (Or.inr (by rw [h64v]; exact h96))]
   exact mload_mstore_self_at _ _ 32 hF32
+
+/-- **The slice array's length word reads back** (`h1r`/`hlr`'s core): reading
+the slice pointer `VP = E1.mload 64` through the post-slice state — the scratch
+copy lands strictly above (`VP + 32`), and `sliceEvmA`'s outermost write is at
+`VP` itself — returns the slice length `E1.mload F - 31` (with the staged
+readback, `32 - 31 = 1`). -/
+lemma slice_len_readback
+    {E1 : EVMState} {F CDS SZ2 : UInt256}
+    (hVP32 : (E1.mload 64).val + 32 ≤ 2 ^ 256)
+    (hcp : (E1.mload 64).val + 32 ≤ (E1.mload 64 + 32).val)
+    (hnw : (E1.mload 64 + 32).val
+        + (ByteArray.extractBytes CDS.val SZ2.val
+            (sliceEvmA E1 F 31).execution_env.input_data).size
+        + 31 ≤ 2 ^ 256) :
+    ((sliceEvmA E1 F 31).calldatacopy (E1.mload 64 + 32) CDS SZ2).mload
+        (E1.mload 64)
+      = E1.mload F - 31 := by
+  rw [Clear.CalldatacopyFrame.mload_calldatacopy_below hcp hnw]
+  exact mload_mstore_self_at _ _ _ hVP32
 
 end
 
