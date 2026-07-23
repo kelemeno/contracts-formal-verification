@@ -225,6 +225,62 @@ private lemma encBytes3_arm
              insert_Ok]
   rw [lookup_insert_self_fin]
 
+/-! ### The assembly -/
+
+/-- **`abi_encode_bytes` closed form**: write the length word at `pos`, copy
+the payload (A3 no-op), zero the word after, return `pos + pad(len) + 32`. -/
+lemma abi_encode_bytes_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {V P : Literal}
+    {t : Identifier} :
+    execCall (fuel+1) abi_encode_bytes [t] (Ok evm store, [V, P])
+      = Ok ((evm.mstore P (evm.mload V)).mstore (P + evm.mload V + 32) 0)
+          (store.insert t
+            (P + Fin.land (evm.mload V + 31) (Clear.UInt256.lnot 31) + 32)) := by
+  unfold execCall call abi_encode_bytes
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm store)☎️⟦["value", "pos"], [V, P]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm store)☎️⟦["value", "pos"], [V, P]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm store)☎️⟦["value", "pos"], [V, P]⟧
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  have hJ0' : J = Ok evm σ0 := by rw [hJ0, he0]
+  rw [hJ0']
+  -- chunk 1
+  rw [cons]
+  rw [encBytes1_arm (V := V) (P := P)
+    (by rw [← hJ0']; exact lookup_initcall_1)
+    (by rw [← hJ0']; exact lookup_initcall_2 (by decide))]
+  -- chunk 2
+  rw [cons]
+  rw [encBytes2_arm (P := P) (L := evm.mload V)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, ← hJ0']
+        exact lookup_initcall_2 (by decide))
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+        exact lookup_insert_self_fin)]
+  -- chunk 3
+  rw [cons, nil]
+  rw [encBytes3_arm (P := P) (L4 := evm.mload V + 31)
+    (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+            lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, ← hJ0']
+        exact lookup_initcall_2 (by decide))
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    (by exact lookup_insert_self_fin)]
+  -- the ret lookup and the wrapper
+  rw [lookup_insert_self_fin]
+  rw [reviveJump_of_isOk (by trivial)]
+  simp only [overwrite?_of_Ok]
+  rw [setStore_ok]
+  simp only [multifill_cons, multifill_nil, insert_Ok]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
