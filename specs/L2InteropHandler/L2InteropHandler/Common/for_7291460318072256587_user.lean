@@ -42,9 +42,57 @@ closed form (`executeCalls_body_prefix` in
 `specs/…/exec_calls_gate_user.lean`) applies to it directly. -/
 def ABody_for_7291460318072256587 (s₀ s₉ : State) : Prop :=
   for_7291460318072256587_body_concrete_of_code.1 s₀ s₉
-/-- The whole-loop invariant (the genuinely inductive layer) — still the
-scaffold; strengthening it is the remaining stitching step. -/
-def AFor_for_7291460318072256587 (s₀ s₉ : State) : Prop := True
+/-- **THE FREE LOOP INVARIANT** — an inductive relation whose constructors
+are exactly the five reasoning-principle obligations, with the nested
+`Spec` recursion split into per-`State`-constructor fields (the kernel
+rejects `Spec AForR` for positivity).  Nothing is discarded: `AForR s₀ s₉`
+IS the iteration transcript (each step carrying the LOSSLESS `ABody`/`APost`
+concrete specs), so any per-call consequence — dispatch pinning, status
+writes, revert propagation — is derivable later by induction on it. -/
+inductive AForR_for_7291460318072256587 : State → State → Prop where
+  | zero (s₀ : State) : isOk s₀ →
+      ACond_for_7291460318072256587 (👌 s₀) = 0 →
+      AForR_for_7291460318072256587 s₀ s₀
+  | ok (s₀ s₂ s₄ s₅ : State) : isOk s₀ → isOk s₂ → ¬ ❓ s₅ →
+      ¬ ACond_for_7291460318072256587 s₀ = 0 →
+      ABody_for_7291460318072256587 s₀ s₂ →
+      APost_for_7291460318072256587 s₂ s₄ →
+      (s₄ = OutOfFuel → ❓ s₅) →
+      (∀ c, s₄ = Checkpoint c → s₅.isJump c) →
+      ((∃ e σ, s₄ = Ok e σ) → ¬ ❓ s₅ → AForR_for_7291460318072256587 s₄ s₅) →
+      AForR_for_7291460318072256587 s₀ s₅
+  | cont (s₀ s₂ s₄ s₅ : State) : isOk s₀ → isContinue s₂ →
+      ¬ ACond_for_7291460318072256587 s₀ = 0 →
+      ABody_for_7291460318072256587 s₀ s₂ →
+      Spec APost_for_7291460318072256587 (🧟s₂) s₄ →
+      (s₄ = OutOfFuel → ❓ s₅) →
+      (∀ c, s₄ = Checkpoint c → s₅.isJump c) →
+      ((∃ e σ, s₄ = Ok e σ) → ¬ ❓ s₅ → AForR_for_7291460318072256587 s₄ s₅) →
+      AForR_for_7291460318072256587 s₀ s₅
+  | brk (s₀ s₂ : State) : isOk s₀ → isBreak s₂ →
+      ¬ ACond_for_7291460318072256587 s₀ = 0 →
+      ABody_for_7291460318072256587 s₀ s₂ →
+      AForR_for_7291460318072256587 s₀ (🧟s₂)
+  | leave (s₀ s₂ : State) : isOk s₀ → isLeave s₂ →
+      ¬ ACond_for_7291460318072256587 s₀ = 0 →
+      ABody_for_7291460318072256587 s₀ s₂ →
+      AForR_for_7291460318072256587 s₀ s₂
+
+/-- Split a `Spec R` recursion into the three positive fields. -/
+private lemma spec_to_fields_7291460318072256587
+    {R : State → State → Prop} {s₄ s₅ : State} (h : Spec R s₄ s₅) :
+    (s₄ = OutOfFuel → ❓ s₅)
+    ∧ (∀ c, s₄ = Checkpoint c → s₅.isJump c)
+    ∧ ((∃ e σ, s₄ = Ok e σ) → ¬ ❓ s₅ → R s₄ s₅) := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro he; rw [he] at h; simpa [Spec] using h
+  · intro c he; rw [he] at h; simpa [Spec] using h
+  · rintro ⟨e, σ, he⟩ hno; rw [he] at h ⊢
+    simp only [Spec] at h
+    exact h hno
+
+def AFor_for_7291460318072256587 (s₀ s₉ : State) : Prop :=
+  AForR_for_7291460318072256587 s₀ s₉
 
 lemma for_7291460318072256587_cond_abs_of_code {s₀ fuel} : eval fuel for_7291460318072256587_cond (s₀) = (s₀, ACond_for_7291460318072256587 (s₀)) := by
   unfold eval ACond_for_7291460318072256587
@@ -64,22 +112,21 @@ lemma for_7291460318072256587_concrete_of_body_abs {s₀ s₉ : State} :
   intro h
   simpa [ABody_for_7291460318072256587] using h
 
-lemma AZero_for_7291460318072256587 : ∀ s₀, isOk s₀ → ACond_for_7291460318072256587 (👌 s₀) = 0 → AFor_for_7291460318072256587 s₀ s₀ := by
-  intro s₀ _ _
-  trivial
+lemma AZero_for_7291460318072256587 : ∀ s₀, isOk s₀ → ACond_for_7291460318072256587 (👌 s₀) = 0 → AFor_for_7291460318072256587 s₀ s₀ :=
+  fun s₀ h1 h2 => .zero s₀ h1 h2
 lemma AOk_for_7291460318072256587 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → APost_for_7291460318072256587 s₂ s₄ → Spec AFor_for_7291460318072256587 s₄ s₅ → AFor_for_7291460318072256587 s₀ s₅
 := by
-  intro s₀ s₂ s₄ s₅ _ _ _ _ _ _ _
-  trivial
+  intro s₀ s₂ s₄ s₅ h1 h2 h3 h4 h5 h6 h7
+  obtain ⟨f1, f2, f3⟩ := spec_to_fields_7291460318072256587 h7
+  exact .ok s₀ s₂ s₄ s₅ h1 h2 h3 h4 h5 h6 f1 f2 f3
 lemma AContinue_for_7291460318072256587 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → Spec APost_for_7291460318072256587 (🧟s₂) s₄ → Spec AFor_for_7291460318072256587 s₄ s₅ → AFor_for_7291460318072256587 s₀ s₅ := by
-  intro s₀ s₂ s₄ s₅ _ _ _ _ _ _
-  trivial
-lemma ABreak_for_7291460318072256587 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → AFor_for_7291460318072256587 s₀ (🧟s₂) := by
-  intro s₀ s₂ _ _ _ _
-  trivial
-lemma ALeave_for_7291460318072256587 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → AFor_for_7291460318072256587 s₀ s₂ := by
-  intro s₀ s₂ _ _ _ _
-  trivial
+  intro s₀ s₂ s₄ s₅ h1 h2 h3 h4 h5 h6
+  obtain ⟨f1, f2, f3⟩ := spec_to_fields_7291460318072256587 h6
+  exact .cont s₀ s₂ s₄ s₅ h1 h2 h3 h4 h5 f1 f2 f3
+lemma ABreak_for_7291460318072256587 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → AFor_for_7291460318072256587 s₀ (🧟s₂) :=
+  fun s₀ s₂ h1 h2 h3 h4 => .brk s₀ s₂ h1 h2 h3 h4
+lemma ALeave_for_7291460318072256587 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_7291460318072256587 s₀ = 0 → ABody_for_7291460318072256587 s₀ s₂ → AFor_for_7291460318072256587 s₀ s₂ :=
+  fun s₀ s₂ h1 h2 h3 h4 => .leave s₀ s₂ h1 h2 h3 h4
 
 end
 
