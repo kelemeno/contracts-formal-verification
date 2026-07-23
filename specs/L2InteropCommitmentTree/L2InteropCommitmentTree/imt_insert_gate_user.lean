@@ -1755,6 +1755,164 @@ theorem insert_bounds_reverts
              EVMRevert', evm_Ok, setEvm_Ok]
   rfl
 
+/-! ### The guards-stage join of the insert glue
+
+The dispatcher glue from the appender gate through the low-leaf search
+loop, as ONE cons-composition over a generic tail `rest` (the style of
+`executeCalls_step_guards`).  Store-tower derivation, step by step:
+
+```
+  entry                     Ok evm σ
+  appenderIf     (pure)     Ok evm σ
+  let _1 := sload(1)        Ok evm σ₁,  σ₁ = σ.insert "_1" (evm.sload 1)
+  initGuardIf    (pure)     Ok evm σ₁       (tests the ORIGINAL count _1 —
+                                             bound BEFORE the dedup threading)
+  valueZeroGuardIf (pure)   Ok evm σ₁
+  dedupIf        (threads)  Ok E₁ σ₁,   E₁ = (accOut evm V 5).2
+  boundsGuardIf  (pure)     Ok E₁ σ₁
+  lowLeafReadChunk (threads) Ok E₂ σ₄,
+      LM = (accOut E₁ IX 4).2.mload 64
+      E₂ = leafReadEvm (accOut E₁ IX 4).2 (accOut E₁ IX 4).1
+      σ₄ = ((σ₁.insert "var_lowLeafIndex" IX).insert
+             "var_lowLeaf_mpos" LM).insert "_2" (E₂.mload LM)
+  valueOrderIf   (pure)     Ok E₂ σ₄
+  let var_attempts := 0     Ok E₂ σ₅,   σ₅ = σ₄.insert "var_attempts" 0
+  searchLoopFor  (0 iter)   Ok E₂ (insert "expr" 0
+                                    (insert "_3" (E₂.mload (LM+64)) σ₅))
+```
+-/
+
+/-- The leaf-count loader of the insert glue, source-verbatim (yul 159). -/
+@[reducible] def glueLet1 : Stmt := <s let _1 := sload(1)>
+
+/-- The search-attempt counter init, source-verbatim (yul 207). -/
+@[reducible] def glueLetAttempts : Stmt := <s let var_attempts := 0>
+
+open Clear.KeccakDeterminism in
+/-- **THE GUARDS-STAGE JOIN of the insert glue**: for an AFM-sent, fresh,
+nonzero value inserted against an in-bounds low leaf whose window already
+closes, the glue drives deterministically from the dispatcher entry through
+the search loop.  The evm threads exactly twice (the dedup accessor's
+keccak step, then the leaves accessor + struct read), and the store gains
+exactly the seven glue scratch bindings.  Generic in the remaining
+statement list `rest`. -/
+theorem insertGlue_guards
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {V IX : Literal}
+    {rest : List Stmt}
+    (hv0 : (Ok evm σ)["value0"]!! = V)
+    (hv1 : (Ok evm σ)["value1"]!! = IX)
+    (hcaller : evm.execution_env.source = (65556 : UInt256))
+    (h1nz : evm.sload 1 ≠ 0)
+    (hvnz : V ≠ 0)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0)
+    (hbound : IX < evm.sload 1)
+    (hp : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hvo : (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64) < V)
+    (hwin : (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64) = 0
+        ∨ ¬ ((leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+          (accOut (accOut evm V 5).2 IX 4).1).mload
+          ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64) < V)) :
+    exec (fuel+1+1+1) (Stmt.Block (appenderIf :: glueLet1 :: initGuardIf ::
+        valueZeroGuardIf :: dedupIf :: boundsGuardIf :: lowLeafReadChunk ::
+        valueOrderIf :: glueLetAttempts :: searchLoopFor :: rest)) (Ok evm σ)
+      = exec (fuel+1+1+1) (Stmt.Block rest)
+          (Ok (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+                (accOut (accOut evm V 5).2 IX 4).1)
+            (Finmap.insert "expr" 0 (Finmap.insert "_3"
+              ((leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+                (accOut (accOut evm V 5).2 IX 4).1).mload
+                ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64))
+              (((((σ.insert "_1" (evm.sload 1)).insert
+                "var_lowLeafIndex" IX).insert
+                "var_lowLeaf_mpos" ((accOut (accOut evm V 5).2 IX 4).2.mload 64)).insert
+                "_2" ((leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+                  (accOut (accOut evm V 5).2 IX 4).1).mload
+                  ((accOut (accOut evm V 5).2 IX 4).2.mload 64))).insert
+                "var_attempts" 0)))) := by
+  -- appender gate: pure pass
+  rw [cons]
+  rw [insert_appender_pass (fuel := fuel+1+1) hcaller]
+  -- let _1 := sload(1): bind the ORIGINAL leaf count
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  -- init guard: the original count is nonzero
+  rw [cons]
+  rw [insert_init_pass (fuel := fuel+1+1) (X := evm.sload 1)
+    lookup_insert_self_local h1nz]
+  -- nonzero-value guard
+  rw [cons]
+  rw [insert_valueZero_pass (fuel := fuel+1+1) (X := V)
+    (by rw [lookup_insert_ne_fin_local (by decide)]
+        exact hv0)
+    hvnz]
+  -- dedup gate: threads the valueToIndex accessor (accOut … 5)
+  rw [cons]
+  rw [insert_dedup_pass (fuel := fuel+1+1) (V := V)
+    (by rw [lookup_insert_ne_fin_local (by decide)]
+        exact hv0)
+    hz]
+  -- bounds guard (pure, over the accOut-threaded evm)
+  rw [cons]
+  rw [insert_bounds_pass (fuel := fuel+1+1) (IX := IX) (C := evm.sload 1)
+    (by rw [lookup_insert_ne_fin_local (by decide), lookup_ok_evm_local _ evm]
+        exact hv1)
+    lookup_insert_self_local
+    hbound]
+  -- low-leaf read chunk: threads accOut … 4 + leafReadEvm
+  rw [cons]
+  rw [lowLeafRead_arm (fuel := fuel+1+1) (IX := IX)
+    (by rw [lookup_insert_ne_fin_local (by decide), lookup_ok_evm_local _ evm]
+        exact hv1)
+    hp]
+  -- value-order guard (pure, over the read state)
+  rw [cons]
+  rw [valueOrder_pass (fuel := fuel+1+1)
+    (L := (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+        (accOut (accOut evm V 5).2 IX 4).1).mload
+        ((accOut (accOut evm V 5).2 IX 4).2.mload 64))
+    (V := V)
+    lookup_insert_self_local
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact hv0)
+    hvo]
+  -- let var_attempts := 0
+  rw [cons, LetEq']
+  simp only [Lit', insert_Ok]
+  -- the zero-iteration search loop (the fuel+3 arm: fuel := fuel)
+  rw [cons]
+  rw [searchLoop_zero (fuel := fuel)
+    (LM := (accOut (accOut evm V 5).2 IX 4).2.mload 64)
+    (V := V)
+    (NV := (leafReadEvm (accOut (accOut evm V 5).2 IX 4).2
+        (accOut (accOut evm V 5).2 IX 4).1).mload
+        ((accOut (accOut evm V 5).2 IX 4).2.mload 64 + 64))
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide)]
+        exact lookup_insert_self_local)
+    (by rw [lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_insert_ne_fin_local (by decide),
+            lookup_ok_evm_local _ evm]
+        exact hv0)
+    rfl
+    hwin]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
