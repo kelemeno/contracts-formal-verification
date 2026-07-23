@@ -918,6 +918,30 @@ theorem leafSlot_accThread {σ : EVMState} {i : UInt256}
   intro b hb1 _
   exact (accOut_junk_window hb1).symm
 
+/-- **Self-thread interval stability**: the accessor's own output computes
+the SAME preimage interval (its scratch rewrites the same bytes, and the
+junk window is untouched — `byte_double_mstore_eq` + `accOut_junk_window`).
+Closes the `hcache` gap: the cached hash is cached AT the threaded state's
+own interval. -/
+theorem accInterval_accThread {σ : EVMState} {i : UInt256} :
+    accInterval (accOut σ i 4).2 i 4 = accInterval σ i 4 := by
+  unfold accInterval
+  apply mkInterval_eq_of_byte_agree (by decide)
+  intro b _ hb2
+  have h0 : ((0 : UInt256)).val = 0 := rfl
+  have h64 : ((64 : UInt256)).val = 64 := rfl
+  rw [h0, h64] at hb2
+  exact byte_double_mstore_eq (by omega)
+    (fun h => accOut_junk_window h)
+
+/-- The accessor's hash is cached at the threaded state's own interval. -/
+theorem cached_accThread {σ : EVMState} {i : UInt256}
+    (hclean : (accOut σ i 4).2.hash_collision = false) :
+    Finmap.lookup (accInterval (accOut σ i 4).2 i 4)
+        ((accOut σ i 4).2).keccak_map = some ((accOut σ i 4).1) := by
+  rw [accInterval_accThread]
+  exact accOut_caches_of_clean hclean
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
