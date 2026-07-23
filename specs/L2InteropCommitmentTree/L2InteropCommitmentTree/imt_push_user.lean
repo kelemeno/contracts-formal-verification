@@ -1,4 +1,9 @@
 import Clear.ReasoningPrinciple
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.array_dataslot_array_bytes32_dyn_storage_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn_5278
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
@@ -78,6 +83,13 @@ private lemma primCall_keccakOut {s : State} {a b : Literal} :
   · simp only [hk]
 
 /-- Closed form of `fun_uncheckedInc(x)`: `x + 1`. -/
+private lemma ptr_norm₁ : storage_array_index_access_bytes32_dyn_ptr
+    = storage_array_index_access_bytes32_dyn__dyn := rfl
+private lemma ptr_norm₂ : storage_array_index_access_bytes32_dyn_ptr_5303
+    = storage_array_index_access_bytes32_dyn__dyn_5278 := rfl
+private lemma ptr_norm₃ : array_dataslot_array_bytes32_dyn_storage_ptr
+    = array_dataslot_array_array_bytes32_dyn_storage_dyn := rfl
+
 lemma uncheckedInc_call
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {x : Literal} {v : Identifier} :
     execCall (fuel+1) fun_uncheckedInc [v] (Ok evm store, [x])
@@ -95,7 +107,7 @@ lemma uncheckedInc_call
   rw [lookup_insert' hok0]
   rw [reviveJump_of_isOk (by rw [isOk_insert]; exact hok0)]
   try simp only [overwrite?_of_Ok]
-  obtain ⟨ei, si, hi⟩ := State_of_isOk (show isOk ((Ok evm store)☎️⟦["var_number"], [x]⟧⟦"var_" ↦ x + 1⟧)
+  obtain ⟨ei, si, hi⟩ := State_of_isOk (show isOk ((Ok evm store)☎️⟦["var_number"], [x]⟧⟦"var" ↦ x + 1⟧)
     from by rw [isOk_insert]; exact hok0)
   have hi_evm : ei = evm := by
     have h := congrArg State.evm hi
@@ -257,6 +269,7 @@ lemma array_push_call
       lookup_insert_ne_fin (by decide), hp1e]
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_self_fin]
+  simp only [ptr_norm₁, ptr_norm₂]
   rw [storage_array_index_call (by
     rw [generated.AtomicFlowManager.AtomicFlowManager.sload_sstore_self_of_nonzero evm arr _ hlen1nz hacc]
     rw [Fin.lt_def, hlen1]
@@ -592,6 +605,7 @@ lemma array_push_array_call
       lookup_insert_ne_fin (by decide), hp1e]
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_self_fin]
+  simp only [ptr_norm₁, ptr_norm₂]
   rw [storage_array_index_call (by
     rw [generated.AtomicFlowManager.AtomicFlowManager.sload_sstore_self_of_nonzero evm arr _ hlen1nz hacc]
     rw [Fin.lt_def, hlen1]
@@ -646,6 +660,7 @@ lemma array_push_array_call
              List.append_assoc, List.cons_append]
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_self_fin]
+  simp only [ptr_norm₃]
   rw [dataslot_call]
   rw [cons, LetEq']
   simp only [Lit', insert_Ok]

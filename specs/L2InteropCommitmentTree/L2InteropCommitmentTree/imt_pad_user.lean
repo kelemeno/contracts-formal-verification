@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
 
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_push_user
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_5765234204941653661
@@ -43,6 +45,9 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
 
 /-- One padding step at level `i`: read the side node, push it onto the
 level-`i` array. -/
+private lemma ptr_norm₁ : storage_array_index_access_bytes32_dyn_ptr
+    = storage_array_index_access_bytes32_dyn__dyn := rfl
+
 def padStep (σ : EVMState) (i : UInt256) : EVMState :=
   pushEvm (arrOut (arrOut σ 2).2 3).2 ((arrOut σ 2).1 + i)
     ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut (arrOut σ 2).2 3).1 + i))
@@ -996,6 +1001,7 @@ theorem pushNewLeaf_call
   simp only [insert_Ok]
   -- the padding-if, folded to the named Common def
   rw [cons]
+  try simp only [ptr_norm₁]
   rw [show (If (PrimCall .Iszero [Var "split_expr_4"])
         [LetCall ["var_oldMaxNodeNumber"] checked_sub_uint256 [Var "_1"],
          LetEq "var_maxNodeNumber" (Var "_1"),
@@ -1333,6 +1339,7 @@ theorem pushNewLeaf_call_grow
     (by rw [lookup_insert_ne_fin (by decide)]
         exact lookup_insert_self_fin)
     hcap hd1 hb3 hlen3 hacc3 hfpg hlen2 hacc2 hstaleg hfuelg
+  try simp only [ptr_norm₁]
   rw [show (If (PrimCall .Eq [Var "_1", Var "split_expr_1"])
         [.Block
           [LetCall ["expr"] fun_uncheckedInc [Var "_2"],
@@ -1372,6 +1379,7 @@ theorem pushNewLeaf_call_grow
   simp only [insert_Ok]
   -- the padding-if, folded to the named Common def
   rw [cons]
+  try simp only [ptr_norm₁]
   rw [show (If (PrimCall .Iszero [Var "split_expr_4"])
         [LetCall ["var_oldMaxNodeNumber"] checked_sub_uint256 [Var "_1"],
          LetEq "var_maxNodeNumber" (Var "_1"),

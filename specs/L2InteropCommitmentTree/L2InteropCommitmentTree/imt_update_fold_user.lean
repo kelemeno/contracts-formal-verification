@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.for_4843491680166179088
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_storage_atoms_user
@@ -1536,6 +1538,12 @@ theorem updateLeaf_call
   unfold execCall call fun_updateLeaf
   simp only [params, body, rets, multifill', mkOk_initcall_Ok,
              List.map_nil, List.map_cons]
+  -- normalize the regenerated accessor names to the __dyn variants this
+  -- proof was written against (the definitions are rfl-equal)
+  simp only [show storage_array_index_access_bytes32_dyn_ptr_5303
+      = storage_array_index_access_bytes32_dyn__dyn_5278 from rfl,
+    show storage_array_index_access_bytes32_dyn_ptr
+      = storage_array_index_access_bytes32_dyn__dyn from rfl]
   set s0 := (Ok evm store)☎️⟦["var_self_slot", "var_index", "var_itemHash"],
       [ss, idx, leaf]⟧ with hs0
   have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
