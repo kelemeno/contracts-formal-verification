@@ -197,6 +197,117 @@ theorem decodeLeaf_after_write {σ : EVMState} {n v ni nv w : UInt256}
     exact sload_sstore_self hacc
   rw [h0, h2]
 
+/-! ### The set-level write equation -/
+
+/-- **INSERT AGREEMENT, storage side** — the three-field struct write at the
+current count followed by the count bump grows the abstract leaf set by
+exactly the decoded new leaf:
+`leafSetOf (write ∘ bump) = insert ⟨v, nv⟩ (leafSetOf σ)`.
+
+The slot-disjointness facts are explicit hypotheses (to be discharged at
+composition time by keccak injectivity: distinct mapping keys give distinct
+slot hashes, hashes avoid the small scalar slots, and the `+1/+2` field
+offsets of distinct 3-word windows stay disjoint). -/
+theorem leafSetOf_after_write {σ : EVMState} {v ni nv w : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some w)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm)
+    (hdisj0 : ∀ m : ℕ, m < (σ.sload 1).val →
+      leafSlot σ (σ.sload 1) ≠ leafSlot σ (m : UInt256)
+      ∧ leafSlot σ (σ.sload 1) ≠ leafSlot σ (m : UInt256) + 2)
+    (hdisj1 : ∀ m : ℕ, m < (σ.sload 1).val →
+      leafSlot σ (σ.sload 1) + 1 ≠ leafSlot σ (m : UInt256)
+      ∧ leafSlot σ (σ.sload 1) + 1 ≠ leafSlot σ (m : UInt256) + 2)
+    (hdisj2 : ∀ m : ℕ, m < (σ.sload 1).val →
+      leafSlot σ (σ.sload 1) + 2 ≠ leafSlot σ (m : UInt256)
+      ∧ leafSlot σ (σ.sload 1) + 2 ≠ leafSlot σ (m : UInt256) + 2)
+    (hone : ∀ m : ℕ, m < (σ.sload 1).val →
+      (1 : UInt256) ≠ leafSlot σ (m : UInt256)
+      ∧ (1 : UInt256) ≠ leafSlot σ (m : UInt256) + 2)
+    (h1a : (1 : UInt256) ≠ leafSlot σ (σ.sload 1))
+    (h1b : (1 : UInt256) ≠ leafSlot σ (σ.sload 1) + 2) :
+    leafSetOf ((((σ.sstore (leafSlot σ (σ.sload 1)) v).sstore
+        (leafSlot σ (σ.sload 1) + 1) ni).sstore
+        (leafSlot σ (σ.sload 1) + 2) nv).sstore 1 (σ.sload 1 + 1))
+      = insert (⟨v, nv⟩ : AbsLeaf) (leafSetOf σ) := by
+  set c := σ.sload 1 with hcdef
+  set σ₁ := σ.sstore (leafSlot σ c) v with hσ₁
+  set σ₂ := σ₁.sstore (leafSlot σ c + 1) ni with hσ₂
+  set σ₃ := σ₂.sstore (leafSlot σ c + 2) nv with hσ₃
+  set σ₄ := σ₃.sstore 1 (c + 1) with hσ₄
+  have hacc1 := acct_sstore (a := leafSlot σ c) (v := v) hacc
+  have hacc2 := acct_sstore (a := leafSlot σ c + 1) (v := ni) hacc1
+  have hacc3 := acct_sstore (a := leafSlot σ c + 2) (v := nv) hacc2
+  -- the count after the writes and the bump
+  have hcount : σ₄.sload 1 = c + 1 := by
+    rw [hσ₄]
+    exact sload_sstore_self hacc3
+  have hcval : (σ₄.sload 1).val = c.val + 1 := by
+    rw [hcount]
+    show (c.val + (1 : UInt256).val) % 2 ^ 256 = c.val + 1
+    have h1v : (1 : UInt256).val = 1 := rfl
+    rw [h1v]
+    exact Nat.mod_eq_of_lt hnw
+  -- per-index stability below the count
+  have hstab : ∀ m : ℕ, m < c.val →
+      decodeLeaf σ₄ (m : UInt256) = decodeLeaf σ (m : UInt256) := by
+    intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    have hcm1 := cache_sstore (a := leafSlot σ c) (v := v) hcm
+    have hcm2 := cache_sstore (a := leafSlot σ c + 1) (v := ni) hcm1
+    have hcm3 := cache_sstore (a := leafSlot σ c + 2) (v := nv) hcm2
+    have hsl1 : leafSlot σ₁ (m : UInt256) = leafSlot σ (m : UInt256) :=
+      leafSlot_sstore hcm
+    have hsl2 : leafSlot σ₂ (m : UInt256) = leafSlot σ (m : UInt256) := by
+      rw [hσ₂, leafSlot_sstore hcm1, hsl1]
+    have hsl3 : leafSlot σ₃ (m : UInt256) = leafSlot σ (m : UInt256) := by
+      rw [hσ₃, leafSlot_sstore hcm2, hsl2]
+    have e4 : decodeLeaf σ₄ (m : UInt256) = decodeLeaf σ₃ (m : UInt256) := by
+      rw [hσ₄]
+      exact decodeLeaf_sstore_outside hcm3
+        (by rw [hsl3]; exact (hone m hm).1)
+        (by rw [hsl3]; exact (hone m hm).2)
+    have e3 : decodeLeaf σ₃ (m : UInt256) = decodeLeaf σ₂ (m : UInt256) := by
+      rw [hσ₃]
+      exact decodeLeaf_sstore_outside hcm2
+        (by rw [hsl2]; exact (hdisj2 m hm).1)
+        (by rw [hsl2]; exact (hdisj2 m hm).2)
+    have e2 : decodeLeaf σ₂ (m : UInt256) = decodeLeaf σ₁ (m : UInt256) := by
+      rw [hσ₂]
+      exact decodeLeaf_sstore_outside hcm1
+        (by rw [hsl1]; exact (hdisj1 m hm).1)
+        (by rw [hsl1]; exact (hdisj1 m hm).2)
+    have e1 : decodeLeaf σ₁ (m : UInt256) = decodeLeaf σ (m : UInt256) := by
+      rw [hσ₁]
+      exact decodeLeaf_sstore_outside hcm
+        (hdisj0 m hm).1 (hdisj0 m hm).2
+    rw [e4, e3, e2, e1]
+  -- the new index decodes to the written leaf
+  have hnewc : decodeLeaf σ₄ c = ⟨v, nv⟩ := by
+    have hc3 := cache_sstore (a := leafSlot σ c + 2) (v := nv)
+      (cache_sstore (a := leafSlot σ c + 1) (v := ni)
+        (cache_sstore (a := leafSlot σ c) (v := v) hc))
+    have hsl3 : leafSlot σ₃ c = leafSlot σ c := by
+      rw [hσ₃, hσ₂, hσ₁]
+      rw [leafSlot_sstore (cache_sstore (cache_sstore hc)),
+          leafSlot_sstore (cache_sstore hc), leafSlot_sstore hc]
+    have e4 : decodeLeaf σ₄ c = decodeLeaf σ₃ c := by
+      rw [hσ₄]
+      exact decodeLeaf_sstore_outside hc3
+        (by rw [hsl3]; exact h1a)
+        (by rw [hsl3]; exact h1b)
+    rw [e4, hσ₃, hσ₂, hσ₁]
+    exact decodeLeaf_after_write hacc hc
+  -- assemble
+  unfold leafSetOf
+  rw [hcval, Finset.range_succ, Finset.image_insert]
+  have hcast : ((c.val : ℕ) : UInt256) = c := Fin.cast_val_eq_self c
+  rw [hcast, hnewc]
+  congr 1
+  exact Finset.image_congr (fun m hm => hstab m (Finset.mem_range.mp hm))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
