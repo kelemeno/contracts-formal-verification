@@ -62,3 +62,34 @@ Notably `fun_verifyInclusion` and `fun_verifyTimeoutAbsence` are
 security-relevant (inclusion and timeout gates of the AtomicFlowManager);
 their hand-written concrete coverage exists in SECURITY_VERIFICATION.md
 (#22–#36 groups), so only the abstraction-pipeline layer is gated.
+
+---
+
+# Appendix: regeneration DRIFT classes (not bugs — maintenance guidance)
+
+Legitimate regeneration behavior that silently breaks hand-written proofs; found
+by fresh-compile audits on 2026-07-23 (stale oleans had masked all of them —
+`lake env lean` does not check import-olean freshness, so corpus claims require
+periodic fresh-compile audits).
+
+1. **Dedup-variant renames**: extracted helper families get re-deduplicated —
+   `storage_array_index_access_bytes32_dyn__dyn(_5278)` → `..._dyn_ptr(_5303)`,
+   `array_dataslot_array_array_..._storage_dyn` → `..._storage_ptr`. The new
+   definitions are **rfl-equal** to the old; repair = `ptr_norm`-style rfl-lemmas
+   + `simp only [ptr_norm…]` at drive/fold sites (see imt_update_fold/push/pad,
+   commit b696185).
+2. **Identifier renames**: params/rets — `var_value` → `var__value`, ret
+   `var` ↔ `var_` (both directions observed). Repair = exact-literal renames in
+   quotes AND string-literal lookups (noninclusion_gate ad74379, imt_push).
+3. **Extracted-block hash churn**: Common block/if/for hashes change whenever
+   contents fold differently (`if_3729329767271556662` → `if_880639588767859599`;
+   the 5205 loop vs the inner updateLeaf loop). Repair = retarget imports/quotes;
+   `example : quote = Common.def := rfl` bridges pin verbatim-ness.
+4. **Semantic contract evolution** (the dangerous one): upstream changed the
+   refund flow from one-step (mark Reverted=3) to two-step (authorize→
+   Revertable=2, claim→Reverted=3). This invalidates THEOREM STATEMENTS, not just
+   proofs — repairs must start from the current `.sol` (commit eabb38e, ledger
+   #64). Always re-read the source enum/flow before trusting old claims.
+
+Audit recipe: `lake env lean` every hand-written spec fresh (scripted loop; exit
+codes); diff callee-name sets between failing patterns and goals to classify.
