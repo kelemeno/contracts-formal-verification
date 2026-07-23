@@ -478,6 +478,141 @@ private lemma format_sliceB_arm
         exact hp2)]
   rw [hlen32]
 
+/-! ### The tag-prefix chunks -/
+
+/-- Chunk D: read the sliced byte word, take the new free pointer, write the
+`0x0001` version tag at `P₂ + 32`. -/
+@[reducible] private def formatTagChunk : Stmt := <s
+  {
+      let _1 := mload(var_mpos)
+      let expr_mpos_1 := mload(64)
+      let split_expr_11 := add(expr_mpos_1, 32)
+      let split_expr_12 := shl(240, 1)
+      mstore(split_expr_11, split_expr_12)
+  }
+>
+
+/-- Chunk E: write the chain-id byte (masked to the top byte) at `P₂ + 36`. -/
+@[reducible] private def formatByteChunk : Stmt := <s
+  {
+      let split_expr_13 := add(expr_mpos_1, 36)
+      let split_expr_14 := shl(248, _1)
+      let split_expr_15 := shl(248, 255)
+      let split_expr_16 := and(split_expr_14, split_expr_15)
+      mstore(split_expr_13, split_expr_16)
+  }
+>
+
+/-- **Chunk D closed form**: with the slice pointer's word read back as `B₁`
+(hypothesis), stage the version tag. -/
+private lemma format_tagD_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {VP B1 : Literal}
+    (hvm : (Ok evm σ)["var_mpos"]!! = VP)
+    (h1r : evm.mload VP = B1) :
+    exec (fuel+1) formatTagChunk (Ok evm σ)
+      = Ok (evm.mstore (evm.mload 64 + 32) (Fin.shiftLeft 1 240))
+          ((((σ.insert "_1" B1).insert
+            "expr_mpos_1" (evm.mload 64)).insert
+            "split_expr_11" (evm.mload 64 + 32)).insert
+            "split_expr_12" (Fin.shiftLeft 1 240)) := by
+  unfold formatTagChunk
+  -- let _1 := mload(var_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  rw [hvm, h1r]
+  -- let expr_mpos_1 := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  -- let split_expr_11 := add(expr_mpos_1, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- let split_expr_12 := shl(240, 1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  -- mstore(split_expr_11, split_expr_12)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+
+/-- **Chunk E closed form**: mask the sliced byte to the top position and
+write it after the tag. -/
+private lemma format_byteE_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {P2 B1 : Literal}
+    (hemp : (Ok evm σ)["expr_mpos_1"]!! = P2)
+    (h1v : (Ok evm σ)["_1"]!! = B1) :
+    exec (fuel+1) formatByteChunk (Ok evm σ)
+      = Ok (evm.mstore (P2 + 36)
+            (Fin.land (Fin.shiftLeft B1 248) (Fin.shiftLeft 255 248)))
+          ((((σ.insert "split_expr_13" (P2 + 36)).insert
+            "split_expr_14" (Fin.shiftLeft B1 248)).insert
+            "split_expr_15" (Fin.shiftLeft 255 248)).insert
+            "split_expr_16" (Fin.land (Fin.shiftLeft B1 248) (Fin.shiftLeft 255 248))) := by
+  unfold formatByteChunk
+  -- let split_expr_13 := add(expr_mpos_1, 36)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [hemp]
+  -- let split_expr_14 := shl(248, _1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), h1v]
+  -- let split_expr_15 := shl(248, 255)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  -- let split_expr_16 := and(split_expr_14, split_expr_15)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAnd',
+             insert_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  -- mstore(split_expr_13, split_expr_16)
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
