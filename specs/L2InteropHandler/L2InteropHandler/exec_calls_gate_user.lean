@@ -60,6 +60,9 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
 private lemma reviveJump_of_isOk {s : State} (h : isOk s) : 🧟 s = s := by
   obtain ⟨evm₀, store, rfl⟩ := State_of_isOk h; rfl
 
+private lemma lookup_ok_evm {σ : VarStore} {k : Identifier} (e e' : EVMState) :
+    (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
 /-! ### The version gate, quoted verbatim -/
 
 /-- The per-call version guard of `fun_executeCalls`' loop body. -/
@@ -656,6 +659,139 @@ private lemma stepChunk2_arm
   simp only [decide_eq_true (rfl : Fin.shiftLeft 1 248 = Fin.shiftLeft 1 248)]
   try simp only [show fromBool true = (1 : UInt256) from by decide]
   try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+
+/-- Loop-body target chunk: the dispatch target is the 160-bit-masked
+`interopCall.to`. -/
+@[reducible] private def stepTargetChunk : Stmt := <s
+  {
+      let split_expr_21 := add(_mpos, 64)
+      let split_expr_22 := mload(split_expr_21)
+      let split_expr_23 := shl(160, 1)
+      let split_expr_24 := sub(split_expr_23, 1)
+      let cleaned := and(split_expr_22, split_expr_24)
+  }
+>
+
+/-- Loop-body staging chunk: call value read, commitment scratch (bundle hash
+at the fresh pointer + 32). -/
+@[reducible] private def stepStagingChunk : Stmt := <s
+  {
+      let _8 := mload(_2)
+      let expr_mpos := mload(64)
+      let _9 := add(expr_mpos, 32)
+      mstore(_9, var_bundleHash)
+      let split_expr_25 := add(expr_mpos, 64)
+  }
+>
+
+/-- **Target chunk closed form**: `cleaned = mload(_mpos + 64) &&& (2^160-1)`
+— the dispatch target formula, pinned. -/
+private lemma stepTarget_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {MP : Literal}
+    (hmp : (Ok evm σ)["_mpos"]!! = MP) :
+    exec (fuel+1) stepTargetChunk (Ok evm σ)
+      = Ok evm (((((σ.insert "split_expr_21" (MP + 64)).insert
+          "split_expr_22" (evm.mload (MP + 64))).insert
+          "split_expr_23" (Fin.shiftLeft 1 160)).insert
+          "split_expr_24" (Fin.shiftLeft 1 160 - 1)).insert
+          "cleaned" (Fin.land (evm.mload (MP + 64)) (Fin.shiftLeft 1 160 - 1))) := by
+  unfold stepTargetChunk
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hmp]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMShl',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSub',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAnd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+
+/-- **Staging chunk closed form**: the call value is read, the bundle hash is
+staged at the fresh pointer's word slot. -/
+private lemma stepStaging_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {M2 BH : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = M2)
+    (hbh : (Ok evm σ)["var_bundleHash"]!! = BH) :
+    exec (fuel+1) stepStagingChunk (Ok evm σ)
+      = Ok (evm.mstore (evm.mload 64 + 32) BH)
+          (((((σ.insert "_8" (evm.mload M2)).insert
+            "expr_mpos" (evm.mload 64)).insert
+            "_9" (evm.mload 64 + 32)).insert
+            "split_expr_25" (evm.mload 64 + 64))) := by
+  unfold stepStagingChunk
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [h2]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hbh]
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
 
 end
 
