@@ -693,7 +693,7 @@ private lemma sliceC_arm
 
 /-- The post-chunk-A evm of `fun_slice`: free-pointer bump + length word at
 the fresh array. -/
-@[reducible] private def sliceEvmA (evm : EVMState) (BUF START : Literal) : EVMState :=
+@[reducible] def sliceEvmA (evm : EVMState) (BUF START : Literal) : EVMState :=
   (evm.mstore 64 (evm.mload 64
     + Fin.land ((Fin.land (evm.mload BUF - START + 31) (Clear.UInt256.lnot 31) + 32) + 31)
       (Clear.UInt256.lnot 31))).mstore (evm.mload 64) (evm.mload BUF - START)

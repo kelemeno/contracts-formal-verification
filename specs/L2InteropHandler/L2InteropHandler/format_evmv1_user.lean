@@ -369,6 +369,115 @@ private lemma format_allocA_arm
   rw [show Fin.land ((64 : UInt256) + 31) (Clear.UInt256.lnot 31)
     = (64 : UInt256) from by decide]
 
+/-! ### The slice chunk (small case) -/
+
+/-- The slice chunk: recover the payload window `[31, 32)` of the staged
+32-byte word — the single low byte of the chain id. -/
+@[reducible] private def formatSliceChunk : Stmt := <s
+  {
+      let split_expr_7 := sub(32, var_result)
+      let split_expr_8 := not(0)
+      let split_expr_9 := add(split_expr_7, split_expr_8)
+      let split_expr_10 := mload(expr_mpos)
+      let var_mpos := fun_slice(expr_mpos, split_expr_9, split_expr_10)
+  }
+>
+
+/-- **Slice chunk closed form (small case)**: with `var_result = 0` and the
+staged length word read back as `32`, the chunk slices `[31, 32)` — a fresh
+1-byte array at the current free pointer. -/
+private lemma format_sliceB_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {F : Literal}
+    (hres : (Ok evm σ)["var_result"]!! = 0)
+    (hmp : (Ok evm σ)["expr_mpos"]!! = F)
+    (hlen32 : evm.mload F = 32)
+    (hp1 : ¬ (evm.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hp2 : ¬ (evm.mload 64 + 64 < evm.mload 64)) :
+    exec (fuel+1) formatSliceChunk (Ok evm σ)
+      = Ok ((sliceEvmA evm F 31).calldatacopy (evm.mload 64 + 32)
+            (((sliceEvmA evm F 31).execution_env.input_data.size : UInt256))
+            (Fin.land (evm.mload F - 31 + 31) (Clear.UInt256.lnot 31) + 32
+              + Clear.UInt256.lnot 31))
+          (((((σ.insert "split_expr_7" 32).insert
+            "split_expr_8" (Clear.UInt256.lnot 0)).insert
+            "split_expr_9" 31).insert "split_expr_10" 32).insert
+            "var_mpos" (evm.mload 64)) := by
+  unfold formatSliceChunk
+  -- let split_expr_7 := sub(32, var_result)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMSub',
+             insert_Ok]
+  rw [hres]
+  rw [show (32 : UInt256) - 0 = (32 : UInt256) from by decide]
+  -- let split_expr_8 := not(0)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMNot',
+             insert_Ok]
+  -- let split_expr_9 := add(split_expr_7, split_expr_8)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_self_fin, lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [show (32 : UInt256) + Clear.UInt256.lnot 0 = (31 : UInt256) from by decide]
+  -- let split_expr_10 := mload(expr_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), hmp]
+  rw [hlen32]
+  -- let var_mpos := fun_slice(expr_mpos, split_expr_9, split_expr_10)
+  rw [cons, nil, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [show (Ok evm (Finmap.insert "split_expr_10" 32
+        (Finmap.insert "split_expr_9" 31
+          (Finmap.insert "split_expr_8" (Clear.UInt256.lnot 0)
+            (Finmap.insert "split_expr_7" 32 σ)))))["split_expr_9"]!!
+      = (31 : UInt256) from by
+    rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin]
+  rw [lookup_insert_self_fin]
+  rw [show (Ok evm (Finmap.insert "split_expr_10" 32
+        (Finmap.insert "split_expr_9" 31
+          (Finmap.insert "split_expr_8" (Clear.UInt256.lnot 0)
+            (Finmap.insert "split_expr_7" 32 σ)))))["expr_mpos"]!!
+      = F from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+    exact hmp]
+  rw [slice_call
+    (by rw [hlen32]; decide)
+    (by rw [hlen32]; decide)
+    (by rw [hlen32]; decide)
+    (by rw [hlen32]; decide)
+    (by rw [hlen32]
+        rw [show Fin.land ((Fin.land ((32 : UInt256) - 31 + 31)
+            (Clear.UInt256.lnot 31) + 32) + 31) (Clear.UInt256.lnot 31)
+          = (64 : UInt256) from by decide]
+        exact hp1)
+    (by rw [hlen32]
+        rw [show Fin.land ((Fin.land ((32 : UInt256) - 31 + 31)
+            (Clear.UInt256.lnot 31) + 32) + 31) (Clear.UInt256.lnot 31)
+          = (64 : UInt256) from by decide]
+        exact hp2)]
+  rw [hlen32]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
