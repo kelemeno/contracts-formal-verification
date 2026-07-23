@@ -929,4 +929,28 @@ theorem delivered_leg_available_forever
   exact delivered_and_reclaimed_impossible hevo h0 hinj0 htmono hti hdel
     htj1 hW hlow hwin
 
+/-- **THE LOOP-EXIT GUARD IS STRICT.**  The concrete insert's search loop
+exits with the weak window `nextKey = 0 ∨ v ≤ nextKey`; the dedup gate
+(`valueToIndex[v] == 0`, i.e. `v ∉ keys s`) upgrades it to the STRICT window
+`Evolution` requires — a nonzero `nextKey` resolves to an actual leaf
+(`NextClosed`), so `v = nextKey` would put `v` in the key set. -/
+theorem window_strict_of_not_mem
+    {s : Finset AbsLeaf} {W : AbsLeaf} {v : UInt256}
+    (hclosed : NextClosed s) (hW : W ∈ s)
+    (hnot : v ∉ keys s)
+    (hwin : W.nextKey = 0 ∨ v ≤ W.nextKey) :
+    W.nextKey = 0 ∨ v < W.nextKey := by
+  rcases hwin with h0 | hle
+  · exact Or.inl h0
+  · by_cases h0 : W.nextKey = 0
+    · exact Or.inl h0
+    · refine Or.inr ?_
+      rcases lt_or_eq_of_le hle with hlt | heq
+      · exact hlt
+      · exfalso
+        apply hnot
+        obtain ⟨L, hL, hLkey⟩ := hclosed W hW h0
+        rw [heq]
+        exact Finset.mem_image.mpr ⟨L, hL, hLkey⟩
+
 end IMTAbstract
