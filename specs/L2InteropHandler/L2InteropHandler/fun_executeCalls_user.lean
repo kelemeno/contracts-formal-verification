@@ -15,13 +15,15 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropHandler.Common generated.L2InteropHandler L2InteropHandler
 
-def A_fun_executeCalls  (var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos : Literal) (s₀ s₉ : State) : Prop := sorry
+/-- Lossless: the abstract spec of the dispatcher IS its concrete spec. -/
+def A_fun_executeCalls  (var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos : Literal) (s₀ s₉ : State) : Prop :=
+  fun_executeCalls_concrete_of_code.1 var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos s₀ s₉
 
 lemma fun_executeCalls_abs_of_concrete {s₀ s₉ : State} { var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos} :
   Spec (fun_executeCalls_concrete_of_code.1  var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos) s₀ s₉ →
   Spec (A_fun_executeCalls  var_sourceChainId var_bundleHash var__interopBundle_mpos var_providedCallStatus_mpos) s₀ s₉ := by
-  unfold fun_executeCalls_concrete_of_code A_fun_executeCalls
-  sorry
+  intro h
+  simpa [A_fun_executeCalls] using h
 
 end
 
