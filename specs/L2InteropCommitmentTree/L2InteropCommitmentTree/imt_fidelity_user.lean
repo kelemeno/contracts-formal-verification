@@ -648,6 +648,38 @@ theorem decodeLeaf_deterministic {σ₁ σ₂ : EVMState} {i : UInt256}
   unfold decodeLeaf
   rw [hslot, hs0, hs2]
 
+/-! ### The retarget write (the other half of `imtInsert`) -/
+
+/-- **RETARGET AGREEMENT**: writing `v` into the `nextValue` field of leaf
+`idx` retargets exactly the abstract `nextKey` — the `value` field survives
+(the two field slots differ by group arithmetic), the slot is
+cache-stable. -/
+theorem decodeLeaf_retarget {σ : EVMState} {idx v w : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w) :
+    decodeLeaf (σ.sstore (leafSlot σ idx + 2) v) idx
+      = ⟨(decodeLeaf σ idx).key, v⟩ := by
+  unfold decodeLeaf
+  rw [leafSlot_sstore hc]
+  rw [sload_sstore_ne (add_k_ne_self (by decide))]
+  rw [sload_sstore_self hacc]
+
+/-- **Retarget frame**: every other cached leaf decodes unchanged. -/
+theorem decodeLeaf_retarget_outside {σ : EVMState} {idx i v w wi : UInt256}
+    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w)
+    (hci : Finmap.lookup (accInterval σ i 5) σ.keccak_map = some wi)
+    (hne : idx ≠ i) :
+    decodeLeaf (σ.sstore (leafSlot σ idx + 2) v) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · exact leafSlot_add_ne hc hci hne (by decide)
+  · exact leafSlot_off_ne_off hc hci hne (by decide) (by decide) (by decide)
+
+/-- **Retarget count frame**: the count survives (field slots avoid slot 1). -/
+theorem leafCount_retarget {σ : EVMState} {idx v w : UInt256}
+    (hc : Finmap.lookup (accInterval σ idx 5) σ.keccak_map = some w) :
+    (σ.sstore (leafSlot σ idx + 2) v).sload 1 = σ.sload 1 :=
+  sload_sstore_ne (leafSlot_add_ne_low 2 1 hc (by decide) (by decide))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
