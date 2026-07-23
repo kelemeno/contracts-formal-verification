@@ -1297,6 +1297,25 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   *Caveats: zero-value + small-chain-id class; keccak result and the finalize/probe memory
   readbacks are explicit hypotheses (the oracle pack); the dispatch call itself is the #38
   boundary.*
+- **#56 executeCalls loop ABSTRACTION PIPELINE, sorry-free (2026-07-23).**  The Clear
+  reasoning-principle route for the dispatch loop is now fully machine-checked:
+  `for_7291460318072256587_abs_of_code` (exec of the For ⇒ `Spec AFor`) depends only on the
+  standard axiom trio.  All 65 scaffold templates in the cone (34 blocks, 21 ifs, 2 switches,
+  8 callee functions) plus the loop template itself were filled with the LOSSLESS pass-through
+  idiom `A_X := X_concrete_of_code.1` — the abstract spec IS the concrete spec, so #55's
+  `executeCalls_body_prefix` applies to `ABody` directly.  `ACond = fromBool (var_i < length)`
+  is driven exactly.  Filled by four parallel subagents against AtomicFlowManager/L2ICT
+  exemplars, verified file-by-file.  *Remaining: the inductive `AFor` invariant (currently the
+  `True` scaffold) and the function-level `A_fun_executeCalls` template.*
+- **#57 VERIFIED ⇒ EXECUTABLE — the status machine closed both ways (2026-07-23).**
+  `verify_mark_user.lean`: the Verified-status mark closed forms (slot = `accOut(bundleHash,1)`,
+  write `(old &&& ~255) ||| 1`, `BundleVerified` log2 state-transparent, masked re-read = 1,
+  `read_after_verify_one` cross-evm transport), and the end composite
+  `verified_bundle_executable` — verifyBundle's mark makes executeBundle's status guard PASS
+  (`statusGuard` publicized in `no_double_delivery_user.lean`).  With #50 (executed ⇒ marked 2 ⇒
+  re-delivery reverts), both halves of the bundle status machine are machine-checked.
+  *Caveats: same transport-frame hypotheses as #50 (junk window, cache monotonicity,
+  cleanliness, no intervening slot write).*
 
 ## Part C — What a reviewer should do
 
