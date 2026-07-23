@@ -1072,6 +1072,303 @@ theorem decodeLeaf_accOut_frame {σ : EVMState} {i k b w : UInt256}
     generated.L2InteropCommitmentTree.L2InteropCommitmentTree.sload_accOut_of_clean
       _ hcleanK]
 
+/-- **Cross-accessor interval frame**: a later accessor's preimage interval
+survives ANY interleaved accessor step (any key, any base) — the interleaved
+step rewrites only its own scratch `[0, 64)` (which the re-scratch overwrites
+identically on both sides) and its keccak call leaves memory alone, so the
+junk window `[64, 95)` agrees (`accOut_junk_window`).  Generalizes
+`accInterval_accThread` (the self-thread case) to arbitrary interleavings
+(e.g. the vti registration between the copy and a leaf readback). -/
+theorem accInterval_accOut_frame {σ : EVMState} {i k b : UInt256} :
+    accInterval (accOut σ k b).2 i 4 = accInterval σ i 4 :=
+  accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)
+
+/-! ### The new-leaf stage decode: staging + copy + vti registration
+
+The insert glue's new-leaf sequence: allocate the 96-byte struct at the free
+pointer `P` (bump to `P + 96`), fill `{value := V, nextIndex := NI4,
+nextValue := NV5}`, run the leaves accessor at `(IX1, 4)` (state `EK`, slot
+`SL`), copy the three fields to storage (state `E5`), then run the
+`valueToIndex` accessor at `(V, 5)` and write `IX1` at its slot.  The two
+lemmas below are the two halves of the leaf-set bookkeeping: the staged
+index decodes to the new abstract leaf, and every other cached index
+decodes unchanged. -/
+
+/-- `sstore` leaves the collision flag unchanged. -/
+private lemma hash_collision_sstore' (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).hash_collision = σ.hash_collision := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- **NEW-LEAF-STAGE DECODE**: on the glue's fully staged new-leaf state,
+index `IX1` decodes to exactly the new abstract leaf `⟨V, NV5⟩`: the copy
+decodes as in `retargetStage_decode` (thread-stable slot via
+`leafSlot_accThread`/`cached_accThread`, field readbacks over the accessor
+scratch via `accOut_mload_high`, then `decodeLeaf_after_write`), the decode
+survives the interleaved vti accessor thread (`decodeLeaf_accOut_frame` with
+the cache transported through the three copy `sstore`s), and the final vti
+write lands off the leaf fields (`vtiSlot_ne_leafSlot_add` at the threaded
+state, the write slot pinned by `accOut_agree_value`). -/
+theorem newLeafStage_decode
+    {evm : EVMState} {V NI4 NV5 IX1 : UInt256} :
+    let P := evm.mload 64
+    let E4 := (((evm.mstore 64 (P + 96)).mstore P V).mstore
+        (P + 32) NI4).mstore (P + 64) NV5
+    let EK := (accOut E4 IX1 4).2
+    let SL := (accOut E4 IX1 4).1
+    let E5 := ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64))
+    (accOut E4 IX1 4).2.hash_collision = false →
+    (accOut E5 V 5).2.hash_collision = false →
+    (EK.lookupAccount EK.execution_env.code_owner).isSome →
+    96 ≤ P.val →
+    P.val + 128 ≤ 2 ^ 256 →
+    decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) IX1
+      = ⟨V, NV5⟩ := by
+  intro P E4 EK SL E5 hclean4 hcleanV hacc hplow hnw
+  have hE4 : E4 = (((evm.mstore 64 (P + 96)).mstore P V).mstore
+      (P + 32) NI4).mstore (P + 64) NV5 := rfl
+  have hEK : EK = (accOut E4 IX1 4).2 := rfl
+  have hSL : SL = (accOut E4 IX1 4).1 := rfl
+  have hE5 : E5 = ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64)) := rfl
+  have hsz : UInt256.size = 2 ^ 256 := by norm_num
+  have hv64 : (P + 64).val = P.val + 64 := by
+    show (P.val + ((64 : UInt256)).val) % UInt256.size = P.val + 64
+    have h64 : ((64 : UInt256)).val = 64 := rfl
+    rw [h64]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hv32 : (P + 32).val = P.val + 32 := by
+    show (P.val + ((32 : UInt256)).val) % UInt256.size = P.val + 32
+    have h32 : ((32 : UInt256)).val = 32 := rfl
+    rw [h32]
+    exact Nat.mod_eq_of_lt (by omega)
+  -- field readbacks on the copy-accessor thread
+  have hf2 : EK.mload (P + 64) = NV5 := by
+    rw [hEK]
+    rw [accOut_mload_high (by rw [hv64]; omega) (by rw [hv64]; omega)]
+    rw [hE4]
+    exact mload_mstore_self_at _ _ _ (by rw [hv64]; omega)
+  have hf0 : EK.mload P = V := by
+    rw [hEK]
+    rw [accOut_mload_high (by omega) (by omega)]
+    rw [hE4]
+    rw [mload_mstore_outside _ (P + 64) NV5 P (by rw [hv64]; omega) (by omega)
+      (Or.inl (by rw [hv64]; omega))]
+    rw [mload_mstore_outside _ (P + 32) NI4 P (by rw [hv32]; omega) (by omega)
+      (Or.inl (by rw [hv32]))]
+    exact mload_mstore_self_at _ _ _ (by omega)
+  -- the copy's writes land at the thread-stable slot
+  have hcache : Finmap.lookup (accInterval EK IX1 4) EK.keccak_map = some SL := by
+    rw [hEK, hSL]
+    exact cached_accThread hclean4
+  have hsl : leafSlot EK IX1 = SL := by
+    rw [hEK, hSL]
+    exact leafSlot_accThread hclean4
+  -- (a) the copy decodes to the new leaf (the retargetStage_decode shape)
+  have hcopy : decodeLeaf E5 IX1 = ⟨V, NV5⟩ := by
+    have hwrite := decodeLeaf_after_write (σ := EK) (n := IX1)
+      (v := EK.mload P) (ni := EK.mload (P + 32)) (nv := EK.mload (P + 64))
+      hacc hcache
+    rw [hsl] at hwrite
+    rw [hE5, hwrite, hf0, hf2]
+  -- (b) cache and cleanliness transport onto the copy-written state E5
+  have hcacheE5 : Finmap.lookup (accInterval E5 IX1 4) E5.keccak_map
+      = some SL := by
+    rw [hE5]
+    exact cache_sstore (cache_sstore (cache_sstore hcache))
+  have hcollE5 : E5.hash_collision = false := by
+    rw [hE5, hash_collision_sstore', hash_collision_sstore',
+        hash_collision_sstore', hEK]
+    exact hclean4
+  have hcleanE5 : (accOut E5 IX1 4).2.hash_collision = false := by
+    rw [accOut_of_cached hcacheE5]
+    show ((E5.mstore 0 IX1).mstore 32 4).hash_collision = false
+    rw [hash_collision_mstore, hash_collision_mstore]
+    exact hcollE5
+  -- the decode survives the vti accessor thread
+  have hstep2 : decodeLeaf (accOut E5 V 5).2 IX1 = decodeLeaf E5 IX1 :=
+    decodeLeaf_accOut_frame hcacheE5 hcleanE5 hcleanV
+  -- the IX1 cache and the vti cache at the vti-threaded state
+  have hcacheF : Finmap.lookup (accInterval (accOut E5 V 5).2 IX1 4)
+      ((accOut E5 V 5).2).keccak_map = some SL := by
+    rw [accInterval_accOut_frame]
+    exact cached_after_accOut hcacheE5
+  have hcvF : Finmap.lookup (accInterval (accOut E5 V 5).2 V 5)
+      ((accOut E5 V 5).2).keccak_map = some ((accOut E5 V 5).1) := by
+    rw [show accInterval (accOut E5 V 5).2 V 5 = accInterval E5 V 5 from
+      accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)]
+    exact accOut_caches_of_clean hcleanV
+  -- the final vti write misses the leaf fields
+  have hvti : vtiSlot (accOut E5 V 5).2 V = (accOut E5 V 5).1 := by
+    show (accOut (accOut E5 V 5).2 V 5).1 = (accOut E5 V 5).1
+    exact accOut_agree_value (fun _ hx1 _ => (accOut_junk_window hx1).symm)
+      (accOut_caches_of_clean hcleanV)
+  have hne0 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 IX1 := by
+    have h := vtiSlot_ne_leafSlot_add (k := 0) hcvF hcacheF (by decide)
+    rw [hvti] at h
+    simpa using h
+  have hne2 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 IX1 + 2 := by
+    have h := vtiSlot_ne_leafSlot_add (k := 2) hcvF hcacheF (by decide)
+    rw [hvti] at h
+    exact h
+  have hstep1 : decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) IX1
+      = decodeLeaf (accOut E5 V 5).2 IX1 :=
+    decodeLeaf_sstore_outside hcacheF hne0 hne2
+  rw [hstep1, hstep2, hcopy]
+
+/-- **NEW-LEAF-STAGE FRAME (other indices)**: on the same staged state, every
+OTHER cached index `m ≠ IX1` decodes unchanged.  ANCHOR NOTE: the frame is
+against `E4` (the post-staging memory state), not the raw `evm` — the
+free-pointer bump `mstore 64 (P + 96)` rewrites the junk window `[64, 95)`,
+so the `m`-accessor preimage (and hence the slot) of `evm` and of the staged
+chain need not agree; `E4`'s STORAGE is still `evm`'s (the staging `mstore`s
+touch memory only), so `decodeLeaf E4 m` reads `evm`'s field values at the
+staged-memory slot.  Transport chain, each step re-transporting the
+`m`-cache (junk-window discipline): the copy accessor thread
+(`decodeLeaf_accOut_frame` + `accInterval_accOut_frame`/`cached_after_accOut`),
+the three copy `sstore`s (slot separations from
+`leafSlot_inj`/`leafSlot_add_ne`/`leafSlot_off_ne_off` at the threaded
+state, caches via `cache_sstore`), the vti accessor thread
+(`decodeLeaf_accOut_frame` again), and the final vti write
+(`vtiSlot_ne_leafSlot_add`, the write slot pinned by `accOut_agree_value`). -/
+theorem decodeLeaf_stage_outside
+    {evm : EVMState} {V NI4 NV5 IX1 m wm : UInt256} :
+    let P := evm.mload 64
+    let E4 := (((evm.mstore 64 (P + 96)).mstore P V).mstore
+        (P + 32) NI4).mstore (P + 64) NV5
+    let EK := (accOut E4 IX1 4).2
+    let SL := (accOut E4 IX1 4).1
+    let E5 := ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64))
+    (accOut E4 IX1 4).2.hash_collision = false →
+    (accOut E5 V 5).2.hash_collision = false →
+    Finmap.lookup (accInterval E4 m 4) E4.keccak_map = some wm →
+    (accOut E4 m 4).2.hash_collision = false →
+    m ≠ IX1 →
+    decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) m
+      = decodeLeaf E4 m := by
+  intro P E4 EK SL E5 hclean4 hcleanV hcm hcleanm hmne
+  have hEK : EK = (accOut E4 IX1 4).2 := rfl
+  have hSL : SL = (accOut E4 IX1 4).1 := rfl
+  have hE5 : E5 = ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64)) := rfl
+  -- the two caches at the copy-threaded state EK
+  have hcIX : Finmap.lookup (accInterval EK IX1 4) EK.keccak_map = some SL := by
+    rw [hEK, hSL]
+    exact cached_accThread hclean4
+  have hcmEK : Finmap.lookup (accInterval EK m 4) EK.keccak_map = some wm := by
+    rw [hEK, accInterval_accOut_frame]
+    exact cached_after_accOut hcm
+  have hsl : leafSlot EK IX1 = SL := by
+    rw [hEK, hSL]
+    exact leafSlot_accThread hclean4
+  -- slot separations at EK (keccak injectivity, IX1 ≠ m)
+  have hne : IX1 ≠ m := fun h => hmne h.symm
+  have h00 : SL ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_inj hcIX hcmEK hne
+  have h02 : SL ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    have h := leafSlot_off_ne_off (k₁ := 0) (k₂ := 2) hcIX hcmEK hne
+      (by decide) (by decide) (by decide)
+    simpa using h
+  have h10 : SL + 1 ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_add_ne hcIX hcmEK hne (by decide)
+  have h12 : SL + 1 ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    exact leafSlot_off_ne_off (k₁ := 1) (k₂ := 2) hcIX hcmEK hne
+      (by decide) (by decide) (by decide)
+  have h20 : SL + 2 ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_add_ne hcIX hcmEK hne (by decide)
+  have h22 : SL + 2 ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    exact leafSlot_off_ne_off (k₁ := 2) (k₂ := 2) hcIX hcmEK hne
+      (by decide) (by decide) (by decide)
+  -- cache and slot transport through the three copy sstores
+  have hcm1 : Finmap.lookup (accInterval (EK.sstore SL (EK.mload P)) m 4)
+      (EK.sstore SL (EK.mload P)).keccak_map = some wm :=
+    cache_sstore hcmEK
+  have hcm2 : Finmap.lookup (accInterval ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))) m 4)
+      ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).keccak_map = some wm :=
+    cache_sstore hcm1
+  have hslm1 : leafSlot (EK.sstore SL (EK.mload P)) m = leafSlot EK m :=
+    leafSlot_sstore hcmEK
+  have hslm2 : leafSlot ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))) m = leafSlot EK m := by
+    rw [leafSlot_sstore hcm1, hslm1]
+  -- the decode survives the copy writes
+  have hstep3 : decodeLeaf E5 m = decodeLeaf EK m := by
+    have e3 : SL + 2 ≠ leafSlot ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))) m := by
+      rw [hslm2]
+      exact h20
+    have e3' : SL + 2 ≠ leafSlot ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))) m + 2 := by
+      rw [hslm2]
+      exact h22
+    have e2 : SL + 1 ≠ leafSlot (EK.sstore SL (EK.mload P)) m := by
+      rw [hslm1]
+      exact h10
+    have e2' : SL + 1 ≠ leafSlot (EK.sstore SL (EK.mload P)) m + 2 := by
+      rw [hslm1]
+      exact h12
+    rw [hE5, decodeLeaf_sstore_outside hcm2 e3 e3',
+        decodeLeaf_sstore_outside hcm1 e2 e2',
+        decodeLeaf_sstore_outside hcmEK h00 h02]
+  -- E5-level cache and cleanliness for the vti thread
+  have hcmE5 : Finmap.lookup (accInterval E5 m 4) E5.keccak_map = some wm := by
+    rw [hE5]
+    exact cache_sstore hcm2
+  have hcollE5 : E5.hash_collision = false := by
+    rw [hE5, hash_collision_sstore', hash_collision_sstore',
+        hash_collision_sstore', hEK]
+    exact hclean4
+  have hcleanE5m : (accOut E5 m 4).2.hash_collision = false := by
+    rw [accOut_of_cached hcmE5]
+    show ((E5.mstore 0 m).mstore 32 4).hash_collision = false
+    rw [hash_collision_mstore, hash_collision_mstore]
+    exact hcollE5
+  have hstep2 : decodeLeaf (accOut E5 V 5).2 m = decodeLeaf E5 m :=
+    decodeLeaf_accOut_frame hcmE5 hcleanE5m hcleanV
+  -- the m-cache and the vti cache at the vti-threaded state
+  have hcmF : Finmap.lookup (accInterval (accOut E5 V 5).2 m 4)
+      ((accOut E5 V 5).2).keccak_map = some wm := by
+    rw [accInterval_accOut_frame]
+    exact cached_after_accOut hcmE5
+  have hcvF : Finmap.lookup (accInterval (accOut E5 V 5).2 V 5)
+      ((accOut E5 V 5).2).keccak_map = some ((accOut E5 V 5).1) := by
+    rw [show accInterval (accOut E5 V 5).2 V 5 = accInterval E5 V 5 from
+      accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)]
+    exact accOut_caches_of_clean hcleanV
+  -- the vti write misses leaf m's fields
+  have hvti : vtiSlot (accOut E5 V 5).2 V = (accOut E5 V 5).1 := by
+    show (accOut (accOut E5 V 5).2 V 5).1 = (accOut E5 V 5).1
+    exact accOut_agree_value (fun _ hx1 _ => (accOut_junk_window hx1).symm)
+      (accOut_caches_of_clean hcleanV)
+  have hv0 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 m := by
+    have h := vtiSlot_ne_leafSlot_add (k := 0) hcvF hcmF (by decide)
+    rw [hvti] at h
+    simpa using h
+  have hv2 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 m + 2 := by
+    have h := vtiSlot_ne_leafSlot_add (k := 2) hcvF hcmF (by decide)
+    rw [hvti] at h
+    exact h
+  have hstep1 : decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) m
+      = decodeLeaf (accOut E5 V 5).2 m :=
+    decodeLeaf_sstore_outside hcmF hv0 hv2
+  -- back across the copy accessor thread to the staged anchor E4
+  have hstep4 : decodeLeaf EK m = decodeLeaf E4 m := by
+    rw [hEK]
+    exact decodeLeaf_accOut_frame hcm hcleanm hclean4
+  rw [hstep1, hstep2, hstep3, hstep4]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
