@@ -911,6 +911,46 @@ private lemma format_finalI_arm
       lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, hemp]
   rw [finalize_alloc_call hf1 hf2]
 
+/-! ### Assembly recipe (for the closing session)
+
+`formatEvmV1_small_call` — the full `execCall` closed form of
+`fun_formatEvmV1` on the small-chain-id class — is pure transcription from
+here.  Everything needed is proven; this block records the exact plan.
+
+**EVM stages** (define as `@[reducible]` abbreviations; `F := evm.mload 64`):
+- `E1 := ((evm.mstore (F+32) C).mstore F 32).mstore 64 (F+64)`   (chunk A)
+- `E2 := (sliceEvmA E1 F 31).calldatacopy (E1.mload 64 + 32) (…input_data.size) (…)`  (chunk B; `VP := E1.mload 64`)
+- `E3 := E2.mstore (E2.mload 64 + 32) (Fin.shiftLeft 1 240)`      (chunk D; `P2 := E2.mload 64`)
+- `E4 := E3.mstore (P2+36) (Fin.land (Fin.shiftLeft B1 248) (Fin.shiftLeft 255 248))` (chunk E)
+- `E5 := E4.mstore (T2+37) (Fin.shiftLeft 5 250)`                 (chunk G; `T2 := P2 + LN`)
+- `E6 := E5.mstore (T2+38) (Fin.land (Fin.shiftLeft A 96) (Clear.UInt256.lnot 79228162514264337593543950335))` (chunk H)
+- `E7 := (E6.mstore P2 (L3 + Clear.UInt256.lnot 10)).mstore 64 (P2 + Fin.land ((L3+21)+31) (Clear.UInt256.lnot 31))` (chunk I; `L3 := T2 - P2 + 37`)
+
+**Hypotheses**: `h128 h64 h32 h16 h8` (probe shifts of `C` zero);
+`hf1a hf2a` (`format_allocA_arm`'s finalize bounds at `(F, 64)`);
+`hlen32 : E1.mload F = 32` — dischargeable: `mload_mstore_self_at` at `F`
+through `mload_mstore_outside` for the 64-write (needs `96 ≤ F.val`,
+`F.val + 32 ≤ 2^256`); `hp1 hp2` (sliceB bounds at `E1`);
+`h1r : E2.mload VP = B1` — `mload_calldatacopy_below` (read `VP` below the
+copy at `VP+32`) then `mload_mstore_self_at` inside `sliceEvmA` (value `1`);
+`hlr : E4.mload VP = LN` — same chain plus `mload_mstore_outside` for the
+D/E writes (disjointness `P2 ≥ VP + 64`-class); `hfI1 hfI2` (chunk I bounds).
+
+**Drive order**: initcall boilerplate (params `var_chainid, var_addr` →
+`C, A`; `set J`; destructure with the have-rewrite, NOT subst) → probe-16
+inline (iteration-30 template with `hcJ` transports; tower depth 12) →
+skip-if `iszero(split_expr_5)` (try-chain) → `format_allocA_arm` (hC peel 12
++ transport) → `format_sliceB_arm` (hres peel 10-to-var_result; hmp peel 1;
+hlen32) → `format_tagD_arm` (hvm peel 4-to-var_mpos; h1r) →
+`format_byteE_arm` (hemp peel 3; h1v peel 3) → `format_copyF_arm` (hvm/hemp
+deep peels; hlr) → `format_addrG_arm` (h2 peel 0-top; ha peel ~20 +
+transport `lookup_initcall_2`) → `format_addrH_arm` (h22 top; h21 peel 1;
+h2v/hemp deep) → `format_finalI_arm` (h3 top; hemp deep) → ret chunk
+(`rw [cons,nil]; rw [cons,nil,Assign']` + `expr_mpos_1` deep peel) → ret
+lookup + wrapper collapse (State_of_isOk + reviveJump/overwrite?/setStore).
+Read exact towers from goals (`trace_state` where `rfl` recurses); expect
+`lookup_ok_evm` hops at every evm-crossing transport. -/
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
