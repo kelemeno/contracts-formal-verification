@@ -1305,8 +1305,11 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   idiom `A_X := X_concrete_of_code.1` — the abstract spec IS the concrete spec, so #55's
   `executeCalls_body_prefix` applies to `ABody` directly.  `ACond = fromBool (var_i < length)`
   is driven exactly.  Filled by four parallel subagents against AtomicFlowManager/L2ICT
-  exemplars, verified file-by-file.  *Remaining: the inductive `AFor` invariant (currently the
-  `True` scaffold) and the function-level `A_fun_executeCalls` template.*
+  exemplars, verified file-by-file.  `A_fun_executeCalls` is likewise
+  lossless and `fun_executeCalls_abs_of_code` (execCall ⇒ Spec) is axiom-clean — the
+  whole-function pipeline is structurally complete.  *Remaining: the inductive `AFor` invariant
+  (currently the `True` scaffold) — until it is strengthened, the pipeline carries no
+  loop-effect content; the per-iteration content lives in #55's concrete closed forms.*
 - **#57 VERIFIED ⇒ EXECUTABLE — the status machine closed both ways (2026-07-23).**
   `verify_mark_user.lean`: the Verified-status mark closed forms (slot = `accOut(bundleHash,1)`,
   write `(old &&& ~255) ||| 1`, `BundleVerified` log2 state-transparent, masked re-read = 1,
