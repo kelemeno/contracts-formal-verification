@@ -103,8 +103,9 @@ private def markBlk2 : Stmt := <s
 >
 
 /-- The status guard of `executeBundle`: accept iff the status is
-`Unreceived (0)` or `Verified (1)`. -/
-private def statusGuard : Stmt := <s
+`Unreceived (0)` or `Verified (1)`.  (Public so downstream composites —
+`verified_bundle_executable` — can state theorems over it.) -/
+def statusGuard : Stmt := <s
   {
     let expr_11 := iszero(expr_component_14)
     if iszero(expr_11)

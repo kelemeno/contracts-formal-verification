@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_walk_discharge_user
+import specs.L2InteropHandler.L2InteropHandler.no_double_delivery_user
 
 /-
   THE VERIFIED MARK (L2InteropHandler, `fun_verifyBundle`'s tail).
@@ -357,6 +358,40 @@ theorem read_after_verify_one
   rw [generated.L2InteropCommitmentTree.L2InteropCommitmentTree.sload_accOut_of_clean
       _ hcleanR, hslot, hpre]
   exact verified_status_reads_one hacc
+
+/-- **A VERIFIED BUNDLE IS EXECUTABLE** — the end-to-end liveness composite:
+`fun_verifyBundle` marks the bundle `Verified (1)`; under the cross-evm
+transport frame (`read_after_verify_one`) a later `executeBundle`'s status
+read returns `1`; and with that read bound to `expr_component_14` the
+status guard PASSES (`status_verified_pass`).  Together with #50's
+`read_after_mark_two` + `no_double_delivery_reverts`, the bundle status
+machine is closed on both halves: verified ⇒ executable, executed ⇒ never
+again. -/
+theorem verified_bundle_executable
+    {evmW evmR evmG : EVMState} {σ : VarStore} {fuel : ℕ} {bh : UInt256}
+    (hframe : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i evmW.machine_state.memory
+        = Finmap.lookup i evmR.machine_state.memory)
+    (hmono : ∀ w : UInt256,
+      Finmap.lookup (accInterval evmW bh 1) (accOut evmW bh 1).2.keccak_map = some w →
+        Finmap.lookup (accInterval evmW bh 1) evmR.keccak_map = some w)
+    (hcleanW : (accOut evmW bh 1).2.hash_collision = false)
+    (hcleanR : (accOut evmR bh 1).2.hash_collision = false)
+    (hacc : ((accOut evmW bh 1).2.lookupAccount
+        (accOut evmW bh 1).2.execution_env.code_owner).isSome)
+    (hpre : evmR.sload (accOut evmW bh 1).1
+      = ((accOut evmW bh 1).2.sstore (accOut evmW bh 1).1
+          (Fin.lor (Fin.land ((accOut evmW bh 1).2.sload (accOut evmW bh 1).1)
+            (Clear.UInt256.lnot 255)) 1)).sload (accOut evmW bh 1).1)
+    (hbind : (Ok evmG σ)["expr_component_14"]!!
+      = Fin.land ((accOut evmR bh 1).2.sload (accOut evmR bh 1).1) 255) :
+    ∃ σ' : VarStore,
+      exec (fuel+1) statusGuard (Ok evmG σ) = Ok evmG σ'
+      ∧ (Ok evmG σ')["expr_11"]!! = 1 :=
+  by
+  apply status_verified_pass
+  rw [hbind]
+  exact read_after_verify_one hframe hmono hcleanW hcleanR hacc hpre
 
 end
 
