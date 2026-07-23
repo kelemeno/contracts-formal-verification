@@ -5,6 +5,8 @@ import generated.L2InteropHandler.L2InteropHandler.fun_executeCalls
 import generated.L2InteropHandler.L2InteropHandler.memory_array_index_access_enum_CallStatus_dyn
 import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
 import specs.L2InteropHandler.L2InteropHandler.format_evmv1_user
+import specs.L2InteropHandler.L2InteropHandler.enc_bytes_arms_user
+import generated.L2InteropHandler.L2InteropHandler.abi_encode_bytes32_bytes_bytes
 import generated.L2InteropHandler.L2InteropHandler.fun_formatEvmV1
 
 /-
@@ -1058,6 +1060,119 @@ private lemma stepFormat_arm
              List.singleton_append, List.append_assoc, List.cons_append,
              multifill_cons, multifill_nil, EVMShl',
              evm_Ok, setEvm_Ok, insert_Ok]
+
+/-! ### The encode chunk (dispatch payload) -/
+
+/-- The dispatch-payload memory after the encode chunk: selector word staged
+at the fresh pointer, `abi_encode_bytes32_bytes_bytes(commitment, sender,
+payload)` written behind the 4-byte selector. -/
+@[reducible] def stepEncEvm (evm : EVMState) (P10 S33 X FM PM : Literal) : EVMState :=
+  ((enc3Pre2 (evm.mstore P10 S33) (P10+4) X FM).mstore
+      (enc3T1 (evm.mstore P10 S33) (P10+4) X FM)
+      ((enc3Pre2 (evm.mstore P10 S33) (P10+4) X FM).mload PM)).mstore
+    (enc3T1 (evm.mstore P10 S33) (P10+4) X FM
+      + (enc3Pre2 (evm.mstore P10 S33) (P10+4) X FM).mload PM + 32) 0
+
+/-- The encoder's returned end pointer for the dispatch payload. -/
+@[reducible] def stepEncEnd (evm : EVMState) (P10 S33 X FM PM : Literal) : Literal :=
+  enc3T1 (evm.mstore P10 S33) (P10+4) X FM
+    + Fin.land ((enc3Pre2 (evm.mstore P10 S33) (P10+4) X FM).mload PM + 31)
+      (Clear.UInt256.lnot 31) + 32
+
+/-- Loop-body encode chunk: stage the selector, snapshot gas, ABI-encode the
+`(commitment, formattedSender, payload)` triple, compute the calldata
+length. -/
+@[reducible] private def stepEncodeChunk : Stmt := <s
+  {
+      mstore(_10, split_expr_33)
+      let split_expr_34 := gas()
+      let split_expr_35 := add(_10, 4)
+      let split_expr_36 := abi_encode_bytes32_bytes_bytes(split_expr_35, expr, expr_mpos_1, _mpos_1)
+      let split_expr_37 := sub(split_expr_36, _10)
+  }
+>
+
+/-- **Encode chunk closed form**: composes the hypothesis-free
+`abi_encode3_call`; `split_expr_37` is the dispatch calldata length
+`end − _10`. -/
+private lemma stepEncode_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {P10 S33 X FM PM : Literal}
+    (h10 : (Ok evm σ)["_10"]!! = P10)
+    (h33 : (Ok evm σ)["split_expr_33"]!! = S33)
+    (hex : (Ok evm σ)["expr"]!! = X)
+    (hem : (Ok evm σ)["expr_mpos_1"]!! = FM)
+    (hm1 : (Ok evm σ)["_mpos_1"]!! = PM) :
+    exec (fuel+1) stepEncodeChunk (Ok evm σ)
+      = Ok (stepEncEvm evm P10 S33 X FM PM)
+          ((((σ.insert "split_expr_34" ((evm.mstore P10 S33).gas)).insert
+            "split_expr_35" (P10 + 4)).insert
+            "split_expr_36" (stepEncEnd evm P10 S33 X FM PM)).insert
+            "split_expr_37" (stepEncEnd evm P10 S33 X FM PM - P10)) := by
+  unfold stepEncodeChunk
+  -- mstore(_10, split_expr_33)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [h10, h33]
+  -- let split_expr_34 := gas()
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMGas',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  -- let split_expr_35 := add(_10, 4)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, h10]
+  -- let split_expr_36 := abi_encode_bytes32_bytes_bytes(...)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil,
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [show (Ok (evm.mstore P10 S33) (Finmap.insert "split_expr_35" (P10 + 4)
+        (Finmap.insert "split_expr_34" ((evm.mstore P10 S33).gas) σ)))["split_expr_35"]!!
+      = P10 + 4 from lookup_insert_self_fin]
+  rw [show (Ok (evm.mstore P10 S33) (Finmap.insert "split_expr_35" (P10 + 4)
+        (Finmap.insert "split_expr_34" ((evm.mstore P10 S33).gas) σ)))["expr"]!! = X from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_ok_evm _ evm]
+    exact hex]
+  rw [show (Ok (evm.mstore P10 S33) (Finmap.insert "split_expr_35" (P10 + 4)
+        (Finmap.insert "split_expr_34" ((evm.mstore P10 S33).gas) σ)))["expr_mpos_1"]!! = FM from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_ok_evm _ evm]
+    exact hem]
+  rw [show (Ok (evm.mstore P10 S33) (Finmap.insert "split_expr_35" (P10 + 4)
+        (Finmap.insert "split_expr_34" ((evm.mstore P10 S33).gas) σ)))["_mpos_1"]!! = PM from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_ok_evm _ evm]
+    exact hm1]
+  rw [abi_encode3_call]
+  -- let split_expr_37 := sub(split_expr_36, _10)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMSub',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, h10]
 
 end
 
