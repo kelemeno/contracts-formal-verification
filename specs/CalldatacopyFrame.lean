@@ -122,4 +122,17 @@ theorem execution_env_calldatacopy
 theorem execution_env_mstore (σ : EVMState) (a v : UInt256) :
     (σ.mstore a v).execution_env = σ.execution_env := rfl
 
+/-- **The copy frame, `mload` form**: `calldatacopy mstart _ s` leaves the
+word read strictly below `mstart` unchanged. -/
+theorem mload_calldatacopy_below
+    {σ : EVMState} {mstart datastart s r : UInt256}
+    (hr : r.val + 32 ≤ mstart.val)
+    (hnw : mstart.val
+        + (ByteArray.extractBytes datastart.val s.val σ.execution_env.input_data).size
+        + 31 ≤ 2 ^ 256) :
+    (σ.calldatacopy mstart datastart s).mload r = σ.mload r := by
+  show (σ.calldatacopy mstart datastart s).machine_state.lookupMemory r
+    = σ.machine_state.lookupMemory r
+  exact lookupMemory_calldatacopy_below hr hnw
+
 end Clear.CalldatacopyFrame
