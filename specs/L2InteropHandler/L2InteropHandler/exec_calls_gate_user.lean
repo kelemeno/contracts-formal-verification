@@ -1174,6 +1174,169 @@ private lemma stepEncode_arm
   rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, h10]
 
+/-! ### The step-prefix join, stage 1: through both guards -/
+
+/-- The split-form version guard, verbatim from the loop body. -/
+@[reducible] private def stepVersionGuard : Stmt := <s
+  if iszero(split_expr_7) 
+  {
+      let split_expr_8 := shl(224, 3589355891)
+      mstore(0, split_expr_8)
+      revert(0, 4)
+  }
+>
+
+/-- The value-transfer guard, verbatim.  For the zero-value class it is
+skipped whole — its body (the base-token `give` sub-call) is never
+evaluated. -/
+@[reducible] private def stepValueGuard : Stmt := <s
+  if iszero(split_expr_9) 
+  {
+      {
+          let ret := 0
+          let sum := 0
+          sum := 65553
+          let _4 := 0
+          _4 := 0
+      }
+      {
+          ret := sum
+          let split_expr_10 := shl(160, 1)
+          let split_expr_11 := sub(split_expr_10, 1)
+          let _5 := and(sum, split_expr_11)
+          let split_expr_12 := extcodesize(_5)
+      }
+      if iszero(split_expr_12) 
+      {revert(0, 0)}
+      {
+          let _6 := mload(64)
+          let split_expr_13 := shl(224, 3653389487)
+          mstore(_6, split_expr_13)
+          let split_expr_14 := add(_6, 4)
+          let split_expr_15 := address()
+      }
+      {
+          mstore(split_expr_14, split_expr_15)
+          let split_expr_16 := add(_6, 36)
+          mstore(split_expr_16, _3)
+          let split_expr_17 := add(_6, 68)
+          mstore(split_expr_17, var_sourceChainId)
+      }
+      {
+          let split_expr_18 := gas()
+          let _7 := call(split_expr_18, _5, 0, _6, 100, _6, 0)
+      }
+      if iszero(_7) 
+      {
+          let pos := mload(64)
+          let split_expr_19 := returndatasize()
+          returndatacopy(pos, 0, split_expr_19)
+          let split_expr_20 := returndatasize()
+          revert(pos, split_expr_20)
+      }
+      if _7 
+      {finalize_allocation(_6, 0)}
+  }
+>
+
+@[reducible] private def stepLet2 : Stmt := <s let _2 := add(_mpos, 128)>
+@[reducible] private def stepLet3 : Stmt := <s let _3 := mload(_2)>
+@[reducible] private def stepLet9 : Stmt := <s let split_expr_9 := iszero(_3)>
+
+/-- **Step-prefix join, stage 1**: for a version-1, zero-value call the loop
+body drives through both guards without branching — chunks 1-2 pin the
+element/version values, both `if`s are skipped, and the value probe reads
+`0`.  Generic in the remaining statement list `rest`. -/
+private lemma executeCalls_step_guards
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {BP I : Literal}
+    {rest : List Stmt}
+    (h1v : (Ok evm σ)["_1"]!! = BP)
+    (hi : (Ok evm σ)["var_i"]!! = I)
+    (hlt : I < evm.mload (evm.mload BP))
+    (hver : Fin.land (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+        (Fin.shiftLeft 255 248) = Fin.shiftLeft 1 248)
+    (hv0 : evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32) + 128) = 0) :
+    exec (fuel+1) (Stmt.Block (stepChunk1 :: stepChunk2 :: stepVersionGuard ::
+        stepLet2 :: stepLet3 :: stepLet9 :: stepValueGuard :: rest)) (Ok evm σ)
+      = exec (fuel+1) (Stmt.Block rest)
+          (Ok evm (((((((((((σ.insert
+            "split_expr_1" (evm.mload BP)).insert
+            "split_expr_2" (evm.mload BP + Fin.shiftLeft I 5 + 32)).insert
+            "_mpos" (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32))).insert
+            "split_expr_3" (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))).insert
+            "split_expr_4" (Fin.shiftLeft 255 248)).insert
+            "split_expr_5" (Fin.shiftLeft 1 248)).insert
+            "split_expr_6" (Fin.shiftLeft 1 248)).insert
+            "split_expr_7" 1).insert
+            "_2" (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32) + 128)).insert
+            "_3" 0).insert
+            "split_expr_9" 1)) := by
+  rw [cons]
+  rw [stepChunk1_arm h1v hi hlt]
+  rw [cons]
+  rw [stepChunk2_arm
+    (W := evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+    (by rw [lookup_insert_ne_fin (by decide)]; exact lookup_insert_self_fin)
+    lookup_insert_self_fin
+    hver]
+  -- version guard: split_expr_7 = 1 → skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  try simp only [List.head!]
+  rw [lookup_insert_self_fin]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+  -- let _2 := add(_mpos, 128)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAdd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  -- let _3 := mload(_2)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [hv0]
+  -- let split_expr_9 := iszero(_3)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMIszero',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  -- value guard: split_expr_9 = 1 → skip
+  rw [cons, If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  try simp only [List.head!]
+  rw [lookup_insert_self_fin]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
