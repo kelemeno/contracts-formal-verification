@@ -53,6 +53,22 @@ this track proves the *stored node arrays and root* commit the whole leaf list.
 
 ### 1.1 Pure Merkle spec (new file `specs/MerkleSpec.lean` — EVM-free, mirrors `IMTAbstract`'s style)
 
+> **STATUS 2026-07-23: DONE** — `specs/MerkleSpec.lean` (593 lines, `import Clear.UInt256`
+> only, namespace `MerkleSpec`): M-A, M-B, M-C all green in FULL generality, axiom-free
+> (standard trio); M-D deferred (TODO in header, no sorry). Signature deviations vs. the
+> sketch below: (1) `walkPure h sibs lvl k idx x` threads an absolute-level counter —
+> top-level use is `walkPure h sibs 0 height idx x`; (2) sibling streams are uniformly
+> `(levels L l).getD (sibIdx (path/2^l)) (zeros l)` — the `getD` default AUTOMATICALLY
+> yields the zeros read beyond the frontier, so M-B needs no inside/outside `if` (matches
+> `stepEdge` at every even level of walk #2); (3) `sibIdx` is if-parity form, ℕ division
+> not shiftRight (Fin bridging stays in the concrete layer, per §4.7); (4) M-C primary
+> phrasing `(len−1)/2^l + 1` with the ceiling form as corollary; (5) new public
+> `appendPath` (append-path node values) is the pivot of M-B (`levels_append`:
+> `levels (leaves++[x]) l = (levels leaves l).take (len/2^l) ++ [appendPath l]`).
+> Engine lemma for R3/R7: `walkPure_levels` (intermediate accumulator =
+> `(levels L (lvl+k)).getD (j/2^k)`); `walkPure_update_orig` reads sibs from the OLD tree
+> (what the contract walk reads).
+
 ```lean
 variable (h : UInt256 → UInt256 → UInt256) (z0 : UInt256)
 
