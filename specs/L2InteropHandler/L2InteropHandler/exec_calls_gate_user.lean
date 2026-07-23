@@ -1648,6 +1648,130 @@ theorem executeCalls_body_prefix
 
 
 
+/-! ### The failure-forward arms, SPLIT form (the generated body's shape) -/
+
+/-- The generic split-form failure-forward arm: like `failForwardIf` but with
+the two `returndatasize()` reads split into their own lets — the shape the
+expression splitter actually emits inside `fun_executeCalls`. -/
+@[reducible] private def failForwardIfSplit (k pv a b : Identifier) : Stmt :=
+  .If (.PrimCall .Iszero [.Var k])
+    [.LetPrimCall [pv] .Mload [.Lit 64],
+     .LetPrimCall [a] .Returndatasize [],
+     .ExprStmtPrimCall .Returndatacopy [.Var pv, .Lit 0, .Var a],
+     .LetPrimCall [b] .Returndatasize [],
+     .ExprStmtPrimCall .Revert [.Var pv, .Var b]]
+
+/-- The verbatim dispatch-arm quote IS the generic split shape. -/
+example : stepDispatchFailIf
+    = failForwardIfSplit "_11" "pos_1" "split_expr_38" "split_expr_39" := rfl
+
+/-- **A FAILED EXTERNAL CALL FORWARDS ITS REVERT (split form)**. -/
+theorem fail_forward_reverts_split
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {k pv a b : Identifier}
+    (hap : a ≠ pv) (hba : b ≠ a) (hbp : b ≠ pv)
+    (h : (Ok evm store)[k]!! = 0) :
+    (exec (fuel+1) (failForwardIfSplit k pv a b) (Ok evm store)).evm.reverted
+      = true := by
+  unfold failForwardIfSplit
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, EVMIszero']
+  rw [h]
+  try rw [show fromBool ((0 : UInt256) = 0) = (1 : UInt256) from by decide]
+  try simp only [List.head!]
+  try simp only [reduceIte]
+  try rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
+  -- let pv := mload(64)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  try simp only [List.head!]
+  -- let a := returndatasize()
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMReturndatasize',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  try simp only [List.head!]
+  -- returndatacopy(pv, 0, a)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMReturndatacopy',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  try simp only [List.head!]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (Ne.symm hap), lookup_insert_self_fin]
+  rcases hrc : evm.returndatacopy (evm.mload 64) 0 evm.returndatasize with _ | evm'
+  all_goals {
+    simp only [hrc]
+    try simp only [setEvm_Ok]
+    -- let b := returndatasize()
+    rw [cons, LetPrimCall']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, List.append_assoc, List.cons_append,
+               multifill_cons, multifill_nil, EVMReturndatasize',
+               evm_Ok, setEvm_Ok, insert_Ok]
+    try simp only [List.head!]
+    -- revert(pv, b)
+    rw [cons, nil, ExprStmtPrimCall']
+    simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+               PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+               List.reverse_cons, List.reverse_nil, List.nil_append,
+               List.singleton_append, List.append_assoc, List.cons_append,
+               multifill_cons, multifill_nil, EVMRevert',
+               evm_Ok, setEvm_Ok, insert_Ok]
+    try simp only [List.head!]
+    rw [lookup_insert_self_fin]
+    rw [lookup_insert_ne_fin (Ne.symm hbp), lookup_insert_ne_fin (Ne.symm hap),
+        lookup_insert_self_fin]
+    rfl
+  }
+
+/-- **BUNDLE ATOMICITY (per-call leg), generated form**: the split-form
+dispatch failure arm — the one the generated body actually carries — always
+reverts the delivery on a zero call result. -/
+theorem dispatch_call_failure_forwards_split
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h11 : (Ok evm store)["_11"]!! = 0) :
+    (exec (fuel+1) stepDispatchFailIf (Ok evm store)).evm.reverted = true :=
+  fail_forward_reverts_split (by decide) (by decide) (by decide) h11
+
+/-- The `give`-call failure arm in the generated SPLIT form. -/
+@[reducible] def stepGiveFailIf : Stmt := <s
+  if iszero(_7) 
+  {
+      let pos := mload(64)
+      let split_expr_19 := returndatasize()
+      returndatacopy(pos, 0, split_expr_19)
+      let split_expr_20 := returndatasize()
+      revert(pos, split_expr_20)
+  }
+>
+
+/-- The verbatim give-arm quote IS the generic split shape. -/
+example : stepGiveFailIf
+    = failForwardIfSplit "_7" "pos" "split_expr_19" "split_expr_20" := rfl
+
+/-- **A FAILED `give` CALL REVERTS THE DELIVERY, generated form.** -/
+theorem give_call_failure_forwards_split
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h7 : (Ok evm store)["_7"]!! = 0) :
+    (exec (fuel+1) stepGiveFailIf (Ok evm store)).evm.reverted = true :=
+  fail_forward_reverts_split (by decide) (by decide) (by decide) h7
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
