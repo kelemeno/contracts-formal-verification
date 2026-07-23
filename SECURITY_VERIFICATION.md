@@ -1432,6 +1432,21 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   abbreviations keep the P5/5205 packs statable.  With #61-#63 and the decode agreements,
   this is the concrete half of the insert-fidelity story; the grand composition onto
   `leafSetOf_evolution_step` (#62) is the remaining stitch.
+- **#66 THE GRAND FIDELITY COMPOSITION (2026-07-23).**  `glueSeq_leafSetOf`
+  (`imt_fidelity_user.lean`): the insert glue's COMPLETE write sequence — retarget staging +
+  copy, Merkle walk, new-leaf staging + copy, valueToIndex registration, count bump, frontier
+  pad, level-0 write, root walk — produces exactly
+  `leafSetOf (final) = imtInsert (leafSetOf σ₀) (decodeLeaf σ₀ widx) v` over the entry
+  anchor.  The two allocator bumps split the chain into three junk-window regimes; the
+  TRI-ANCHOR CACHE PACK (per index, one word cached at all three anchor intervals — the
+  concrete shadow of keccak's preimage-functionality, which the model's junk-window artifact
+  otherwise loses) pins every leaf slot across the whole chain, collapsing all decode
+  comparisons to sload frames.  Per-index: the window leaf retargets to `⟨k_w, v⟩`, the new
+  index decodes to `⟨v, W₀.nextKey⟩`, every other index is untouched, the count increments
+  once.  Axiom base: the trusted keccak idealizations only.  With #65 (the concrete closed
+  form whose final state instantiates this chain) and #62's capstone packaging
+  (`leafSetOf_evolution_step`), the deployed insert IS an abstract `Evolution` step — and
+  through #60, the cross-chain atomicity story now rests on the running bytecode.
 
 ## Part C — What a reviewer should do
 
