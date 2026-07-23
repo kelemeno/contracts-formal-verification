@@ -1352,6 +1352,16 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   emission proof gap, two quotation parse failures (`unexpected ':'`), and an unbound-`hs`
   generated proof.  *The old pre-relocation InteropHandler corpus (316 templates) is
   deliberately skipped as superseded.*
+- **#60 CROSS-CHAIN ATOMICITY, abstract core (2026-07-23).**  `IMTAbstract.lean`:
+  `delivered_leg_available_forever` — delivery evidence for a leg (membership in an on-time
+  settled snapshot) yields membership at EVERY later snapshot (any sibling chain verifying
+  against any later published root accepts the same leg) AND the impossibility of any reclaim
+  witness for it, ever.  This is the properly-named atomicity statement — executed on one
+  chain ⇒ the evidence sibling chains need is permanent and unraceable — composing
+  `evolution_keys_mono` with `delivered_and_reclaimed_impossible` (#34).  Per-chain
+  acceptance is #57's verified ⇒ executable hook; per-chain re-execution is blocked by #50.
+  *Caveat: abstract layer — the shared history `S` models the published interop roots; the
+  concrete root-publication transport between chains is upstream infrastructure.*
 
 ## Part C — What a reviewer should do
 

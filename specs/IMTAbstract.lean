@@ -898,4 +898,35 @@ theorem evolution_insert_unique
     ⟨habs m₁ W₁ hW₁ hlow₁ hwin₁, by rw [hstep₁]; exact imtInsert_key_mem hW₁⟩
     ⟨habs m₂ W₂ hW₂ hlow₂ hwin₂, by rw [hstep₂]; exact imtInsert_key_mem hW₂⟩
 
+/-! ## Cross-chain atomicity, abstract core
+
+"Atomicity" in this project means the AtomicFlow's cross-chain guarantee: a
+bundle executed on a single chain can be executed on all other chains of the
+flow.  In this model the flow's legs share one commitment history `S` (the
+interop roots are published to every chain).  A leg executed on chain A
+supplies delivery evidence — membership in a snapshot settled on time.  The
+composite below is what a sibling chain B needs: that evidence never decays
+(membership persists at every later root B may verify against), and no
+reclaim witness for the leg can ever be produced (so B's execution can never
+be raced by a reclaim).  Per-chain, evidence acceptance is #57's
+verified ⇒ executable hook; per-chain re-execution is blocked by #50. -/
+
+/-- **A DELIVERED LEG IS AVAILABLE FOREVER, AND NEVER RECLAIMABLE.**
+Delivery evidence for `v` at an on-time snapshot `i` yields (1) membership
+at EVERY later snapshot — any chain verifying against any later published
+root accepts the same leg — and (2) the impossibility of any reclaim
+witness for `v` at any deadline-pinned snapshot, ever. -/
+theorem delivered_leg_available_forever
+    {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
+    (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0))
+    (htmono : Monotone t)
+    {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i)) :
+    (∀ j, i ≤ j → v ∈ keys (S j))
+    ∧ (∀ j (W : AbsLeaf), D < t (j+1) → W ∈ S j → W.key < v →
+        ¬ (W.nextKey = 0 ∨ v < W.nextKey)) := by
+  refine ⟨fun j hij => evolution_keys_mono hevo hij hdel, ?_⟩
+  intro j W htj1 hW hlow hwin
+  exact delivered_and_reclaimed_impossible hevo h0 hinj0 htmono hti hdel
+    htj1 hW hlow hwin
+
 end IMTAbstract
