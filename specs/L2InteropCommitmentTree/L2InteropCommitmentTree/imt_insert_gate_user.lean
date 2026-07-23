@@ -12,6 +12,8 @@ import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.read_from_stora
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_hash_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_update_5205_user
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_5205
 
 /-
   THE INSERT GATES (L2InteropCommitmentTree dispatcher glue).
@@ -1380,6 +1382,65 @@ theorem searchLoop_zero
         (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ)))) : State)
       = Ok evm (Finmap.insert "expr" 0 (Finmap.insert "_3" NV σ)) from rfl]
   simp only [overwrite?_of_Ok]
+
+/-! ### The updateLeaf interleave: `pop(updateLeaf_5205(lowIdx, hashLeaf(ptr)))` -/
+
+/-- The retargeted low leaf's tree update, source-verbatim. -/
+@[reducible] def updateInterleaveStmt : Stmt := <s
+  pop(fun_updateLeaf_5205(var_lowLeafIndex, fun_hashLeaf(expr_mpos)))
+>
+
+/-- **UpdateLeaf-interleave closed form**: hash the staged struct
+(`hashLeafOut`), run the level-0 write + Merkle walk on the hash-threaded
+state, discard the returned root.  Store untouched. -/
+theorem updateInterleave_arm
+    {evm : EVMState} {σ : VarStore} {fuel k : ℕ} {IX PTR : Literal}
+    (hix : (Ok evm σ)["var_lowLeafIndex"]!! = IX)
+    (hptr : (Ok evm σ)["expr_mpos"]!! = PTR)
+    (hp : (evm.mload 64).val + 128 ≤ 18446744073709551615)
+    (hsub0 : (hashLeafOut evm PTR).2.sload 1 ≠ 0)
+    (hle : ¬ (IX > (hashLeafOut evm PTR).2.sload 1 - 1))
+    (hne2 : (hashLeafOut evm PTR).2.sload 2 ≠ 0)
+    (hbidx : IX < (arrOut (hashLeafOut evm PTR).2 2).2.sload
+        (arrOut (hashLeafOut evm PTR).2 2).1)
+    (hk : ((leafWriteEvm (hashLeafOut evm PTR).2 0 IX
+        (hashLeafOut evm PTR).1).sload 0).val = k)
+    (hpass : ∀ j, j < k → WalkOK 0 2
+        (updateWalk 0 2 j (leafWriteEvm (hashLeafOut evm PTR).2 0 IX
+            (hashLeafOut evm PTR).1) 0 IX
+          ((hashLeafOut evm PTR).2.sload 1 - 1) (hashLeafOut evm PTR).1))
+    (hssinv : ∀ j, j ≤ k →
+        ((updateWalk 0 2 j (leafWriteEvm (hashLeafOut evm PTR).2 0 IX
+            (hashLeafOut evm PTR).1) 0 IX
+          ((hashLeafOut evm PTR).2.sload 1 - 1) (hashLeafOut evm PTR).1).1).sload 0
+          = (leafWriteEvm (hashLeafOut evm PTR).2 0 IX
+              (hashLeafOut evm PTR).1).sload 0)
+    (hfuel : 2 * k + 2 ≤ fuel) :
+    exec (fuel+1) updateInterleaveStmt (Ok evm σ)
+      = Ok (updateWalk 0 2 k (leafWriteEvm (hashLeafOut evm PTR).2 0 IX
+            (hashLeafOut evm PTR).1) 0 IX
+          ((hashLeafOut evm PTR).2.sload 1 - 1) (hashLeafOut evm PTR).1).1 σ := by
+  unfold updateInterleaveStmt
+  rw [ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMPop',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [hptr]
+  rw [hashLeaf_vcall hp]
+  try simp only [List.head!]
+  try simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMPop',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_ok_evm_local _ evm, hix]
+  rw [updateLeaf_5205_vcall hsub0 hle hne2 hbidx hk hpass hssinv hfuel]
+  try simp only [List.head!]
+  try simp only [multifill_cons, multifill_nil, EVMPop']
 
 end
 
