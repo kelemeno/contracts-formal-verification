@@ -1556,6 +1556,204 @@ theorem pushInterleave_arm
              evm_Ok, setEvm_Ok, insert_Ok]
   rw [pushNewLeaf_call hcmax hc0 hnp hcont hstop hpass hsub0 hle hne2 hbidx
       hk2 hpass2 hssinv2 hfuelp hfuelu]
+/-! ### The remaining small guards of the insert glue -/
+
+/-- The tree-initialized guard (`0x57243cc5 = 1461992645`): the leaf count
+must be nonzero — genesis exists. -/
+@[reducible] def initGuardIf : Stmt := <s
+  if iszero(_1)
+  {
+      mstore(0, shl(225, 1461992645))
+      revert(0, 4)
+  }
+>
+
+theorem insert_init_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {X : Literal}
+    (hx : (Ok evm σ)["_1"]!! = X)
+    (hnz : X ≠ 0) :
+    exec (fuel+1) initGuardIf (Ok evm σ) = Ok evm σ := by
+  unfold initGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  rw [hx]
+  try simp only [List.head!]
+  simp only [show (decide (X = 0)) = false from decide_eq_false hnz]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+theorem insert_init_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    (hx : (Ok evm σ)["_1"]!! = 0) :
+    (exec (fuel+1) initGuardIf (Ok evm σ)).evm.reverted = true := by
+  unfold initGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  rw [hx]
+  try simp only [List.head!]
+  try simp only [show (decide ((0 : UInt256) = 0)) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
+
+/-- The nonzero-value guard (`0xbd1de53d = 3172853053`): zero is the genesis
+key and can never be inserted. -/
+@[reducible] def valueZeroGuardIf : Stmt := <s
+  if iszero(value0)
+  {
+      mstore(0, shl(224, 3172853053))
+      revert(0, 4)
+  }
+>
+
+theorem insert_valueZero_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {X : Literal}
+    (hx : (Ok evm σ)["value0"]!! = X)
+    (hnz : X ≠ 0) :
+    exec (fuel+1) valueZeroGuardIf (Ok evm σ) = Ok evm σ := by
+  unfold valueZeroGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  rw [hx]
+  try simp only [List.head!]
+  simp only [show (decide (X = 0)) = false from decide_eq_false hnz]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+theorem insert_valueZero_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ}
+    (hx : (Ok evm σ)["value0"]!! = 0) :
+    (exec (fuel+1) valueZeroGuardIf (Ok evm σ)).evm.reverted = true := by
+  unfold valueZeroGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', evm_Ok]
+  rw [hx]
+  try simp only [List.head!]
+  try simp only [show (decide ((0 : UInt256) = 0)) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
+
+/-- The index-bounds guard (`0x037dc2ed = 58573549`): the candidate window
+index must be below the leaf count. -/
+@[reducible] def boundsGuardIf : Stmt := <s
+  if iszero(lt(value1, _1))
+  {
+      mstore(0, shl(224, 58573549))
+      revert(0, abi_encode_uint256_uint256(value1, _1))
+  }
+>
+
+theorem insert_bounds_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {IX C : Literal}
+    (hix : (Ok evm σ)["value1"]!! = IX)
+    (hc : (Ok evm σ)["_1"]!! = C)
+    (hlt : IX < C) :
+    exec (fuel+1) boundsGuardIf (Ok evm σ) = Ok evm σ := by
+  unfold boundsGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMLt', evm_Ok]
+  rw [hix, hc]
+  try simp only [List.head!]
+  simp only [show decide (IX < C) = true from decide_eq_true hlt]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+theorem insert_bounds_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {IX C : Literal}
+    (hix : (Ok evm σ)["value1"]!! = IX)
+    (hc : (Ok evm σ)["_1"]!! = C)
+    (hge : ¬ (IX < C)) :
+    (exec (fuel+1) boundsGuardIf (Ok evm σ)).evm.reverted = true := by
+  unfold boundsGuardIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMLt', evm_Ok]
+  rw [hix, hc]
+  try simp only [List.head!]
+  simp only [show decide (IX < C) = false from decide_eq_false hge]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMRevert', evm_Ok, setEvm_Ok]
+  rw [lookup_ok_evm_local _ evm, hix]
+  rw [lookup_ok_evm_local _ evm, hc]
+  rw [abi_encode_uint256_uint256_call]
+  try simp only [List.head!]
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
 
 end
 
