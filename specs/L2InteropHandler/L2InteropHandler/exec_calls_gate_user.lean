@@ -7,6 +7,7 @@ import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
 import specs.L2InteropHandler.L2InteropHandler.format_evmv1_user
 import specs.L2InteropHandler.L2InteropHandler.enc_bytes_arms_user
 import generated.L2InteropHandler.L2InteropHandler.abi_encode_bytes32_bytes_bytes
+import generated.L2InteropHandler.L2InteropHandler.Common.for_7291460318072256587_gen
 import generated.L2InteropHandler.L2InteropHandler.fun_formatEvmV1
 
 /-
@@ -292,7 +293,7 @@ theorem give_call_failure_forwards
   fail_forward_reverts h7
 
 /-- The `receiveMessage`-dispatch failure arm, quoted verbatim. -/
-@[reducible] private def dispatchFailIf : Stmt := <s
+@[reducible] def dispatchFailIf : Stmt := <s
   if iszero(_11)
   {
       let pos_1 := mload(64)
@@ -1478,6 +1479,174 @@ private lemma executeCalls_step_prefix
         exact lookup_insert_self_fin)
     (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
         exact lookup_insert_self_fin)]
+
+/-! ### Bridge to the generated For body -/
+
+/-- The dispatch-call boundary statement. -/
+@[reducible] def stepCallStmt : Stmt := <s
+  {
+      let _11 := call(split_expr_34, cleaned, _8, _10, split_expr_37, _10, 32)
+  }
+>
+
+/-- The dispatch failure-forward arm in the generated SPLIT form (the older
+`dispatchFailIf` quote is the unsplit paraphrase used by
+`dispatch_call_failure_forwards`; the generated body carries this one). -/
+@[reducible] def stepDispatchFailIf : Stmt := <s
+  if iszero(_11) 
+  {
+      let pos_1 := mload(64)
+      let split_expr_38 := returndatasize()
+      returndatacopy(pos_1, 0, split_expr_38)
+      let split_expr_39 := returndatasize()
+      revert(pos_1, split_expr_39)
+  }
+>
+
+@[reducible] def stepLetExpr1 : Stmt := <s let expr_1 := 0>
+
+/-- The dispatch return-value decode arm (entered only on call success —
+behind the model boundary). -/
+@[reducible] def stepDecodeIf : Stmt := <s
+  if _11 
+  {
+      let _12 := 32
+      let split_expr_40 := returndatasize()
+      if gt(_12, split_expr_40) 
+      {_12 := returndatasize()}
+      finalize_allocation(_10, _12)
+      let split_expr_41 := add(_10, _12)
+      let split_expr_42 := sub(split_expr_41, _10)
+      if slt(split_expr_42, 32) 
+      {revert(0, 0)}
+      let value := mload(_10)
+      let split_expr_43 := shl(224, 4294967295)
+      let split_expr_44 := and(value, split_expr_43)
+      let split_expr_45 := eq(value, split_expr_44)
+      if iszero(split_expr_45) 
+      {revert(0, 0)}
+      expr_1 := value
+  }
+>
+
+@[reducible] def stepLet46 : Stmt := <s let split_expr_46 := shl(224, 4294967295)>
+@[reducible] def stepLet13 : Stmt := <s let _13 := and(expr_1, split_expr_46)>
+@[reducible] def stepLet47 : Stmt := <s let split_expr_47 := shl(225, 303658899)>
+@[reducible] def stepLet48 : Stmt := <s let split_expr_48 := eq(_13, split_expr_47)>
+
+/-- The per-call status check: the dispatch return word must be the
+`executeInteropCall` acceptance selector. -/
+@[reducible] def stepStatusIf : Stmt := <s
+  if iszero(split_expr_48) 
+  {
+      let split_expr_49 := shl(224, 314189935)
+      mstore(0, split_expr_49)
+      mstore(4, _13)
+      revert(0, 36)
+  }
+>
+
+/-- The loop-body tail from the dispatch call on: the `call` boundary, the
+failure-forward arm, the return-value decode, and the status check. -/
+@[reducible] def stepDispatchRest : List Stmt :=
+  [stepCallStmt, stepDispatchFailIf, stepLetExpr1, stepDecodeIf,
+   stepLet46, stepLet13, stepLet47, stepLet48, stepStatusIf]
+
+/-- The generated extracted For body is ONE outer block wrapping the
+thirteen quoted prefix statements consed onto the dispatch tail. -/
+private lemma body_eq :
+    L2InteropHandler.Common.for_7291460318072256587_body
+      = stepChunk1 :: stepChunk2 :: stepVersionGuard ::
+        stepLet2 :: stepLet3 :: stepLet9 :: stepValueGuard ::
+        stepTargetChunk :: stepStagingChunk :: stepCommitChunk ::
+        stepSenderChunk :: stepFormatChunk :: stepEncodeChunk ::
+        stepDispatchRest := by rfl
+
+/-- **THE GENERATED LOOP BODY'S PRE-DISPATCH CLOSED FORM** — the step
+prefix restated over the framework's own extracted body
+`for_7291460318072256587_body`; this is the form the loop abstraction
+(`ABody`) consumes. -/
+theorem executeCalls_body_prefix
+    {evm ek : EVMState} {σ : VarStore} {fuel : ℕ}
+    {BP I BH C B1 LN H : Literal}
+    (h1v : (Ok evm σ)["_1"]!! = BP)
+    (hi : (Ok evm σ)["var_i"]!! = I)
+    (hbh : (Ok evm σ)["var_bundleHash"]!! = BH)
+    (hsc : (Ok evm σ)["var_sourceChainId"]!! = C)
+    (hlt : I < evm.mload (evm.mload BP))
+    (hver : Fin.land (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))
+        (Fin.shiftLeft 255 248) = Fin.shiftLeft 1 248)
+    (hv0 : evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 128) = 0)
+    (hcf1 : ¬ (evm.mload 64 + 96 > (18446744073709551615 : UInt256)))
+    (hcf2 : ¬ (evm.mload 64 + 96 < evm.mload 64))
+    (hk : ((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).keccak256 (evm.mload 64 + 32)
+        (((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).mload (evm.mload 64)) = some (H, ek))
+    (h128 : Fin.shiftRight C 128 = 0) (h64 : Fin.shiftRight C 64 = 0)
+    (h32 : Fin.shiftRight C 32 = 0) (h16 : Fin.shiftRight C 16 = 0)
+    (h8 : Fin.shiftRight C 8 = 0)
+    (hf1a : ¬ (ek.mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hf2a : ¬ (ek.mload 64 + 64 < ek.mload 64))
+    (hlen32 : (fmtE1 ek C).mload (ek.mload 64) = 32)
+    (hp1 : ¬ ((fmtE1 ek C).mload 64 + 64 > (18446744073709551615 : UInt256)))
+    (hp2 : ¬ ((fmtE1 ek C).mload 64 + 64 < (fmtE1 ek C).mload 64))
+    (h1r : (fmtE2 ek C).mload ((fmtE1 ek C).mload 64) = B1)
+    (hlr : (fmtE4 ek C B1).mload ((fmtE1 ek C).mload 64) = LN)
+    (hfI1 : ¬ ((fmtE2 ek C).mload 64
+      + Fin.land ((fmtL3 ek C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      > (18446744073709551615 : UInt256)))
+    (hfI2 : ¬ ((fmtE2 ek C).mload 64
+      + Fin.land ((fmtL3 ek C LN + 21) + 31) (Clear.UInt256.lnot 31)
+      < (fmtE2 ek C).mload 64)) :
+    exec (fuel+1) (Stmt.Block L2InteropHandler.Common.for_7291460318072256587_body)
+        (Ok evm σ)
+      = exec (fuel+1) (Stmt.Block stepDispatchRest)
+          (Ok (stepEncEvm (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)))
+            ((((((((((((((((((((((((((((((((((((σ.insert
+              "split_expr_1" (evm.mload BP)).insert
+              "split_expr_2" (evm.mload BP + Fin.shiftLeft I 5 + 32)).insert
+              "_mpos" (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32))).insert
+              "split_expr_3" (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))).insert
+              "split_expr_4" (Fin.shiftLeft 255 248)).insert
+              "split_expr_5" (Fin.shiftLeft 1 248)).insert
+              "split_expr_6" (Fin.shiftLeft 1 248)).insert
+              "split_expr_7" 1).insert
+              "_2" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 128)).insert
+              "_3" 0).insert
+              "split_expr_9" 1).insert
+              "split_expr_21" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64)).insert
+              "split_expr_22" (evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64))).insert
+              "split_expr_23" (Fin.shiftLeft 1 160)).insert
+              "split_expr_24" (Fin.shiftLeft 1 160 - 1)).insert
+              "cleaned" (Fin.land (evm.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 64)) (Fin.shiftLeft 1 160 - 1))).insert
+              "_8" 0).insert
+              "expr_mpos" (evm.mload 64)).insert
+              "_9" (evm.mload 64 + 32)).insert
+              "split_expr_25" (evm.mload 64 + 64)).insert
+              "split_expr_26" (((((evm.mstore (evm.mload 64 + 32) BH).mstore (evm.mload 64 + 64) I).mstore
+        (evm.mload 64) 64).mstore 64 (evm.mload 64 + 96)).mload (evm.mload 64))).insert
+              "expr" H).insert
+              "split_expr_27" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)).insert
+              "split_expr_28" (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96))).insert
+              "split_expr_29" (Fin.shiftLeft 1 160)).insert
+              "split_expr_30" (Fin.shiftLeft 1 160 - 1)).insert
+              "split_expr_31" (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).insert
+              "expr_mpos_1" ((fmtE2 ek C).mload 64)).insert
+              "split_expr_32" ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)).insert
+              "_mpos_1" ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160))).insert
+              "_10" ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64)).insert
+              "split_expr_33" (Fin.shiftLeft 303658899 225)).insert
+              "split_expr_34" (((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mstore ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225)).gas)).insert
+              "split_expr_35" (((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) + 4)).insert
+              "split_expr_36" (stepEncEnd (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)))).insert
+              "split_expr_37" (stepEncEnd (fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64) (Fin.shiftLeft 303658899 225) H ((fmtE2 ek C).mload 64) ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 160)) - ((fmtE7 ek C B1 LN (Fin.land (ek.mload ((evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)) + 96)) (Fin.shiftLeft 1 160 - 1))).mload 64)))) := by
+  rw [body_eq]
+  exact executeCalls_step_prefix h1v hi hbh hsc hlt hver hv0 hcf1 hcf2 hk
+    h128 h64 h32 h16 h8 hf1a hf2a hlen32 hp1 hp2 h1r hlr hfI1 hfI2
+
+
+
 
 end
 
