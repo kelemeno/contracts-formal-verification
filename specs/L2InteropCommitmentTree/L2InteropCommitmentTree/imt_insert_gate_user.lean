@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.constant_L2_ATOMIC_FLOW_MANAGER_ADDR
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199
 import specs.KeccakDeterminism
@@ -1033,6 +1034,139 @@ lemma lowLeafRead_arm
              multifill_cons, multifill_nil, EVMMload',
              evm_Ok, setEvm_Ok, insert_Ok]
   rw [lookup_insert_self_local]
+
+/-! ### The two-word error encoder and the value-order gate -/
+
+/-- **`abi_encode_uint256_uint256`, call level**: two scratch writes,
+tail `68`. -/
+lemma abi_encode_uint256_uint256_call
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {V1 V2 : Literal} :
+    call (fuel+1) [V1, V2] abi_encode_uint256_uint256 (Ok evm σ)
+      = (Ok ((evm.mstore 4 V1).mstore 36 V2) σ, [(68 : Literal)]) := by
+  unfold call abi_encode_uint256_uint256
+  simp only [params, body, rets, mkOk_initcall_Ok, List.map_nil, List.map_cons]
+  have hok0 : isOk ((Ok evm σ)☎️⟦["value0", "value1"], [V1, V2]⟧) :=
+    isOk_initcall_of_isOk trivial
+  have hevm0 : ((Ok evm σ)☎️⟦["value0", "value1"], [V1, V2]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  set J := (Ok evm σ)☎️⟦["value0", "value1"], [V1, V2]⟧ with hJ
+  obtain ⟨e0, σ0, hJ0⟩ := State_of_isOk hok0
+  have he0 : e0 = evm := by
+    have h := congrArg State.evm hJ0
+    rw [hevm0] at h
+    exact h.symm
+  have hJ0' : J = Ok evm σ0 := by rw [hJ0, he0]
+  rw [hJ0']
+  rw [cons, Assign']
+  simp only [Lit', insert_Ok]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [show (Ok evm (Finmap.insert "tail" 68 σ0))["value0"]!! = V1 from by
+    rw [lookup_insert_ne_fin_local (by decide)]
+    rw [← hJ0']
+    exact lookup_initcall_1]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [show (Ok ((evm.mstore 4 V1)) (Finmap.insert "tail" 68 σ0))["value1"]!! = V2 from by
+    rw [lookup_insert_ne_fin_local (by decide)]
+    rw [lookup_ok_evm_local _ evm]
+    rw [← hJ0']
+    exact lookup_initcall_2 (by decide)]
+  rw [reviveJump_of_isOk_local (by trivial)]
+  simp only [overwrite?_of_Ok, setStore_ok]
+  rw [lookup_insert_self_local]
+
+/-- The value-order guard, source-verbatim (`0x74470b8f = 1950813071`):
+the window's low value must be strictly below the inserted value. -/
+@[reducible] def valueOrderIf : Stmt := <s
+  if iszero(lt(_2, value0))
+  {
+      mstore(0, shl(224, 1950813071))
+      revert(0, abi_encode_uint256_uint256(_2, value0))
+  }
+>
+
+/-- **A PROPER LOW LEAF PASSES**: `lowLeaf.value < _value` falls through
+untouched. -/
+theorem valueOrder_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {L V : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = L)
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hlt : L < V) :
+    exec (fuel+1) valueOrderIf (Ok evm σ) = Ok evm σ := by
+  unfold valueOrderIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMLt', evm_Ok]
+  rw [h2, hv]
+  try simp only [List.head!]
+  simp only [show decide (L < V) = true from decide_eq_true hlt]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+/-- **A MISORDERED LOW LEAF IS REJECTED**: `lowLeaf.value ≥ _value` reverts
+`IMTLowLeafValueTooLarge` — the concrete window-order guard (`W₀.key < v`
+of the abstract `Evolution` step). -/
+theorem valueOrder_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {L V : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = L)
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hge : ¬ (L < V)) :
+    (exec (fuel+1) valueOrderIf (Ok evm σ)).evm.reverted = true := by
+  unfold valueOrderIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMLt', evm_Ok]
+  rw [h2, hv]
+  try simp only [List.head!]
+  simp only [show decide (L < V) = false from decide_eq_false hge]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMRevert', evm_Ok, setEvm_Ok]
+  rw [lookup_ok_evm_local _ evm, h2]
+  rw [lookup_ok_evm_local _ evm, hv]
+  rw [abi_encode_uint256_uint256_call]
+  try simp only [List.head!]
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
 
 end
 
