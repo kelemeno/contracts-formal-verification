@@ -1462,6 +1462,17 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   `guards_sload`.  Axiom base: trusted keccak only.  The deployed insert's set effect is
   now ONE theorem from the entry state; remaining to Evolution packaging: the window
   discharge (#68).
+- **#68 THE EVOLUTION PACKAGING (2026-07-23).**  `insertGlue_evolution` /
+  `insertGlue_evolution_step` / `evolution_disjunct_of_step` (`imt_weld_user.lean`): the
+  real dispatcher pass IS the abstract `Evolution` insert disjunct.  The window is DERIVED
+  from the contract's own guards (Yul ground truth: lower check STRICT, upper check WEAK
+  with `nextValue = 0` last-leaf sentinel, dedup requires `valueToIndex[V] = 0`), through
+  the read-back discharge + entry-anchor transport; membership from the count bound;
+  strictness via `window_strict_of_not_mem`; the set equation from #67.  Residue, named
+  and documented: `NextClosed` (free along any history from sound genesis via
+  `evolution_sound`) and `hfresh : V ∉ keys` — whose concrete pin `valueToIndex[V] = 0`
+  awaits the vti-coherence invariant (#69), the single genuinely new obligation left.
+  Axiom base: trusted keccak only.
 
 ## Part C — What a reviewer should do
 
