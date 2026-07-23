@@ -56,14 +56,14 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
 private lemma lookup_ok_evm {e e' : EVMState} {σ : VarStore} {k : Identifier} :
     (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
 
-/-- The inner window-check body: `split_expr_5 := gt(_2, var_value); expr :=
+/-- The inner window-check body: `split_expr_5 := gt(_2, var__value); expr :=
 iszero(split_expr_5)` — with `value < nextKey` it resets `expr` to `0`. -/
 private lemma window_body
     {evm : EVMState} {σ : VarStore} {fuel : ℕ} {nk val : Literal}
     (h2 : (Ok evm σ)["_2"]!! = nk)
-    (hv : (Ok evm σ)["var_value"]!! = val)
+    (hv : (Ok evm σ)["var__value"]!! = val)
     (hgt : nk > val) :
-    exec (fuel+1) (.Block [LetPrimCall ["split_expr_5"] P.Gt [Var "_2", Var "var_value"],
+    exec (fuel+1) (.Block [LetPrimCall ["split_expr_5"] P.Gt [Var "_2", Var "var__value"],
         AssignPrimCall ["expr"] P.Iszero [Var "split_expr_5"]]) (Ok evm σ)
       = Ok evm (Finmap.insert "expr" 0 (Finmap.insert "split_expr_5" 1 σ)) := by
   rw [cons, LetPrimCall']
@@ -108,14 +108,14 @@ private lemma ni_tail
             [LetPrimCall ["split_expr_6"] P.Shl [Lit 225, Lit 1816069939],
               ExprStmtPrimCall P.Mstore [Lit 0, Var "split_expr_6"],
               ExprStmtPrimCall P.Mstore [Lit 4, Var "_2"],
-              ExprStmtPrimCall P.Mstore [Lit 36, Var "var_value"],
+              ExprStmtPrimCall P.Mstore [Lit 36, Var "var__value"],
               ExprStmtPrimCall P.Revert [Lit 0, Lit 68]],
           LetCall ["split_expr_7"] fun_hashLeaf [Var "var_lowLeaf_mpos"],
           LetCall ["split_expr_8"] fun_calculateRootMemory
             [Var "var_lowLeafProof_mpos", Var "var_lowLeafIndex", Var "split_expr_7"],
-          AssignPrimCall ["var"] P.Eq [Var "split_expr_8", Var "var_root"]]) (Ok evm σ)
+          AssignPrimCall ["var_"] P.Eq [Var "split_expr_8", Var "var_root"]]) (Ok evm σ)
       = Ok (foldRoot hlEvm proofPos (hlEvm.mload proofPos).val 0 idxv hlOut).2
-          (Finmap.insert "var" (fromBool
+          (Finmap.insert "var_" (fromBool
               ((foldRoot hlEvm proofPos (hlEvm.mload proofPos).val 0 idxv hlOut).1 = rootv))
             (Finmap.insert "split_expr_8"
               (foldRoot hlEvm proofPos (hlEvm.mload proofPos).val 0 idxv hlOut).1
@@ -192,13 +192,13 @@ theorem verifyNonInclusion_call
   simp only [params, body, rets, multifill', mkOk_initcall_Ok,
              List.map_nil, List.map_cons]
   -- initcall facts
-  set s0 := (Ok evm store)☎️⟦["var_root", "var_value", "var_lowLeaf_mpos", "var_lowLeafIndex",
+  set s0 := (Ok evm store)☎️⟦["var_root", "var__value", "var_lowLeaf_mpos", "var_lowLeafIndex",
       "var_lowLeafProof_mpos"], [rootv, val, leafPos, idxv, proofPos]⟧ with hs0
   have hok0 : isOk s0 := isOk_initcall_of_isOk trivial
   have he0 : s0.evm = evm := by
     rw [hs0]; unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
   have hp1 : s0["var_root"]!! = rootv := by rw [hs0]; exact lookup_initcall_1
-  have hp2 : s0["var_value"]!! = val := by rw [hs0]; exact lookup_initcall_2 (by decide)
+  have hp2 : s0["var__value"]!! = val := by rw [hs0]; exact lookup_initcall_2 (by decide)
   have hp3 : s0["var_lowLeaf_mpos"]!! = leafPos := by
     rw [hs0]; exact lookup_initcall_3 (by decide) (by decide)
   have hp4 : s0["var_lowLeafIndex"]!! = idxv := by
@@ -209,7 +209,7 @@ theorem verifyNonInclusion_call
   have he0' : e0 = evm := by rw [hs0eq, evm_Ok] at he0; exact he0
   subst e0
   rw [hs0eq] at hp1 hp2 hp3 hp4 hp5 ⊢
-  -- statement 1: if iszero(var_value) { revert } — skipped (val ≠ 0)
+  -- statement 1: if iszero(var__value) { revert } — skipped (val ≠ 0)
   rw [cons, If']
   simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
              Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
@@ -227,7 +227,7 @@ theorem verifyNonInclusion_call
              EVMMload', multifill_cons, multifill_nil]
   rw [hp3]
   simp only [evm_Ok, insert_Ok]
-  -- statement 3: split_expr_1 := lt(_1, var_value)
+  -- statement 3: split_expr_1 := lt(_1, var__value)
   rw [cons, LetPrimCall']
   simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
              Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
@@ -330,7 +330,7 @@ theorem verifyNonInclusion_call
     rw [show fromBool (fromBool (evm.mload (leafPos + 64) = 0) = 0) = (1 : UInt256) from by
       rw [decide_eq_false hnz]; rfl]
     rw [if_pos (by decide : ((1 : UInt256)) ≠ 0)]
-    -- inner window body: split_expr_5 := gt(_2, var_value) ; expr := iszero(split_expr_5)
+    -- inner window body: split_expr_5 := gt(_2, var__value) ; expr := iszero(split_expr_5)
     rw [window_body
       (by rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
               lookup_insert_self_fin])
