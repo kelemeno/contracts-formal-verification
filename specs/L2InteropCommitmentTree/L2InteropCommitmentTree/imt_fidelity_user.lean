@@ -130,6 +130,73 @@ theorem leafCount_sstore {σ : EVMState} {a v : UInt256} (h1 : a ≠ 1) :
     (σ.sstore a v).sload 1 = σ.sload 1 :=
   sload_sstore_ne h1
 
+/-! ### Cache transport across `sstore` -/
+
+/-- The accessor preimage interval is `sstore`-invariant (it reads memory
+only). -/
+private lemma accInterval_sstore (σ : EVMState) (a v key base : UInt256) :
+    accInterval (σ.sstore a v) key base = accInterval σ key base := by
+  unfold accInterval
+  have hms : (((σ.sstore a v).mstore 0 key).mstore 32 base).machine_state
+      = ((σ.mstore 0 key).mstore 32 base).machine_state := by
+    show ((σ.sstore a v).machine_state.updateMemory 0 key).updateMemory 32 base
+      = (σ.machine_state.updateMemory 0 key).updateMemory 32 base
+    rw [machine_state_sstore']
+  rw [hms]
+
+/-- A cached accessor hash stays cached across any `sstore`. -/
+private lemma cache_sstore {σ : EVMState} {a v key w : UInt256}
+    (hc : Finmap.lookup (accInterval σ key 5) σ.keccak_map = some w) :
+    Finmap.lookup (accInterval (σ.sstore a v) key 5)
+        (σ.sstore a v).keccak_map = some w := by
+  rw [accInterval_sstore, keccak_map_sstore']
+  exact hc
+
+/-- `a + k ≠ a` for nonzero `k` (`UInt256` group arithmetic). -/
+private lemma add_k_ne_self {a k : UInt256} (hk : k ≠ 0) : a + k ≠ a := by
+  intro h
+  have h' : a + k = a + 0 := by rw [h, add_zero]
+  exact hk (add_left_cancel h')
+
+/-! ### The write agreement: a freshly written struct decodes exactly -/
+
+/-- **WRITE AGREEMENT** — after the three-field struct write of leaf `n`
+(`value := v`, `nextIndex := ni`, `nextValue := nv`), the abstract decode of
+index `n` is exactly `⟨v, nv⟩`.  Cached mapping hash; executing account
+present (an absent account makes `sstore` a no-op). -/
+theorem decodeLeaf_after_write {σ : EVMState} {n v ni nv w : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hc : Finmap.lookup (accInterval σ n 5) σ.keccak_map = some w) :
+    decodeLeaf (((σ.sstore (leafSlot σ n) v).sstore
+        (leafSlot σ n + 1) ni).sstore (leafSlot σ n + 2) nv) n
+      = ⟨v, nv⟩ := by
+  have hacc1 := acct_sstore (a := leafSlot σ n) (v := v) hacc
+  have hacc2 := acct_sstore (a := leafSlot σ n + 1) (v := ni) hacc1
+  have hc1 := cache_sstore (a := leafSlot σ n) (v := v) hc
+  have hc2 := cache_sstore (a := leafSlot σ n + 1) (v := ni) hc1
+  have hsl1 : leafSlot (σ.sstore (leafSlot σ n) v) n = leafSlot σ n :=
+    leafSlot_sstore hc
+  have hsl2 : leafSlot ((σ.sstore (leafSlot σ n) v).sstore
+      (leafSlot σ n + 1) ni) n = leafSlot σ n := by
+    rw [leafSlot_sstore hc1, hsl1]
+  have hsl3 : leafSlot (((σ.sstore (leafSlot σ n) v).sstore
+      (leafSlot σ n + 1) ni).sstore (leafSlot σ n + 2) nv) n
+      = leafSlot σ n := by
+    rw [leafSlot_sstore hc2, hsl2]
+  unfold decodeLeaf
+  rw [hsl3]
+  have h2 : ((((σ.sstore (leafSlot σ n) v).sstore
+      (leafSlot σ n + 1) ni).sstore (leafSlot σ n + 2) nv)).sload
+        (leafSlot σ n + 2) = nv :=
+    sload_sstore_self hacc2
+  have h0 : ((((σ.sstore (leafSlot σ n) v).sstore
+      (leafSlot σ n + 1) ni).sstore (leafSlot σ n + 2) nv)).sload
+        (leafSlot σ n) = v := by
+    rw [sload_sstore_ne (add_k_ne_self (by decide)),
+        sload_sstore_ne (add_k_ne_self (by decide))]
+    exact sload_sstore_self hacc
+  rw [h0, h2]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
