@@ -1395,6 +1395,18 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   consumed by `evolution_invariant`, #34 and #60.  *Remaining: the hash-tree side
   (`pushNewLeaf_call` composition — node arrays disjoint from the leaves mapping by the
   slice-5 separations) and the glue-sequence quotation (source-verbatim (B) boundary).*
+- **#63 THE INSERT GATES (L2ICT dispatcher glue, source-verbatim, 2026-07-23).**
+  `imt_insert_gate_user.lean`: **the appender gate** — `insert_appender_pass/reverts`: only
+  the 160-bit-masked AtomicFlowManager built-in (`0x10014`) may grow the commitment tree,
+  anyone else reverts `CommitmentTreeNotAppender` (the concrete trust anchor under every
+  `Evolution` step of #62); **the dedup gate** — `insert_dedup_pass/reverts`: a value already
+  in `valueToIndex` reverts `IMTValueAlreadyExists` — the concrete exactly-once enforcement
+  (abstract mirror `evolution_insert_unique` #46; the same gate powers the strictness upgrade
+  `window_strict_of_not_mem`).  Technique debut: the glue is UNSPLIT Yul, so conditions carry
+  calls — driven via `Call'`/`evalCall` with call-level closed forms (`constant_afm_call`,
+  `mapping_vti_call`, `abi_encode_uint256_call`) and the call-closing recipe
+  (`🧟 ∘ overwrite? ∘ setStore` + ret lookup).  The dedup pass correctly carries the
+  accessor's `accOut`-threaded state.  All axiom-clean.
 
 ## Part C — What a reviewer should do
 

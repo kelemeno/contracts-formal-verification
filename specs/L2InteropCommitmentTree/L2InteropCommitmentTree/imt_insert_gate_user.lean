@@ -298,6 +298,107 @@ lemma mapping_vti_call
   simp only [overwrite?_of_Ok, setStore_ok]
   rw [hi_evm]
 
+/-! ### The dedup gate -/
+
+private lemma lookup_ok_evm_local {σ : VarStore} {k : Identifier}
+    (e e' : EVMState) : (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
+/-- The dedup guard, source-verbatim (`0x3402883b = 872581179`):
+`valueToIndex[_value]` must be zero. -/
+@[reducible] def dedupIf : Stmt := <s
+  if iszero(iszero(sload(mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196(value0))))
+  {
+      mstore(0, shl(225, 872581179))
+      revert(0, abi_encode_uint256(value0))
+  }
+>
+
+open Clear.KeccakDeterminism in
+/-- **A FRESH VALUE PASSES**: with `valueToIndex[V]` empty the guard falls
+through; the state carries the accessor's keccak step (the condition
+threads `accOut`). -/
+theorem insert_dedup_pass
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {V : Literal}
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hz : (accOut evm V 5).2.sload ((accOut evm V 5).1) = 0) :
+    exec (fuel+1) dedupIf (Ok evm σ) = Ok (accOut evm V 5).2 σ := by
+  unfold dedupIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMSload', evm_Ok]
+  rw [hv, mapping_vti_call]
+  try simp only [List.head!]
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMSload', evm_Ok]
+  simp only [hz]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  try simp only [show decide ((1 : UInt256) = 0) = false from by decide]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  rw [if_neg (by exact fun h => h rfl)]
+
+open Clear.KeccakDeterminism in
+/-- **A DUPLICATE VALUE IS REJECTED** — the concrete exactly-once
+enforcement: with `valueToIndex[V]` non-empty the insert reverts with
+`IMTValueAlreadyExists`.  (Abstract mirror: `evolution_insert_unique`,
+#46; strictness upgrade: `window_strict_of_not_mem`.) -/
+theorem insert_dedup_reverts
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {V : Literal}
+    (hv : (Ok evm σ)["value0"]!! = V)
+    (hnz : (accOut evm V 5).2.sload ((accOut evm V 5).1) ≠ 0) :
+    (exec (fuel+1) dedupIf (Ok evm σ)).evm.reverted = true := by
+  unfold dedupIf
+  rw [If']
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMSload', evm_Ok]
+  rw [hv, mapping_vti_call]
+  try simp only [List.head!]
+  simp only [eval, evalArgs, evalTail, cons', head', reverse',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMIszero', EVMSload', evm_Ok]
+  simp only [show (decide ((accOut evm V 5).2.sload ((accOut evm V 5).1) = 0)) = false
+    from decide_eq_false hnz]
+  try simp only [show fromBool false = (0 : UInt256) from by decide]
+  try simp only [show decide ((0 : UInt256) = 0) = true from by decide]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+  rw [if_pos (by decide : (1 : UInt256) ≠ 0)]
+  -- mstore(0, shl(225, 872581179))
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMShl', EVMMstore', evm_Ok, setEvm_Ok]
+  try simp only [List.head!]
+  -- revert(0, abi_encode_uint256(value0))
+  rw [cons, nil, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', Call', evalCall, execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMRevert', evm_Ok, setEvm_Ok]
+  rw [lookup_ok_evm_local _ evm, hv, abi_encode_uint256_call]
+  try simp only [List.head!]
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil,
+             EVMRevert', evm_Ok, setEvm_Ok]
+  rfl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
