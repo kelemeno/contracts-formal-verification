@@ -529,6 +529,134 @@ is outside the model (A8-class boundary); the failed-dispatch direction is
 proven; the prefix drive follows the formatEvmV1 assembly workflow
 (recipe → counted peels → transcription). -/
 
+/-! ### Step-prefix chunk arms -/
+
+/-- Loop-body chunk 1: element address, struct pointer, first struct word,
+version mask constant. -/
+@[reducible] private def stepChunk1 : Stmt := <s
+  {
+      let split_expr_1 := mload(_1)
+      let split_expr_2 := memory_array_index_access_enum_CallStatus_dyn(split_expr_1, var_i)
+      let _mpos := mload(split_expr_2)
+      let split_expr_3 := mload(_mpos)
+      let split_expr_4 := shl(248, 255)
+  }
+>
+
+/-- Loop-body chunk 2: the version-test values. -/
+@[reducible] private def stepChunk2 : Stmt := <s
+  {
+      let split_expr_5 := and(split_expr_3, split_expr_4)
+      let split_expr_6 := shl(248, 1)
+      let split_expr_7 := eq(split_expr_5, split_expr_6)
+  }
+>
+
+/-- **Chunk 1 closed form** (in-bounds): the element address is
+`arr + 32·i + 32`, the struct pointer and first word are symbolic reads. -/
+private lemma stepChunk1_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {BP I : Literal}
+    (h1v : (Ok evm σ)["_1"]!! = BP)
+    (hi : (Ok evm σ)["var_i"]!! = I)
+    (hlt : I < evm.mload (evm.mload BP)) :
+    exec (fuel+1) stepChunk1 (Ok evm σ)
+      = Ok evm (((((σ.insert "split_expr_1" (evm.mload BP)).insert
+          "split_expr_2" (evm.mload BP + Fin.shiftLeft I 5 + 32)).insert
+          "_mpos" (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32))).insert
+          "split_expr_3" (evm.mload (evm.mload (evm.mload BP + Fin.shiftLeft I 5 + 32)))).insert
+          "split_expr_4" (Fin.shiftLeft 255 248)) := by
+  unfold stepChunk1
+  -- let split_expr_1 := mload(_1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [h1v]
+  -- let split_expr_2 := memory_array_index_access(...)
+  rw [cons, LetCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), hi]
+  rw [index_access_call hlt]
+  -- let _mpos := mload(split_expr_2)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- let split_expr_3 := mload(_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  -- let split_expr_4 := shl(248, 255)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMShl',
+             evm_Ok, setEvm_Ok, insert_Ok]
+
+/-- **Chunk 2 closed form** (version accepted): the masked top byte equals
+`INTEROP_CALL_VERSION`, so the test value is `1`. -/
+private lemma stepChunk2_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {W : Literal}
+    (h3 : (Ok evm σ)["split_expr_3"]!! = W)
+    (h4 : (Ok evm σ)["split_expr_4"]!! = Fin.shiftLeft 255 248)
+    (hver : Fin.land W (Fin.shiftLeft 255 248) = Fin.shiftLeft 1 248) :
+    exec (fuel+1) stepChunk2 (Ok evm σ)
+      = Ok evm (((σ.insert "split_expr_5" (Fin.shiftLeft 1 248)).insert
+          "split_expr_6" (Fin.shiftLeft 1 248)).insert
+          "split_expr_7" 1) := by
+  unfold stepChunk2
+  -- let split_expr_5 := and(split_expr_3, split_expr_4)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMAnd',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [h3, h4]
+  rw [hver]
+  -- let split_expr_6 := shl(248, 1)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMShl',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  -- let split_expr_7 := eq(split_expr_5, split_expr_6)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             multifill_cons, multifill_nil, EVMEq',
+             evm_Ok, setEvm_Ok, insert_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  simp only [decide_eq_true (rfl : Fin.shiftLeft 1 248 = Fin.shiftLeft 1 248)]
+  try simp only [show fromBool true = (1 : UInt256) from by decide]
+  try simp only [show fromBool (decide True) = (1 : UInt256) from by decide]
+
 end
 
 end generated.L2InteropHandler.L2InteropHandler
