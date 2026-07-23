@@ -28,13 +28,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_fun_tryParseV1Calldata (var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length : Identifier) (var_self_4053_offset var_self_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_tryParseV1Calldata (var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length : Identifier) (var_self_4053_offset var_self_length : Literal) (s₀ s₉ : State) : Prop := fun_tryParseV1Calldata_concrete_of_code.1 var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length s₀ s₉
 
 lemma fun_tryParseV1Calldata_abs_of_concrete {s₀ s₉ : State} {var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length} :
   Spec (fun_tryParseV1Calldata_concrete_of_code.1 var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length) s₀ s₉ →
   Spec (A_fun_tryParseV1Calldata var_success var_chainType var_chainReference_offset var_chainReference_length var_addr_offset var_addr_length var_self_4053_offset var_self_length) s₀ s₉ := by
-  unfold fun_tryParseV1Calldata_concrete_of_code A_fun_tryParseV1Calldata
-  sorry
+  intro h
+  simpa [A_fun_tryParseV1Calldata] using h
 
 end
 

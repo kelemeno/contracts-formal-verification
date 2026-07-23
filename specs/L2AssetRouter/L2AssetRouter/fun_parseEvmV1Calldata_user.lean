@@ -19,13 +19,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_fun_parseEvmV1Calldata (var_chainId var_addr : Identifier) (var_self_offset var_self_4227_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_parseEvmV1Calldata (var_chainId var_addr : Identifier) (var_self_offset var_self_4227_length : Literal) (s₀ s₉ : State) : Prop := fun_parseEvmV1Calldata_concrete_of_code.1 var_chainId var_addr var_self_offset var_self_4227_length s₀ s₉
 
 lemma fun_parseEvmV1Calldata_abs_of_concrete {s₀ s₉ : State} {var_chainId var_addr var_self_offset var_self_4227_length} :
   Spec (fun_parseEvmV1Calldata_concrete_of_code.1 var_chainId var_addr var_self_offset var_self_4227_length) s₀ s₉ →
   Spec (A_fun_parseEvmV1Calldata var_chainId var_addr var_self_offset var_self_4227_length) s₀ s₉ := by
-  unfold fun_parseEvmV1Calldata_concrete_of_code A_fun_parseEvmV1Calldata
-  sorry
+  intro h
+  simpa [A_fun_parseEvmV1Calldata] using h
 
 end
 

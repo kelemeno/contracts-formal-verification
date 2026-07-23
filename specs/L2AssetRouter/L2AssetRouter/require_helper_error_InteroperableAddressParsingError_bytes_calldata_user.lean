@@ -12,13 +12,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_require_helper_error_InteroperableAddressParsingError_bytes_calldata  (condition expr_4249_offset expr_4249_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_require_helper_error_InteroperableAddressParsingError_bytes_calldata  (condition expr_4249_offset expr_4249_length : Literal) (s₀ s₉ : State) : Prop := require_helper_error_InteroperableAddressParsingError_bytes_calldata_concrete_of_code.1 condition expr_4249_offset expr_4249_length s₀ s₉
 
 lemma require_helper_error_InteroperableAddressParsingError_bytes_calldata_abs_of_concrete {s₀ s₉ : State} { condition expr_4249_offset expr_4249_length} :
   Spec (require_helper_error_InteroperableAddressParsingError_bytes_calldata_concrete_of_code.1  condition expr_4249_offset expr_4249_length) s₀ s₉ →
   Spec (A_require_helper_error_InteroperableAddressParsingError_bytes_calldata  condition expr_4249_offset expr_4249_length) s₀ s₉ := by
-  unfold require_helper_error_InteroperableAddressParsingError_bytes_calldata_concrete_of_code A_require_helper_error_InteroperableAddressParsingError_bytes_calldata
-  sorry
+  intro h
+  simpa [A_require_helper_error_InteroperableAddressParsingError_bytes_calldata] using h
 
 end
 

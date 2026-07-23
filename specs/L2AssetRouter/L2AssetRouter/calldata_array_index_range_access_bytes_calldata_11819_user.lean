@@ -12,13 +12,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common 
 
-def A_calldata_array_index_range_access_bytes_calldata_11819 (offsetOut lengthOut : Identifier) (offset length endIndex : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_calldata_array_index_range_access_bytes_calldata_11819 (offsetOut lengthOut : Identifier) (offset length endIndex : Literal) (s₀ s₉ : State) : Prop := calldata_array_index_range_access_bytes_calldata_11819_concrete_of_code.1 offsetOut lengthOut offset length endIndex s₀ s₉
 
 lemma calldata_array_index_range_access_bytes_calldata_11819_abs_of_concrete {s₀ s₉ : State} {offsetOut lengthOut offset length endIndex} :
   Spec (calldata_array_index_range_access_bytes_calldata_11819_concrete_of_code.1 offsetOut lengthOut offset length endIndex) s₀ s₉ →
   Spec (A_calldata_array_index_range_access_bytes_calldata_11819 offsetOut lengthOut offset length endIndex) s₀ s₉ := by
-  unfold calldata_array_index_range_access_bytes_calldata_11819_concrete_of_code A_calldata_array_index_range_access_bytes_calldata_11819
-  sorry
+  intro h
+  simpa [A_calldata_array_index_range_access_bytes_calldata_11819] using h
 
 end
 

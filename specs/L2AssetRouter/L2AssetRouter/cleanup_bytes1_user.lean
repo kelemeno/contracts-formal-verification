@@ -10,13 +10,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_cleanup_bytes1 (cleaned : Identifier) (value : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_cleanup_bytes1 (cleaned : Identifier) (value : Literal) (s₀ s₉ : State) : Prop := cleanup_bytes1_concrete_of_code.1 cleaned value s₀ s₉
 
 lemma cleanup_bytes1_abs_of_concrete {s₀ s₉ : State} {cleaned value} :
   Spec (cleanup_bytes1_concrete_of_code.1 cleaned value) s₀ s₉ →
   Spec (A_cleanup_bytes1 cleaned value) s₀ s₉ := by
-  unfold cleanup_bytes1_concrete_of_code A_cleanup_bytes1
-  sorry
+  intro h
+  simpa [A_cleanup_bytes1] using h
 
 end
 

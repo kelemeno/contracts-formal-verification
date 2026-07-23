@@ -26,13 +26,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_modifier_nonReentrant  (var_sourceChainId var_assetId var_transferData_offset var_transferData_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_modifier_nonReentrant  (var_sourceChainId var_assetId var_transferData_offset var_transferData_length : Literal) (s₀ s₉ : State) : Prop := modifier_nonReentrant_concrete_of_code.1 var_sourceChainId var_assetId var_transferData_offset var_transferData_length s₀ s₉
 
 lemma modifier_nonReentrant_abs_of_concrete {s₀ s₉ : State} { var_sourceChainId var_assetId var_transferData_offset var_transferData_length} :
   Spec (modifier_nonReentrant_concrete_of_code.1  var_sourceChainId var_assetId var_transferData_offset var_transferData_length) s₀ s₉ →
   Spec (A_modifier_nonReentrant  var_sourceChainId var_assetId var_transferData_offset var_transferData_length) s₀ s₉ := by
-  unfold modifier_nonReentrant_concrete_of_code A_modifier_nonReentrant
-  sorry
+  intro h
+  simpa [A_modifier_nonReentrant] using h
 
 end
 

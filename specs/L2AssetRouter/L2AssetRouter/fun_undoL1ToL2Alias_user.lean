@@ -12,13 +12,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common 
 
-def A_fun_undoL1ToL2Alias (var_l1Address : Identifier) (var_l2Address : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_undoL1ToL2Alias (var_l1Address : Identifier) (var_l2Address : Literal) (s₀ s₉ : State) : Prop := fun_undoL1ToL2Alias_concrete_of_code.1 var_l1Address var_l2Address s₀ s₉
 
 lemma fun_undoL1ToL2Alias_abs_of_concrete {s₀ s₉ : State} {var_l1Address var_l2Address} :
   Spec (fun_undoL1ToL2Alias_concrete_of_code.1 var_l1Address var_l2Address) s₀ s₉ →
   Spec (A_fun_undoL1ToL2Alias var_l1Address var_l2Address) s₀ s₉ := by
-  unfold fun_undoL1ToL2Alias_concrete_of_code A_fun_undoL1ToL2Alias
-  sorry
+  intro h
+  simpa [A_fun_undoL1ToL2Alias] using h
 
 end
 

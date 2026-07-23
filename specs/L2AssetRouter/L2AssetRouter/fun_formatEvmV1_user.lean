@@ -14,13 +14,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_fun_formatEvmV1 (var__mpos : Identifier) (var_addr : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_formatEvmV1 (var__mpos : Identifier) (var_addr : Literal) (s₀ s₉ : State) : Prop := fun_formatEvmV1_concrete_of_code.1 var__mpos var_addr s₀ s₉
 
 lemma fun_formatEvmV1_abs_of_concrete {s₀ s₉ : State} {var__mpos var_addr} :
   Spec (fun_formatEvmV1_concrete_of_code.1 var__mpos var_addr) s₀ s₉ →
   Spec (A_fun_formatEvmV1 var__mpos var_addr) s₀ s₉ := by
-  unfold fun_formatEvmV1_concrete_of_code A_fun_formatEvmV1
-  sorry
+  intro h
+  simpa [A_fun_formatEvmV1] using h
 
 end
 

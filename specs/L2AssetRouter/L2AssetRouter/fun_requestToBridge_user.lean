@@ -23,13 +23,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_fun_requestToBridge (var_request_1326_mpos : Identifier) (var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_requestToBridge (var_request_1326_mpos : Identifier) (var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash : Literal) (s₀ s₉ : State) : Prop := fun_requestToBridge_concrete_of_code.1 var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash s₀ s₉
 
 lemma fun_requestToBridge_abs_of_concrete {s₀ s₉ : State} {var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash} :
   Spec (fun_requestToBridge_concrete_of_code.1 var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash) s₀ s₉ →
   Spec (A_fun_requestToBridge var_request_1326_mpos var_chainId var_originalCaller var_assetId var_bridgeMintCalldata_mpos var_txDataHash) s₀ s₉ := by
-  unfold fun_requestToBridge_concrete_of_code A_fun_requestToBridge
-  sorry
+  intro h
+  simpa [A_fun_requestToBridge] using h
 
 end
 

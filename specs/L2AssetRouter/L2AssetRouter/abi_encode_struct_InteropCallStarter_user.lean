@@ -18,13 +18,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_abi_encode_struct_InteropCallStarter (tail : Identifier) (headStart value0 : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_abi_encode_struct_InteropCallStarter (tail : Identifier) (headStart value0 : Literal) (s₀ s₉ : State) : Prop := abi_encode_struct_InteropCallStarter_concrete_of_code.1 tail headStart value0 s₀ s₉
 
 lemma abi_encode_struct_InteropCallStarter_abs_of_concrete {s₀ s₉ : State} {tail headStart value0} :
   Spec (abi_encode_struct_InteropCallStarter_concrete_of_code.1 tail headStart value0) s₀ s₉ →
   Spec (A_abi_encode_struct_InteropCallStarter tail headStart value0) s₀ s₉ := by
-  unfold abi_encode_struct_InteropCallStarter_concrete_of_code A_abi_encode_struct_InteropCallStarter
-  sorry
+  intro h
+  simpa [A_abi_encode_struct_InteropCallStarter] using h
 
 end
 

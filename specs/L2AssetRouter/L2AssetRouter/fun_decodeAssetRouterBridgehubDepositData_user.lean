@@ -18,13 +18,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common generated.L2AssetRouter L2AssetRouter
 
-def A_fun_decodeAssetRouterBridgehubDepositData (var_assetId var_transferData_mpos : Identifier) (var_dataWithVersion_offset var_dataWithVersion_length : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_decodeAssetRouterBridgehubDepositData (var_assetId var_transferData_mpos : Identifier) (var_dataWithVersion_offset var_dataWithVersion_length : Literal) (s₀ s₉ : State) : Prop := fun_decodeAssetRouterBridgehubDepositData_concrete_of_code.1 var_assetId var_transferData_mpos var_dataWithVersion_offset var_dataWithVersion_length s₀ s₉
 
 lemma fun_decodeAssetRouterBridgehubDepositData_abs_of_concrete {s₀ s₉ : State} {var_assetId var_transferData_mpos var_dataWithVersion_offset var_dataWithVersion_length} :
   Spec (fun_decodeAssetRouterBridgehubDepositData_concrete_of_code.1 var_assetId var_transferData_mpos var_dataWithVersion_offset var_dataWithVersion_length) s₀ s₉ →
   Spec (A_fun_decodeAssetRouterBridgehubDepositData var_assetId var_transferData_mpos var_dataWithVersion_offset var_dataWithVersion_length) s₀ s₉ := by
-  unfold fun_decodeAssetRouterBridgehubDepositData_concrete_of_code A_fun_decodeAssetRouterBridgehubDepositData
-  sorry
+  intro h
+  simpa [A_fun_decodeAssetRouterBridgehubDepositData] using h
 
 end
 

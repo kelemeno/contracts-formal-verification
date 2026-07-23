@@ -11,13 +11,13 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2AssetRouter.Common 
 
-def A_fun_isValidInteropSender (var : Identifier) (var_senderChainId var_senderAddress : Literal) (s₀ s₉ : State) : Prop := sorry
+def A_fun_isValidInteropSender (var : Identifier) (var_senderChainId var_senderAddress : Literal) (s₀ s₉ : State) : Prop := fun_isValidInteropSender_concrete_of_code.1 var var_senderChainId var_senderAddress s₀ s₉
 
 lemma fun_isValidInteropSender_abs_of_concrete {s₀ s₉ : State} {var var_senderChainId var_senderAddress} :
   Spec (fun_isValidInteropSender_concrete_of_code.1 var var_senderChainId var_senderAddress) s₀ s₉ →
   Spec (A_fun_isValidInteropSender var var_senderChainId var_senderAddress) s₀ s₉ := by
-  unfold fun_isValidInteropSender_concrete_of_code A_fun_isValidInteropSender
-  sorry
+  intro h
+  simpa [A_fun_isValidInteropSender] using h
 
 end
 
