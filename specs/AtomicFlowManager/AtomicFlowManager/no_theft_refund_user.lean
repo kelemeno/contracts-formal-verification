@@ -4,7 +4,7 @@ import specs.KeccakDeterminism
 import specs.KeccakInjective
 import specs.KeccakDistinct
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5412558363375237105
-import generated.AtomicFlowManager.AtomicFlowManager.Common.if_3729329767271556662
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_880639588767859599
 import specs.AtomicFlowManager.AtomicFlowManager.no_double_refund_user
 
 /-
@@ -139,7 +139,7 @@ theorem crafted_claim_reverts_after_authorization
     -- the crafted CHECK runs on the post-authorization storage (write at r₁)
     (hslot : (Ok (evm.sstore r₁ w) store)["split_expr_21"]!! = r₂)
     (hcheck : exec (fuel+1) block_5412558363375237105 (Ok (evm.sstore r₁ w) store) = s_mid)
-    (hif : exec (fuel+1) if_3729329767271556662 s_mid = s₉) :
+    (hif : exec (fuel+1) if_880639588767859599 s_mid = s₉) :
     s₉.evm.reverted = true := by
   -- the crafted slot differs from the authorized slot
   have hr : r₂ ≠ r₁ := accessor_slots_differ_of_key_ne hne h₂ h₁ hclean₂ hclean₁

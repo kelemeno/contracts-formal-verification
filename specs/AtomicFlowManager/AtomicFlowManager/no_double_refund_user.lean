@@ -1,14 +1,15 @@
 import Clear.ReasoningPrinciple
 
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5412558363375237105
-import generated.AtomicFlowManager.AtomicFlowManager.Common.if_3729329767271556662
+import generated.AtomicFlowManager.AtomicFlowManager.Common.if_880639588767859599
 
 import generated.AtomicFlowManager.AtomicFlowManager.read_from_storage_split_offset_enum_LegState
 import generated.AtomicFlowManager.AtomicFlowManager.validator_assert_enum_LegState
 import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_enum_LegState
 import generated.AtomicFlowManager.AtomicFlowManager.abi_encode_bytes32_bytes32_enum_LegState
 import generated.AtomicFlowManager.AtomicFlowManager.update_storage_value_offset_enum_LegState_to_enum_LegState_gen
-import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+import generated.AtomicFlowManager.AtomicFlowManager.update_storage_value_offset_enum_LegState_to_enum_LegState_7877_gen
+import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
 import generated.AtomicFlowManager.AtomicFlowManager.mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32
 
 import specs.RevertModel
@@ -19,37 +20,51 @@ import specs.KeccakDeterminism
 
   `claimRefund` is the money-moving end of the timeout path: it re-mints the
   burned source funds.  Its guard is the per-leg state machine
-  (`Unset(0) → Committed(1) → Revertable(2) → Reverted(3)`):
+  (`Unset(0) → Committed(1) → Revertable(2) → Reverted(3)`), a TWO-step refund:
+  `authorizeRefund` marks `Committed → Revertable(2)` per missing-leg absence
+  proof (the base `update_storage_…_enum_LegState` helper, `or(…, 2)`); then
+  `claimRefund` requires the state to be EXACTLY `Revertable(2)` (else
+  `ManagerLegNotRevertable`) and marks `Reverted(3)`
+  (`update_storage_…_enum_LegState_7877`, `or(…, 3)`) before paying:
 
       _5            := read_from_storage_split_offset_enum_LegState(split_expr_21)
       validator_assert_enum_LegState(_5)
       split_expr_22 := eq(_5, 2)                        -- CHECK: state == Revertable
       if iszero(split_expr_22) { … revert(0, len) }     -- otherwise REVERT
       …
-      update_storage_…_enum_LegState(split_expr_26)     -- SET: state := Reverted(3)
+      update_storage_…_enum_LegState_7877(split_expr_26) -- SET: state := Reverted(3)
 
-  This file proves the CHECK and SET halves as STATE PREDICATES (using the
-  RevertModel `reverted` flag) and composes them:
+  This file proves the CHECK and both SET (mark) halves as STATE PREDICATES
+  (using the RevertModel `reverted` flag) and composes them:
 
   * `refund_check_reverts` — running the CHECK block + guard-if from any state
     whose stored leg byte is a valid LegState other than `Revertable(2)` ends
     `reverted = true`.  Instances: `Unset(0)` (a leg that never committed cannot
     be refunded), `Committed(1)` (no refund without `authorizeRefund`), and
     `Reverted(3)` (NO DOUBLE REFUND).
-  * `update_storage_sets_reverted_byte` — the SET write genuinely stores
-    `Reverted(3)` into the slot's low byte.
-  * `reclaim_after_refund_reverts` — end-to-end: run the SET write at `slot`,
-    then re-run the CHECK on the post-write evm ⇒ the re-claim REVERTS.  This is
-    the "a leg is refunded at most once" anti-double-mint guarantee — the leg-
-    level core of atomicity's no-double-spend direction.
+  * `refund_check_passes` — from `Revertable(2)` the CHECK falls through
+    unchanged (up to the two scratch binds): `authorizeRefund`'s mark is
+    exactly what unlocks the claim.
+  * `update_storage_sets_revertable_byte` — the authorize-side mark (base
+    helper) genuinely stores `Revertable(2)` into the slot's low byte.
+  * `update_storage_sets_reverted_byte` — the claim-side mark (`_7877`)
+    genuinely stores `Reverted(3)` into the slot's low byte.
+  * `claim_after_authorize_passes` — end-to-end forward step: run the
+    authorize mark at `slot`, then the CHECK on the post-write evm ⇒ the
+    guard PASSES.
+  * `reclaim_after_refund_reverts` — end-to-end: run the claim mark at `slot`,
+    then re-run the CHECK on the post-write evm ⇒ the re-claim REVERTS
+    (`3 ≠ 2`).  This is the "a leg is refunded at most once" anti-double-mint
+    guarantee — the leg-level core of atomicity's no-double-spend direction.
 
   All theorems here are A3-free (no mcopy/tstore in the cone) — expect
   `#print axioms` = `[propext, Quot.sound, Classical.choice]`.
 
   (The slot CHECKED = slot SET linkage — `split_expr_21 == split_expr_26`, both
-  the same 2-level keccak accessor chain over `(var_flowId, expr)` — is the
-  2-level analog of the L1Nullifier `check_set_slots_eq` and is stated in a
-  follow-up; the machinery lives in `specs/KeccakDeterminism.lean`.)
+  the same 2-level keccak accessor chain over `(var__flowId, expr)` — is the
+  2-level analog of the L1Nullifier `check_set_slots_eq` and is stated below as
+  `claim_check_set_slots_eq`; the machinery lives in
+  `specs/KeccakDeterminism.lean`.)
 -/
 
 namespace generated.AtomicFlowManager.AtomicFlowManager
@@ -276,7 +291,8 @@ lemma encode_err_call
   simp only [insert_Ok]
   rw [he3]
 
-/-! ## The CHECK half: reading a non-`Revertable` leg reverts the claim -/
+/-! ## The CHECK half: a non-`Revertable` leg reverts the claim;
+`Revertable(2)` passes -/
 
 /--
   Closed form of the CHECK block `block_5412558363375237105`:
@@ -322,12 +338,12 @@ lemma check_block_state
   simp only [insert_Ok]
 
 /--
-  The guard-if `if_3729329767271556662` REVERTS when its guard is `0` (the leg
+  The guard-if `if_880639588767859599` REVERTS when its guard is `0` (the leg
   is not `Revertable`) and the leg byte `_5` is a valid `LegState`:
       if iszero(split_expr_22) {
         split_expr_23 := shl(224, …)
         mstore(0, split_expr_23)
-        split_expr_24 := abi_encode_bytes32_bytes32_enum_LegState(var_flowId, expr, _5)
+        split_expr_24 := abi_encode_bytes32_bytes32_enum_LegState(var__flowId, expr, _5)
         revert(0, split_expr_24)
       }
 -/
@@ -335,10 +351,10 @@ lemma guard_if_reverts
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {s₉ : State}
     (hz : (Ok evm store)["split_expr_22"]!! = 0)
     (h5 : (Ok evm store)["_5"]!! < 4)
-    (hexec : exec (fuel+1) if_3729329767271556662 (Ok evm store) = s₉) :
+    (hexec : exec (fuel+1) if_880639588767859599 (Ok evm store) = s₉) :
     s₉.evm.reverted = true := by
   rw [← hexec]
-  unfold if_3729329767271556662
+  unfold if_880639588767859599
   rw [If']
   simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
              Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
@@ -377,7 +393,7 @@ lemma guard_if_reverts
           (Fin.shiftLeft 2203461383 224)))[k]!! = (Ok evm store)[k]!! := by
     intro k hk
     rw [lookup_setEvm_of_isOk hok1, lookup_insert_of_ne hk]
-  rw [hargs "_5" (by decide), hargs "expr" (by decide), hargs "var_flowId" (by decide)]
+  rw [hargs "_5" (by decide), hargs "expr" (by decide), hargs "var__flowId" (by decide)]
   -- expose the encoder input as a literal `Ok` state and run the closed form
   have hok2 : isOk (((Ok evm store)⟦"split_expr_23" ↦ Fin.shiftLeft 2203461383 224⟧).setEvm
       (((Ok evm store)⟦"split_expr_23" ↦ Fin.shiftLeft 2203461383 224⟧).evm.mstore 0
@@ -391,12 +407,31 @@ lemma guard_if_reverts
              Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
              List.reverse_nil, List.nil_append, List.singleton_append,
              multifill_cons, multifill_nil, EVMRevert']
-  have hlk24 : (Ok (((e1.mstore 4 ((Ok evm store)["var_flowId"]!!)).mstore 36
+  have hlk24 : (Ok (((e1.mstore 4 ((Ok evm store)["var__flowId"]!!)).mstore 36
         ((Ok evm store)["expr"]!!)).mstore 68 ((Ok evm store)["_5"]!!))
       (Finmap.insert "split_expr_24" 100 σ1))["split_expr_24"]!! = 100 := by
     rw [← insert_Ok]; exact lookup_insert' (by trivial)
   rw [hlk24]
   rfl
+
+/--
+  The guard-if `if_880639588767859599` FALLS THROUGH with the state unchanged
+  when its guard `split_expr_22` is `1` — the leg IS `Revertable(2)`.
+-/
+lemma guard_if_passes
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h1 : (Ok evm store)["split_expr_22"]!! = 1) :
+    exec (fuel+1) if_880639588767859599 (Ok evm store) = Ok evm store := by
+  unfold if_880639588767859599
+  rw [If']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall, List.reverse_cons,
+             List.reverse_nil, List.nil_append, List.singleton_append]
+  rw [EVMIszero']
+  simp only [head', List.head!]
+  rw [h1]
+  rw [show fromBool ((1 : UInt256) = 0) = (0 : UInt256) by decide]
+  rw [if_neg (by decide : ¬ ((0 : UInt256) ≠ 0))]
 
 /-- **CHECK-side state predicate.** Running the CHECK block + guard-if of
 `claimRefund` from a state whose stored leg byte (at the slot bound to
@@ -408,7 +443,7 @@ theorem refund_check_reverts
     (hvalid : Fin.land (evm.sload slot) 255 < 4)
     (hnot2 : Fin.land (evm.sload slot) 255 ≠ 2)
     (hcheck : exec (fuel+1) block_5412558363375237105 (Ok evm store) = s_mid)
-    (hif : exec (fuel+1) if_3729329767271556662 s_mid = s₉) :
+    (hif : exec (fuel+1) if_880639588767859599 s_mid = s₉) :
     s₉.evm.reverted = true := by
   rw [check_block_state hslot hvalid] at hcheck
   subst hcheck
@@ -430,23 +465,121 @@ theorem refund_check_reverts
     rw [h5]
     exact hvalid
 
-/-! ## The SET half: the write helper genuinely stores `Reverted(3)` -/
+/-- **CHECK-side PASS.** Running the CHECK block + guard-if of `claimRefund`
+from a state whose stored leg byte (at the slot bound to `split_expr_21`) is
+EXACTLY `Revertable(2)` falls through: the guard is satisfied and the state is
+unchanged up to the two scratch binds (`_5`, `split_expr_22`).  In particular
+no revert happens and the claim proceeds to the SET + payout —
+`authorizeRefund`'s mark is precisely what unlocks it. -/
+theorem refund_check_passes
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {s_mid s₉ : State} {slot : Literal}
+    (hslot : (Ok evm store)["split_expr_21"]!! = slot)
+    (h2 : Fin.land (evm.sload slot) 255 = 2)
+    (hcheck : exec (fuel+1) block_5412558363375237105 (Ok evm store) = s_mid)
+    (hif : exec (fuel+1) if_880639588767859599 s_mid = s₉) :
+    s₉ = Ok evm ((store.insert "_5" (Fin.land (evm.sload slot) 255)).insert
+          "split_expr_22" 1) := by
+  rw [check_block_state hslot (by rw [h2]; decide)] at hcheck
+  subst hcheck
+  rw [show fromBool (Fin.land (evm.sload slot) 255 = 2) = (1 : UInt256) from by
+        rw [decide_eq_true h2]; rfl] at hif
+  rw [← hif]
+  exact guard_if_passes (by rw [← insert_Ok]; exact lookup_insert' (by trivial))
+
+/-! ## The SET (mark) halves: `authorizeRefund` stores `Revertable(2)`,
+`claimRefund` stores `Reverted(3)` -/
 
 private lemma ne_c0 : ("cleaned" : Identifier) ≠ "split_expr_0" := by decide
 private lemma ne_slc : ("slot" : Identifier) ≠ "cleaned" := by decide
 
 /--
-  Closed form for the SET write
-  `update_storage_value_offset_enum_LegState_to_enum_LegState(slot)`:
-  reads `slot`, clears the low byte, ORs in `Reverted(3)`, stores it back.
+  Closed form for the AUTHORIZE-side mark
+  `update_storage_value_offset_enum_LegState_to_enum_LegState(slot)` (the base
+  helper, called by `authorizeRefund`): reads `slot`, clears the low byte, ORs
+  in `Revertable(2)`, stores it back.
 -/
-lemma update_storage_writes_reverted
+lemma update_storage_writes_revertable
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {slot : Literal} :
     execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState []
         (Ok evm store, [slot])
       = (Ok evm store).setEvm
-          (evm.sstore slot (Fin.lor (Fin.land (evm.sload slot) (Clear.UInt256.lnot 255)) 3)) := by
+          (evm.sstore slot (Fin.lor (Fin.land (evm.sload slot) (Clear.UInt256.lnot 255)) 2)) := by
   unfold execCall call update_storage_value_offset_enum_LegState_to_enum_LegState
+  simp only [params, body, rets, multifill', mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  simp only [cons, nil]
+  simp only [LetEq', Assign', LetPrimCall', AssignPrimCall', ExprStmtPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill', PrimCall',
+             Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMSload', EVMNot', EVMAnd', EVMOr', EVMSstore']
+  simp only [multifill_cons, multifill_nil]
+  -- abbreviations; generalize the computed values to keep terms small.
+  generalize hsv : evm.sload slot = sv
+  set m255 := Clear.UInt256.lnot 255 with hm255
+  set v2 := Fin.land sv m255 with hv2
+  set v3 := Fin.lor v2 2 with hv3
+  set B := (Ok evm store)☎️⟦["slot"], [slot]⟧⟦"cleaned" ↦ 0⟧⟦"cleaned" ↦ 0⟧ with hB
+  have hok_ic : isOk ((Ok evm store)☎️⟦["slot"], [slot]⟧) := isOk_initcall_of_isOk trivial
+  have hokB : isOk B := by
+    rw [hB, isOk_insert, isOk_insert]; exact hok_ic
+  have hBevm : B.evm = evm := by
+    rw [hB]
+    simp only [evm_insert]
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hBslot : B["slot"]!! = slot := by
+    rw [hB, lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact lookup_initcall_1
+  rw [hBevm, hBslot, hsv]
+  have hok0 : isOk (B⟦"split_expr_0" ↦ sv⟧) := isOk_insert.mpr hokB
+  have hok1 : isOk (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧) := isOk_insert.mpr hok0
+  have hok2 : isOk (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧) :=
+    isOk_insert.mpr hok1
+  have hok3 : isOk (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧⟦"split_expr_3" ↦ v3⟧) :=
+    isOk_insert.mpr hok2
+  have l0 : (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧)["split_expr_0"]!! = sv := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert' hokB]
+  have l1 : (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧)["split_expr_1"]!! = m255 :=
+    lookup_insert' hok0
+  rw [l0, l1, ← hv2]
+  have l2 : (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧)["split_expr_2"]!! = v2 :=
+    lookup_insert' hok1
+  rw [l2, ← hv3]
+  have lslot : (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧⟦"split_expr_3" ↦ v3⟧)["slot"]!! = slot := by
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+        lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    exact hBslot
+  have l3 : (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧⟦"split_expr_3" ↦ v3⟧)["split_expr_3"]!! = v3 :=
+    lookup_insert' hok2
+  rw [lslot, l3]
+  rw [show (B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧⟦"split_expr_3" ↦ v3⟧).evm = evm from by
+        simp only [evm_insert]; exact hBevm]
+  have hinner_ok : isOk ((B⟦"split_expr_0" ↦ sv⟧⟦"split_expr_1" ↦ m255⟧⟦"split_expr_2" ↦ v2⟧⟦"split_expr_3" ↦ v3⟧)🇪⟦evm.sstore slot v3⟧) := by
+    rw [isOk_setEvm]; exact hok3
+  rw [reviveJump_of_isOk hinner_ok]
+  simp only [overwrite?_of_Ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hinner_ok
+  have hi_evm : ei = evm.sstore slot v3 := by
+    have h := congrArg State.evm hi
+    rw [evm_setEvm_of_isOk hok3] at h
+    exact h.symm
+  rw [hi, setStore_ok, hi_evm]
+  rfl
+
+/--
+  Closed form for the CLAIM-side mark
+  `update_storage_value_offset_enum_LegState_to_enum_LegState_7877(slot)`
+  (called by `claimRefund` after the `Revertable` guard): reads `slot`, clears
+  the low byte, ORs in `Reverted(3)`, stores it back.
+-/
+lemma update_storage_7877_writes_reverted
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {slot : Literal} :
+    execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState_7877 []
+        (Ok evm store, [slot])
+      = (Ok evm store).setEvm
+          (evm.sstore slot (Fin.lor (Fin.land (evm.sload slot) (Clear.UInt256.lnot 255)) 3)) := by
+  unfold execCall call update_storage_value_offset_enum_LegState_to_enum_LegState_7877
   simp only [params, body, rets, multifill', mkOk_initcall_Ok,
              List.map_nil, List.map_cons]
   simp only [cons, nil]
@@ -570,11 +703,63 @@ theorem fin_mask_three (x : UInt256) :
         _ ≤ 2^i := Nat.pow_le_pow_right (by norm_num) hge)
     rw [hb3]
 
-/-- The SET value is nonzero (its low byte is `3`). -/
+/-- The claim-side SET value is nonzero (its low byte is `3`). -/
 theorem fin_mask_three_ne_zero (x : UInt256) :
     Fin.lor (Fin.land x (Clear.UInt256.lnot 255)) 3 ≠ 0 := by
   intro h
   have := fin_mask_three x
+  rw [h] at this
+  simp only [Fin.land] at this
+  exact absurd this (by decide)
+
+/-- **Pure low-byte lemma (authorize side).** The value written by the
+authorize-side mark, `(x &&& ~255) ||| 2`, has low byte `and(_,255) = 2` —
+i.e. exactly `LegState.Revertable`. -/
+theorem fin_mask_two (x : UInt256) :
+    Fin.land (Fin.lor (Fin.land x (Clear.UInt256.lnot 255)) 2) 255 = 2 := by
+  apply Fin.ext
+  rcases x with ⟨a, ha⟩
+  show Nat.land (Nat.lor (Nat.land a (UInt256.size - 256) % UInt256.size) 2 % UInt256.size) 255 % UInt256.size = 2
+  have hsz : UInt256.size = 2^256 := by norm_num
+  rw [hsz]
+  apply Nat.eq_of_testBit_eq
+  intro i
+  by_cases hi : i < 8
+  · have key : ∀ z : ℕ, (z % 2^256).testBit i = z.testBit i := fun z => by
+      rw [Nat.testBit_mod_two_pow]; simp [show i < 256 by omega]
+    rw [key]
+    show ((Nat.lor (Nat.land a (2^256 - 256) % 2^256) 2 % 2^256) &&& 255).testBit i = (2:ℕ).testBit i
+    rw [show ∀ p q : ℕ, Nat.land p q = p &&& q from fun _ _ => rfl,
+        show ∀ p q : ℕ, Nat.lor p q = p ||| q from fun _ _ => rfl]
+    rw [Nat.testBit_land]
+    rw [key ((a &&& (2^256 - 256)) % 2^256 ||| 2)]
+    rw [Nat.testBit_lor]
+    rw [key (a &&& (2^256 - 256))]
+    rw [Nat.testBit_land]
+    have hbmask : (2^256 - 256 : ℕ).testBit i = false := by
+      apply low_bit_zero _ i hi; decide
+    rw [hbmask, Bool.and_false, Bool.false_or, Bool.and_comm]
+    have hb255 : (255:ℕ).testBit i = true := by interval_cases i <;> rfl
+    rw [hb255, Bool.true_and]
+  · have hge : 8 ≤ i := by omega
+    have key : (Nat.land (Nat.lor (Nat.land a (2^256-256) % 2^256) 2 % 2^256) 255 % 2^256).testBit i = false := by
+      rw [Nat.testBit_mod_two_pow]
+      by_cases hi256 : i < 256
+      · simp only [hi256, decide_True, Bool.true_and]
+        show ((Nat.lor (Nat.land a (2^256-256) % 2^256) 2 % 2^256) &&& 255).testBit i = false
+        rw [Nat.testBit_land, tb255_lt i hge, Bool.and_false]
+      · simp [hi256]
+    rw [key]
+    have hb2 : (2:ℕ).testBit i = false :=
+      Nat.testBit_lt_two_pow (by calc (2:ℕ) < 2^8 := by norm_num
+        _ ≤ 2^i := Nat.pow_le_pow_right (by norm_num) hge)
+    rw [hb2]
+
+/-- The authorize-side SET value is nonzero (its low byte is `2`). -/
+theorem fin_mask_two_ne_zero (x : UInt256) :
+    Fin.lor (Fin.land x (Clear.UInt256.lnot 255)) 2 ≠ 0 := by
+  intro h
+  have := fin_mask_two x
   rw [h] at this
   simp only [Fin.land] at this
   exact absurd this (by decide)
@@ -595,34 +780,42 @@ theorem sload_sstore_self_of_nonzero (σ : EVMState) (b val : UInt256)
     unfold Account.updateStorage Account.lookupStorage
     rw [if_neg (by simpa using hv), Finmap.lookup_insert]
 
-/-- **The SET sets `Reverted`.** After the write helper runs at `slot`, the
-stored leg byte is exactly `3 = LegState.Reverted`. -/
+/-- **The claim-side SET sets `Reverted`.** After the `_7877` write helper runs
+at `slot`, the stored leg byte is exactly `3 = LegState.Reverted`. -/
 theorem update_storage_sets_reverted_byte
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {slot : Literal} {s' : State}
     (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
-    (hexec : execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState []
+    (hexec : execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState_7877 []
                 (Ok evm store, [slot]) = s') :
     Fin.land (s'.evm.sload slot) 255 = 3 := by
-  rw [← hexec, update_storage_writes_reverted]
+  rw [← hexec, update_storage_7877_writes_reverted]
   rw [evm_setEvm_of_isOk (by trivial : isOk (Ok evm store))]
   rw [sload_sstore_self_of_nonzero evm slot _ (fin_mask_three_ne_zero (evm.sload slot)) hacc]
   exact fin_mask_three (evm.sload slot)
 
-/-! ## END-TO-END: a refunded leg cannot be refunded again -/
+/-- **The authorize-side SET sets `Revertable`.** After the base write helper
+(`authorizeRefund`'s mark) runs at `slot`, the stored leg byte is exactly
+`2 = LegState.Revertable`. -/
+theorem update_storage_sets_revertable_byte
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {slot : Literal} {s' : State}
+    (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
+    (hexec : execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState []
+                (Ok evm store, [slot]) = s') :
+    Fin.land (s'.evm.sload slot) 255 = 2 := by
+  rw [← hexec, update_storage_writes_revertable]
+  rw [evm_setEvm_of_isOk (by trivial : isOk (Ok evm store))]
+  rw [sload_sstore_self_of_nonzero evm slot _ (fin_mask_two_ne_zero (evm.sload slot)) hacc]
+  exact fin_mask_two (evm.sload slot)
 
-/-- **NO DOUBLE REFUND (leg-level anti-double-mint).** Run the `claimRefund`
-SET write at `slot` (marking the leg `Reverted(3)`); then re-run `claimRefund`\'s
-CHECK block + guard-if with `split_expr_21 ↦ slot` on the post-write evm.  The
-re-claim ends `reverted = true`: the leg state machine admits at most one refund
-per leg.  Combined with `refund_check_reverts`\'s other instances (`Unset`,
-`Committed`), `claimRefund` can pay out ONLY a leg in state `Revertable` —
-i.e. only after `authorizeRefund`\'s timeout proof, and at most once.
+/-! ## END-TO-END: the two-step machine -/
 
-Hypothesis `hacc` (the contract\'s own account exists) is the standard deployed-
-contract fact; the shared `slot` variable is the CHECK = SET slot identification
-(both are the same 2-level keccak accessor chain over `(flowId, bundleHash)` —
-dischargeable exactly like the L1Nullifier `check_set_slots_eq`). -/
-theorem reclaim_after_refund_reverts
+/-- **THE FORWARD STEP: authorize unlocks the claim.** Run `authorizeRefund`\'s
+mark at `slot` (the base helper — `Committed → Revertable(2)`); then run
+`claimRefund`\'s CHECK block + guard-if with `split_expr_21 ↦ slot` on the
+post-write evm.  The guard PASSES: the state falls through unreverted (only the
+two scratch binds are added), and the claim proceeds to the `Reverted(3)` mark
+and payout. -/
+theorem claim_after_authorize_passes
     {evm : EVMState} {store : VarStore} {fuel : ℕ}
     {slot : Literal} {s_set s_mid s₉ : State}
     (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
@@ -630,7 +823,38 @@ theorem reclaim_after_refund_reverts
                     (Ok evm store, [slot]) = s_set)
     (hcheck_exec : exec (fuel+1) block_5412558363375237105
                       ((Ok s_set.evm store)⟦"split_expr_21" ↦ slot⟧) = s_mid)
-    (hif_exec : exec (fuel+1) if_3729329767271556662 s_mid = s₉) :
+    (hif_exec : exec (fuel+1) if_880639588767859599 s_mid = s₉) :
+    s₉ = Ok s_set.evm (((store.insert "split_expr_21" slot).insert "_5"
+          (Fin.land (s_set.evm.sload slot) 255)).insert "split_expr_22" 1) := by
+  have hbyte : Fin.land (s_set.evm.sload slot) 255 = 2 :=
+    update_storage_sets_revertable_byte hacc hset_exec
+  rw [insert_Ok] at hcheck_exec
+  have hslot : (Ok s_set.evm (store.insert "split_expr_21" slot))["split_expr_21"]!! = slot := by
+    rw [← insert_Ok]; exact lookup_insert' (by trivial)
+  exact refund_check_passes hslot hbyte hcheck_exec hif_exec
+
+/-- **NO DOUBLE REFUND (leg-level anti-double-mint).** Run the `claimRefund`
+SET write at `slot` (the `_7877` helper — marking the leg `Reverted(3)`); then
+re-run `claimRefund`\'s CHECK block + guard-if with `split_expr_21 ↦ slot` on
+the post-write evm.  The re-read is `3 ≠ 2`, so the re-claim ends
+`reverted = true`: the leg state machine admits at most one refund per leg.
+Combined with `refund_check_reverts`\'s other instances (`Unset`, `Committed`),
+`claimRefund` can pay out ONLY a leg in state `Revertable` — i.e. only after
+`authorizeRefund`\'s timeout proof, and at most once.
+
+Hypothesis `hacc` (the contract\'s own account exists) is the standard deployed-
+contract fact; the shared `slot` variable is the CHECK = SET slot identification
+(both are the same 2-level keccak accessor chain over `(flowId, bundleHash)` —
+discharged at statement level by `claim_check_set_slots_eq` below). -/
+theorem reclaim_after_refund_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    {slot : Literal} {s_set s_mid s₉ : State}
+    (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome)
+    (hset_exec : execCall (fuel+1) update_storage_value_offset_enum_LegState_to_enum_LegState_7877 []
+                    (Ok evm store, [slot]) = s_set)
+    (hcheck_exec : exec (fuel+1) block_5412558363375237105
+                      ((Ok s_set.evm store)⟦"split_expr_21" ↦ slot⟧) = s_mid)
+    (hif_exec : exec (fuel+1) if_880639588767859599 s_mid = s₉) :
     s₉.evm.reverted = true := by
   have hbyte : Fin.land (s_set.evm.sload slot) 255 = 3 :=
     update_storage_sets_reverted_byte hacc hset_exec
@@ -664,15 +888,15 @@ lemma primCall_keccakOut {s : State} {a b : Literal} :
 
 /--
   Closed form of the level-1 accessor
-  `mapping_…_7397(key)` (`mstore(0, key); mstore(32, 0); dataSlot := keccak256(0, 64)`):
+  `mapping_…_7848(key)` (`mstore(0, key); mstore(32, 0); dataSlot := keccak256(0, 64)`):
   one `accOut` step at `(key, 0)`.
 -/
-lemma mapping_legstate_7397_call_acc
+lemma mapping_legstate_7848_call_acc
     {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} {v : Identifier} :
-    execCall (fuel+1) mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+    execCall (fuel+1) mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
         [v] (Ok evm store, [key])
       = Ok (accOut evm key 0).2 (store.insert v (accOut evm key 0).1) := by
-  unfold execCall call mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+  unfold execCall call mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
   simp only [params, body, rets, multifill', mkOk_initcall_Ok,
              List.map_nil, List.map_cons]
   rw [cons, cons, cons, nil]
@@ -779,7 +1003,7 @@ lemma mapping_legstate_call_acc
 /-- **SLOT-EQUALITY for `claimRefund`** — `split_expr_26 = split_expr_21`.
 
 Running the 2-level accessor chain twice with the same keys — the CHECK chain
-(`split_expr_20/21` over `(var_flowId, expr)`) and the SET chain
+(`split_expr_20/21` over `(var__flowId, expr)`) and the SET chain
 (`split_expr_25/26`) — returns the SAME final storage slot, provided the
 intervening execution (the read/validator/eq/guard-if success path) (i) left
 memory bytes `[64, 95)` unchanged and (ii) dropped no keccak-cache entry, and
@@ -791,7 +1015,7 @@ theorem claim_check_set_slots_eq
     {v₂₀ v₂₁ v₂₅ v₂₆ : Identifier}
     -- CHECK-side chain (split_expr_20/21)
     (h₂₀ : execCall (f₂₀+1)
-        mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+        mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
         [v₂₀] (Ok evm₀ st₀, [k₁]) = s₂₀)
     (h₂₁ : execCall (f₂₁+1)
         mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32
@@ -806,7 +1030,7 @@ theorem claim_check_set_slots_eq
         → Finmap.lookup I evmM.keccak_map = some w)
     -- SET-side chain (split_expr_25/26)
     (h₂₅ : execCall (f₂₅+1)
-        mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7397
+        mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32_7848
         [v₂₅] (Ok evmM stM, [k₁]) = s₂₅)
     (h₂₆ : execCall (f₂₆+1)
         mapping_index_access_mapping_bytes32_mapping_bytes32_enum_LegState_of_bytes32
@@ -815,7 +1039,7 @@ theorem claim_check_set_slots_eq
     -- no keccak-collision fallback on the CHECK side (A6 model caveat)
     (hclean : s₂₁.evm.hash_collision = false) :
     s₂₆[v₂₆]!! = s₂₁[v₂₁]!! := by
-  rw [mapping_legstate_7397_call_acc] at h₂₀
+  rw [mapping_legstate_7848_call_acc] at h₂₀
   have hs₂₀v : s₂₀[v₂₀]!! = (accOut evm₀ k₁ 0).1 := by
     rw [← h₂₀, ← insert_Ok]; exact lookup_insert' (by trivial)
   rw [hb₂₁, hs₂₀v] at h₂₁
@@ -825,7 +1049,7 @@ theorem claim_check_set_slots_eq
     rw [← h₂₁, ← insert_Ok]; exact lookup_insert' (by trivial)
   have hs₂₁evm : s₂₁.evm = (accOut (accOut evm₀ k₁ 0).2 k₂ (accOut evm₀ k₁ 0).1).2 := by
     rw [← h₂₁]; rfl
-  rw [mapping_legstate_7397_call_acc] at h₂₅
+  rw [mapping_legstate_7848_call_acc] at h₂₅
   have hs₂₅v : s₂₅[v₂₅]!! = (accOut evmM k₁ 0).1 := by
     rw [← h₂₅, ← insert_Ok]; exact lookup_insert' (by trivial)
   rw [hb₂₆, hs₂₅v] at h₂₆
