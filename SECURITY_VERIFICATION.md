@@ -1362,6 +1362,22 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   acceptance is #57's verified ⇒ executable hook; per-chain re-execution is blocked by #50.
   *Caveat: abstract layer — the shared history `S` models the published interop roots; the
   concrete root-publication transport between chains is upstream infrastructure.*
+- **#61 IMT FIDELITY, the storage-side insert agreement (2026-07-23).**
+  `imt_fidelity_user.lean` (L2ICT): the abstraction function from concrete storage to the
+  abstract model — `leafSlot` (`keccak(i ‖ 5)`), `decodeLeaf` (the `value`/`nextValue` fields
+  at `slot`/`+2`; `nextIndex` has no abstract counterpart), `leafSetOf` (imaged over the count
+  at slot 1) — with its `sstore` frames on the CACHED branch (`sstore` grows `used_range`,
+  which steers `keccak256`'s fresh-branch choice, so keccak values are `sstore`-stable only
+  when cached; the accessor caches on first use).  `decodeLeaf_after_write` (a fresh struct
+  write decodes exactly), `leafSetOf_after_write` (write + count bump = abstract
+  `insert ⟨v, nextValue⟩`, disjointness as oracles), the keccak-injectivity discharge layer
+  (`leafSlot_inj`, offset/low-slot separations over the trusted-base `keccak256_*` axioms),
+  and **`leafSetOf_insert`** — the clean form: account present + count no-wrap + cached
+  hashes ⇒ the storage write sequence IS the abstract set insert.  This is the first
+  concrete-to-abstract link of the fidelity track that makes #60's cross-chain atomicity
+  apply toward deployed code.  *Remaining: node-array no-touch frames
+  (`padWalk`/`updateWalk`), composition with `pushNewLeaf_call` (P5), and the window-retarget
+  half (`fun_updateLeaf`) at the AtomicFlowManager call sequence level.*
 
 ## Part C — What a reviewer should do
 

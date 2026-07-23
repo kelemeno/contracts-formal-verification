@@ -448,6 +448,52 @@ theorem leafSlot_add_ne_low {σ : EVMState} {i w : UInt256} (k c : UInt256)
   rw [hvi]
   exact Clear.KeccakInjective.keccak256_add_ne_lowSlot k c hki hk hlow
 
+/-! ### The clean insert agreement -/
+
+/-- **INSERT AGREEMENT, clean form** — `leafSetOf_after_write` with every
+slot-disjointness oracle discharged by the keccak-injectivity layer.  What
+remains: the executing account exists, the count does not wrap, and the
+mapping hashes of all indices `≤ count` are cached (the accessor caches on
+first use). -/
+theorem leafSetOf_insert {σ : EVMState} {v ni nv w : UInt256}
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 5) σ.keccak_map = some w)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 5) σ.keccak_map = some wm) :
+    leafSetOf ((((σ.sstore (leafSlot σ (σ.sload 1)) v).sstore
+        (leafSlot σ (σ.sload 1) + 1) ni).sstore
+        (leafSlot σ (σ.sload 1) + 2) nv).sstore 1 (σ.sload 1 + 1))
+      = insert (⟨v, nv⟩ : AbsLeaf) (leafSetOf σ) := by
+  have hkey : ∀ m : ℕ, m < (σ.sload 1).val → σ.sload 1 ≠ (m : UInt256) := by
+    intro m hm
+    apply Fin.ne_of_val_ne
+    have hmv : ((m : UInt256)).val = m :=
+      Nat.mod_eq_of_lt (lt_trans hm (σ.sload 1).isLt)
+    rw [hmv]
+    exact Nat.ne_of_gt hm
+  refine leafSetOf_after_write hacc hc hnw hcaches ?_ ?_ ?_ ?_ ?_ ?_
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_inj hc hcm (hkey m hm),
+           Ne.symm (leafSlot_add_ne hcm hc (Ne.symm (hkey m hm)) (by decide))⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_add_ne hc hcm (hkey m hm) (by decide),
+           leafSlot_off_ne_off hc hcm (hkey m hm)
+             (by decide) (by decide) (by decide)⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_add_ne hc hcm (hkey m hm) (by decide),
+           leafSlot_off_ne_off hc hcm (hkey m hm)
+             (by decide) (by decide) (by decide)⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨Ne.symm (leafSlot_ne_low 1 hcm (by decide)),
+           Ne.symm (leafSlot_add_ne_low 2 1 hcm (by decide) (by decide))⟩
+  · exact Ne.symm (leafSlot_ne_low 1 hc (by decide))
+  · exact Ne.symm (leafSlot_add_ne_low 2 1 hc (by decide) (by decide))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
