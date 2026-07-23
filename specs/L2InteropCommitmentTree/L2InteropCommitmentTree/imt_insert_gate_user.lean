@@ -2,6 +2,8 @@ import Clear.ReasoningPrinciple
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.constant_L2_ATOMIC_FLOW_MANAGER_ADDR
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
+import specs.KeccakDeterminism
 
 /-
   THE INSERT GATES (L2InteropCommitmentTree dispatcher glue).
@@ -56,6 +58,14 @@ private lemma lookup_insert_self_local {evm : EVMState} {σ : VarStore}
 
 private lemma reviveJump_of_isOk_local {s : State} (h : isOk s) : 🧟 s = s := by
   obtain ⟨e₀, σ₀, rfl⟩ := State_of_isOk h; rfl
+
+private lemma evm_setEvm_of_isOk {s : State} {e : EVMState} (h : isOk s) :
+    (s🇪⟦e⟧).evm = e := by
+  obtain ⟨e₀, σ₀, rfl⟩ := State_of_isOk h; rfl
+
+private lemma evm_insert {s : State} {k : Identifier} {v : Literal} :
+    (s⟦k ↦ v⟧).evm = s.evm := by
+  cases s <;> rfl
 
 /-- **The appender constant, call level**: `constant_L2_ATOMIC_FLOW_MANAGER_ADDR()`
 returns the AFM built-in `65556 = 0x10014` and leaves the caller state
@@ -218,6 +228,75 @@ lemma abi_encode_uint256_call {evm : EVMState} {σ : VarStore} {fuel : ℕ}
   rw [reviveJump_of_isOk_local (by trivial)]
   simp only [overwrite?_of_Ok, setStore_ok]
   rw [lookup_insert_self_local]
+
+/-! ### The valueToIndex accessor, call level -/
+
+private lemma primCall_keccakOut' {s : State} {a b : Literal} :
+    primCall s .Keccak256 [a, b]
+      = (s.setEvm (Clear.KeccakDeterminism.keccakOut s.evm a b).2,
+         [(Clear.KeccakDeterminism.keccakOut s.evm a b).1]) := by
+  rw [EVMKeccak256']
+  unfold Clear.KeccakDeterminism.keccakOut
+  rcases hk : s.evm.keccak256 a b with _ | pr
+  · simp only [hk]
+  · simp only [hk]
+
+open Clear.KeccakDeterminism in
+/-- **The `valueToIndex` accessor (`mapping_…_5196`), call level**: one
+`accOut` step at `(key, 5)`, in the pair form the dedup-gate condition
+consumes. -/
+lemma mapping_vti_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} :
+    call (fuel+1) [key]
+        mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
+        (Ok evm store)
+      = (Ok (accOut evm key 5).2 store, [(accOut evm key 5).1]) := by
+  unfold call mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
+  simp only [params, body, rets, mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, nil]
+  simp only [ExprStmtPrimCall', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMMstore']
+  try simp only [multifill', multifill_nil, multifill_cons, overwrite?_of_Ok]
+  rw [primCall_keccakOut']
+  have hok₀ : isOk ((Ok evm store)☎️⟦["key"], [key]⟧) := isOk_initcall_of_isOk trivial
+  have hevm₀ : ((Ok evm store)☎️⟦["key"], [key]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hkey : ((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!! = key := lookup_initcall_1
+  set host := (((Ok evm store)☎️⟦["key"], [key]⟧)
+      🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+          (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧)
+      🇪⟦(((Ok evm store)☎️⟦["key"], [key]⟧)
+          🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+              (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧).evm.mstore 32 5⟧
+      with hhost
+  have hhost_ok : isOk host := by
+    rw [hhost, isOk_setEvm, isOk_setEvm]; exact hok₀
+  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 5 := by
+    rw [hhost, evm_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok₀),
+        evm_setEvm_of_isOk hok₀, hevm₀, hkey]
+  rw [hhost_evm]
+  unfold accOut
+  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 5) 0 64 = out
+  try simp only [multifill_cons, multifill_nil]
+  have hsetEvm_ok : isOk (host.setEvm out.2) := by
+    rw [isOk_setEvm]; exact hhost_ok
+  have hin_ok : isOk ((host.setEvm out.2)⟦"dataSlot" ↦ out.1⟧) := by
+    rw [isOk_insert]; exact hsetEvm_ok
+  rw [lookup_insert' hsetEvm_ok]
+  rw [reviveJump_of_isOk_local hin_ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = out.2 := by
+    have h := congrArg State.evm hi
+    rw [evm_insert, evm_setEvm_of_isOk hhost_ok] at h
+    exact h.symm
+  rw [hi]
+  simp only [overwrite?_of_Ok, setStore_ok]
+  rw [hi_evm]
 
 end
 
