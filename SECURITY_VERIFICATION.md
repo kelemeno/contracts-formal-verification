@@ -1407,6 +1407,19 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   `mapping_vti_call`, `abi_encode_uint256_call`) and the call-closing recipe
   (`🧟 ∘ overwrite? ∘ setStore` + ret lookup).  The dedup pass correctly carries the
   accessor's `accOut`-threaded state.  All axiom-clean.
+- **#64 REFUND MACHINE CORRECTED + STRENGTHENED for the two-step contract (2026-07-23).**
+  A fresh-compile audit (stale oleans had masked it) found `no_double_refund_user` modeling a
+  ONE-step refund marking `Reverted(3)`; the current contract (AtomicFlowManager.sol:134-176)
+  splits it: `authorizeRefund` marks `Committed→Revertable(2)` under a missing-leg absence
+  proof, `claimRefund` requires EXACTLY `Revertable` (else `ManagerLegNotRevertable`) then
+  marks `Reverted(3)` and pays.  Restated and re-proven: the authorize-side and claim-side
+  mark closed forms (`|||2` / `|||3`), the claim guard both ways, NEW forward liveness
+  (`claim_after_authorize_passes` — the authorized leg is claimable), and the corrected
+  no-double composite (`reclaim_after_refund_reverts`: after a claim the re-read is `3 ≠ 2`,
+  so a second claim REVERTS — no-double-refund is the 2→3 transition).  Downstream
+  `no_theft_refund` claims unchanged.  Selector recomputed independently
+  (`0x83562707 = 2203461383`).  *Two regeneration renames absorbed; earlier ledger prose
+  describing a single mark-3 refund should be read through this entry.*
 
 ## Part C — What a reviewer should do
 
