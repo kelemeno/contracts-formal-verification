@@ -21,6 +21,7 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas
      OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
+     Clear.KeccakDeterminism
 
 set_option maxRecDepth 4000
 set_option maxHeartbeats 4000000
@@ -950,6 +951,24 @@ h2v/hemp deep) → `format_finalI_arm` (h3 top; hemp deep) → ret chunk
 lookup + wrapper collapse (State_of_isOk + reviveJump/overwrite?/setStore).
 Read exact towers from goals (`trace_state` where `rfl` recurses); expect
 `lookup_ok_evm` hops at every evm-crossing transport. -/
+
+/-! ### Readback dischargers -/
+
+/-- **The staged length word reads back** (`hlen32`'s discharger): after the
+allocation chunk's three writes, reading the word at the old free pointer `F`
+returns the staged `32`: the 64-write is disjoint (`96 ≤ F`), and the `F`
+write — the outermost remaining — round-trips.  The `F+32` write is shadowed
+and never consulted. -/
+lemma alloc_len_readback
+    {evm : EVMState} {C : Literal}
+    (h96 : 96 ≤ (evm.mload 64).val)
+    (hF32 : (evm.mload 64).val + 32 ≤ 2 ^ 256) :
+    (((evm.mstore (evm.mload 64 + 32) C).mstore (evm.mload 64) 32).mstore 64
+        (evm.mload 64 + 64)).mload (evm.mload 64) = 32 := by
+  have h64v : ((64 : UInt256)).val = 64 := by decide
+  rw [mload_mstore_outside _ 64 _ _ (by rw [h64v]; norm_num) hF32
+      (Or.inr (by rw [h64v]; exact h96))]
+  exact mload_mstore_self_at _ _ 32 hF32
 
 end
 
