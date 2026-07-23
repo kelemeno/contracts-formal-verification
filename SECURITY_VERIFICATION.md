@@ -1447,6 +1447,21 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   form whose final state instantiates this chain) and #62's capstone packaging
   (`leafSetOf_evolution_step`), the deployed insert IS an abstract `Evolution` step — and
   through #60, the cross-chain atomicity story now rests on the running bytecode.
+- **#67 THE WELD (2026-07-23).**  `insertGlue_leafSetOf` (`imt_weld_user.lean`, new file) +
+  `glueSeq_leafSetOf'` (`imt_fidelity_user.lean`, interleave-accurate variant of #66; the
+  original kept intact): #66's generic chain instantiated with #65's VERBATIM dispatcher
+  final state `wFinal` — `leafSetOf (wFinal …) = imtInsert (leafSetOf evm) (decodeLeaf evm
+  IX) V`, anchored at the dispatcher ENTRY state (the guards bridge is proven inside).
+  Both commissioned deviations absorbed: the update interleave's hashLeaf step + level-0
+  write (generic-H1 segment, 32-vs-64 preimage split), and the read-backs DISCHARGED as
+  theorems (`guards_slot_pins`: the pack word at IX is the guards' computed slot, by
+  entry-interval cache functionality) rather than hypothesized.  One NEW deviation found
+  and absorbed: the push interleave hashes the new-leaf struct BEFORE the count bump — a
+  fifth junk-window regime; the cache pack is now FIVE-ANCHOR (entry / guardsEvm / E4 /
+  F4 / H3).  Support: `sload_hashLeafOut_of_clean`, `leafRead_mload_key/nextKey`,
+  `guards_sload`.  Axiom base: trusted keccak only.  The deployed insert's set effect is
+  now ONE theorem from the entry state; remaining to Evolution packaging: the window
+  discharge (#68).
 
 ## Part C — What a reviewer should do
 
