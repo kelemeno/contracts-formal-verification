@@ -36,6 +36,9 @@ private lemma evm_Ok {e : EVMState} {σ : VarStore} : (Ok e σ).evm = e := rfl
 private lemma setEvm_Ok {e E : EVMState} {σ : VarStore} :
     (Ok e σ).setEvm E = Ok E σ := rfl
 
+private lemma lookup_ok_evm {σ : VarStore} {k : Identifier} (e e' : EVMState) :
+    (Ok e σ)[k]!! = (Ok e' σ)[k]!! := rfl
+
 private lemma lookup_insert_ne_fin {evm : EVMState} {σ : VarStore}
     {k k' : Identifier} {val : Literal} (h : k' ≠ k) :
     (Ok evm (Finmap.insert k val σ))[k']!! = (Ok evm σ)[k']!! := by
@@ -612,6 +615,154 @@ private lemma format_byteE_arm
   rw [lookup_insert_self_fin,
       lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
       lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+
+/-! ### The payload and address-locator chunks -/
+
+/-- Chunk F: copy the sliced payload behind the tag (A3 no-op) and set the
+running end pointer. -/
+@[reducible] private def formatCopyChunk : Stmt := <s
+  {
+      let length := mload(var_mpos)
+      let split_expr_17 := add(expr_mpos_1, 37)
+      let split_expr_18 := add(var_mpos, 32)
+      mcopy(split_expr_17, split_expr_18, length)
+      let _2 := add(expr_mpos_1, length)
+  }
+>
+
+/-- Chunk G: write the `0x05` address-length tag and shift the address up. -/
+@[reducible] private def formatAddrTagChunk : Stmt := <s
+  {
+      let split_expr_19 := add(_2, 37)
+      let split_expr_20 := shl(250, 5)
+      mstore(split_expr_19, split_expr_20)
+      let split_expr_21 := add(_2, 38)
+      let split_expr_22 := shl(96, var_addr)
+  }
+>
+
+/-- **Chunk F closed form**: with the slice length read back as `LN`
+(hypothesis), the payload `mcopy` is the A3 no-op and only the store grows. -/
+private lemma format_copyF_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {VP P2 LN : Literal}
+    (hvm : (Ok evm σ)["var_mpos"]!! = VP)
+    (hemp : (Ok evm σ)["expr_mpos_1"]!! = P2)
+    (hlr : evm.mload VP = LN) :
+    exec (fuel+1) formatCopyChunk (Ok evm σ)
+      = Ok evm ((((σ.insert "length" LN).insert
+          "split_expr_17" (P2 + 37)).insert
+          "split_expr_18" (VP + 32)).insert
+          "_2" (P2 + LN)) := by
+  unfold formatCopyChunk
+  -- let length := mload(var_mpos)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMload',
+             evm_Ok, insert_Ok]
+  rw [hvm, hlr]
+  -- let split_expr_17 := add(expr_mpos_1, 37)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), hemp]
+  -- let split_expr_18 := add(var_mpos, 32)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide), hvm]
+  -- mcopy(split_expr_17, split_expr_18, length)
+  rw [cons, ExprStmtCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_self_fin]
+  rw [mcopy_call]
+  -- let _2 := add(expr_mpos_1, length)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [show (Ok evm (Finmap.insert "split_expr_18" (VP + 32)
+        (Finmap.insert "split_expr_17" (P2 + 37)
+          (Finmap.insert "length" LN σ))))["length"]!! = LN from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide)]
+    exact lookup_insert_self_fin]
+  rw [show (Ok evm (Finmap.insert "split_expr_18" (VP + 32)
+        (Finmap.insert "split_expr_17" (P2 + 37)
+          (Finmap.insert "length" LN σ))))["expr_mpos_1"]!! = P2 from by
+    rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+        lookup_insert_ne_fin (by decide)]
+    exact hemp]
+
+/-- **Chunk G closed form**: locator tag write and address shift. -/
+private lemma format_addrG_arm
+    {evm : EVMState} {σ : VarStore} {fuel : ℕ} {T2 A : Literal}
+    (h2 : (Ok evm σ)["_2"]!! = T2)
+    (ha : (Ok evm σ)["var_addr"]!! = A) :
+    exec (fuel+1) formatAddrTagChunk (Ok evm σ)
+      = Ok (evm.mstore (T2 + 37) (Fin.shiftLeft 5 250))
+          ((((σ.insert "split_expr_19" (T2 + 37)).insert
+            "split_expr_20" (Fin.shiftLeft 5 250)).insert
+            "split_expr_21" (T2 + 38)).insert
+            "split_expr_22" (Fin.shiftLeft A 96)) := by
+  unfold formatAddrTagChunk
+  -- let split_expr_19 := add(_2, 37)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [h2]
+  -- let split_expr_20 := shl(250, 5)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  -- mstore(split_expr_19, split_expr_20)
+  rw [cons, ExprStmtPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMMstore',
+             evm_Ok, setEvm_Ok]
+  rw [lookup_insert_self_fin,
+      lookup_insert_ne_fin (by decide), lookup_insert_self_fin]
+  -- let split_expr_21 := add(_2, 38)
+  rw [cons, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMAdd',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_ok_evm _ evm, h2]
+  -- let split_expr_22 := shl(96, var_addr)
+  rw [cons, nil, LetPrimCall']
+  simp only [evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, multifill_cons, multifill_nil, EVMShl',
+             insert_Ok]
+  rw [lookup_insert_ne_fin (by decide), lookup_insert_ne_fin (by decide),
+      lookup_insert_ne_fin (by decide), lookup_ok_evm _ evm, ha]
 
 end
 
