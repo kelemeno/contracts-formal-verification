@@ -3,6 +3,7 @@ import Clear.ReasoningPrinciple
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.constant_L2_ATOMIC_FLOW_MANAGER_ADDR
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5196
+import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199
 import specs.KeccakDeterminism
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_hashLeaf
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory_5179
@@ -658,6 +659,65 @@ lemma allocate_memory_5179_call
   try simp only [overwrite?_of_Ok]
   rw [setStore_ok]
   try simp only [multifill_cons, multifill_nil, insert_Ok]
+
+/-! ### The leaves accessor, call level -/
+
+open Clear.KeccakDeterminism in
+/-- **The `leaves` accessor (`mapping_…_5199`), call level**: one `accOut`
+step at `(key, 4)`, for its expression-position uses in the insert glue
+(`copy_struct_to_storage(mapping_5199(idx), ptr)`). -/
+lemma mapping_leaves4_call
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {key : Literal} :
+    call (fuel+1) [key]
+        mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199
+        (Ok evm store)
+      = (Ok (accOut evm key 4).2 store, [(accOut evm key 4).1]) := by
+  unfold call mapping_index_access_mapping_uint256_struct_IMTLeaf_storage_of_uint256_5199
+  simp only [params, body, rets, mkOk_initcall_Ok,
+             List.map_nil, List.map_cons]
+  rw [cons, cons, cons, nil]
+  simp only [ExprStmtPrimCall', LetPrimCall', AssignPrimCall',
+             evalArgs, evalTail, cons', head', reverse', multifill',
+             PrimCall', Lit', Var', execPrimCall, evalPrimCall,
+             List.reverse_cons, List.reverse_nil, List.nil_append,
+             List.singleton_append, List.append_assoc, List.cons_append,
+             EVMMstore']
+  try simp only [multifill', multifill_nil, multifill_cons, overwrite?_of_Ok]
+  rw [primCall_keccakOut']
+  have hok₀ : isOk ((Ok evm store)☎️⟦["key"], [key]⟧) := isOk_initcall_of_isOk trivial
+  have hevm₀ : ((Ok evm store)☎️⟦["key"], [key]⟧).evm = evm := by
+    unfold initcall; simp only [evm_multifill, evm_setStore]; rfl
+  have hkey : ((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!! = key := lookup_initcall_1
+  set host := (((Ok evm store)☎️⟦["key"], [key]⟧)
+      🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+          (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧)
+      🇪⟦(((Ok evm store)☎️⟦["key"], [key]⟧)
+          🇪⟦((Ok evm store)☎️⟦["key"], [key]⟧).evm.mstore 0
+              (((Ok evm store)☎️⟦["key"], [key]⟧)["key"]!!)⟧).evm.mstore 32 4⟧
+      with hhost
+  have hhost_ok : isOk host := by
+    rw [hhost, isOk_setEvm, isOk_setEvm]; exact hok₀
+  have hhost_evm : host.evm = (evm.mstore 0 key).mstore 32 4 := by
+    rw [hhost, evm_setEvm_of_isOk (by rw [isOk_setEvm]; exact hok₀),
+        evm_setEvm_of_isOk hok₀, hevm₀, hkey]
+  rw [hhost_evm]
+  unfold accOut
+  generalize hout : keccakOut ((evm.mstore 0 key).mstore 32 4) 0 64 = out
+  try simp only [multifill_cons, multifill_nil]
+  have hsetEvm_ok : isOk (host.setEvm out.2) := by
+    rw [isOk_setEvm]; exact hhost_ok
+  have hin_ok : isOk ((host.setEvm out.2)⟦"dataSlot" ↦ out.1⟧) := by
+    rw [isOk_insert]; exact hsetEvm_ok
+  rw [lookup_insert' hsetEvm_ok]
+  rw [reviveJump_of_isOk_local hin_ok]
+  obtain ⟨ei, si, hi⟩ := State_of_isOk hin_ok
+  have hi_evm : ei = out.2 := by
+    have h := congrArg State.evm hi
+    rw [evm_insert, evm_setEvm_of_isOk hhost_ok] at h
+    exact h.symm
+  rw [hi]
+  simp only [overwrite?_of_Ok, setStore_ok]
+  rw [hi_evm]
 
 end
 
