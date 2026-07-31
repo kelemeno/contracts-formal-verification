@@ -694,4 +694,22 @@ theorem rootOf_append_inj (h : Hash) (z0 : UInt256)
     height (by simp) (by simp) hcap hroot
   simpa using heq
 
+/-- **M-D binding corollary (interior leaves).**  Overwriting one leaf with
+a different value changes the recomputed root of a non-full tree: the root
+pins *every* leaf, not only the appended one.  Companion to
+`rootOf_append_inj`. -/
+theorem rootOf_set_inj (h : Hash) (z0 : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    (leaves : List UInt256) (idx : ℕ) (x y : UInt256) (height : ℕ)
+    (hidx : idx < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
+    (hroot : rootOf h z0 (leaves.set idx x) height
+      = rootOf h z0 (leaves.set idx y) height) :
+    x = y := by
+  have heq := rootOf_inj_of_h_inj h z0 hinj (leaves.set idx x) (leaves.set idx y)
+    height (by rw [List.length_set, List.length_set])
+    (by rw [List.length_set]; omega) (by rw [List.length_set]; exact hcap) hroot
+  have hx : (leaves.set idx x).getD idx x = (leaves.set idx y).getD idx x := by
+    rw [heq]
+  rwa [getD_set_self x leaves idx x hidx, getD_set_self y leaves idx x hidx] at hx
+
 end MerkleSpec
