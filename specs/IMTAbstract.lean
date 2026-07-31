@@ -997,4 +997,49 @@ theorem guarded_insert_toggles_reclaimable
   have hstep := guarded_insert_sound_step hs hW hlow hwin hnot
   exact present_not_reclaimable hstep.1.1 (imtInsert_key_mem hW)
 
+/-! ## The synthetic direction — a concrete guarded history IS an `Evolution`
+
+Every theorem above is *analytic*: assume `Evolution` and derive a security
+property.  The concrete contract, however, produces steps guarded only by the
+WEAK loop-exit window plus the dedup gate.  `GuardedEvolution` captures exactly
+that history shape, and `guardedEvolution_isEvolution` shows it refines to an
+`Evolution` — so the entire analytic corpus (`reclaimable_iff_absent`,
+exactly-once delivery, the ledgers, `delivered_leg_available_forever`) applies
+verbatim to real contract runs from a sound genesis. -/
+
+/-- A history whose every step is a no-op or a guarded concrete insert:
+low leaf in the set, strictly below `v`, the WEAK loop-exit window, and the
+dedup gate `v ∉ keys`. -/
+def GuardedEvolution (S : ℕ → Finset AbsLeaf) : Prop :=
+  ∀ n, S (n+1) = S n
+    ∨ ∃ (W : AbsLeaf) (v : UInt256),
+        W ∈ S n ∧ W.key < v ∧ (W.nextKey = 0 ∨ v ≤ W.nextKey)
+          ∧ v ∉ keys (S n) ∧ S (n+1) = imtInsert (S n) W v
+
+/-- A guarded history from a sound genesis stays sound at every step. -/
+theorem guardedEvolution_sound
+    {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S) (h0 : SoundState (S 0)) :
+    ∀ n, SoundState (S n) := by
+  intro n
+  induction n with
+  | zero => exact h0
+  | succ n ih =>
+    rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩
+    · rw [heq]; exact ih
+    · rw [heq]; exact (guarded_insert_sound_step ih hW hlow hwin hnot).1
+
+/-- **THE CONCRETE GUARD REFINES TO `Evolution`.**  A `GuardedEvolution` from
+a sound genesis is an `Evolution`: at each insert step the dedup gate upgrades
+the weak window to the strict one (`window_strict_of_not_mem`, discharged
+against the step's own sound state).  Bridges every analytic security theorem
+to real contract histories. -/
+theorem guardedEvolution_isEvolution
+    {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S) (h0 : SoundState (S 0)) :
+    Evolution S := by
+  intro n
+  rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩
+  · exact Or.inl heq
+  · exact Or.inr ⟨W, v, hW, hlow,
+      window_strict_of_not_mem (guardedEvolution_sound hge h0 n).2.2.1 hW hnot hwin, heq⟩
+
 end IMTAbstract
