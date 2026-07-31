@@ -1127,4 +1127,41 @@ theorem accOut_junk_window₂
       = Finmap.lookup i σ.machine_state.memory := by
   rw [accOut_junk_window hi, accOut_junk_window hi]
 
+/-- The state threaded through a multi-level pair-hash walk: each level applies
+`accOut` at its own `(key, base)` and carries the *resulting* state forward.
+The `(key, base)` sequence is externally supplied (in a real walk each is
+determined by the running accumulator and the level sibling); the junk-window
+frame below is uniform over that sequence, so this list model loses nothing. -/
+def accStateFold (σ : EVMState) : List (UInt256 × UInt256) → EVMState
+  | [] => σ
+  | (k, b) :: rest => accStateFold (accOut σ k b).2 rest
+
+/-- **N-STEP JUNK-WINDOW FRAME.**  The junk window `[64, 95)` survives *any*
+number of pair-hash steps — the `n`-step generalization of `accOut_junk_window₂`
+by induction on the level list.  This is the atom that lets a fold read scratch
+state after arbitrarily many `accOut`s. -/
+theorem accStateFold_junk_window {i : UInt256} (hi : 64 ≤ i.val) :
+    ∀ (pairs : List (UInt256 × UInt256)) (σ : EVMState),
+      Finmap.lookup i (accStateFold σ pairs).machine_state.memory
+        = Finmap.lookup i σ.machine_state.memory
+  | [], _ => rfl
+  | (k, b) :: rest, σ => by
+      simp only [accStateFold]
+      rw [accStateFold_junk_window hi rest (accOut σ k b).2, accOut_junk_window hi]
+
+/-- **FOLD AGREEMENT ON THE JUNK WINDOW.**  Two states that agree on a junk
+index `i ≥ 64` still agree there after running *arbitrary* (and possibly
+different) pair-hash folds — the builder's walk and the verifier's replay may
+differ in length and content, yet neither disturbs the shared scratch window.
+The precise sense in which the fold is "agreement-preserving". -/
+theorem accStateFold_junk_agree
+    {σ₁ σ₂ : EVMState} {pairs₁ pairs₂ : List (UInt256 × UInt256)}
+    {i : UInt256} (hi : 64 ≤ i.val)
+    (h : Finmap.lookup i σ₁.machine_state.memory
+      = Finmap.lookup i σ₂.machine_state.memory) :
+    Finmap.lookup i (accStateFold σ₁ pairs₁).machine_state.memory
+      = Finmap.lookup i (accStateFold σ₂ pairs₂).machine_state.memory := by
+  rw [accStateFold_junk_window hi pairs₁ σ₁, accStateFold_junk_window hi pairs₂ σ₂]
+  exact h
+
 end Clear.KeccakDeterminism
