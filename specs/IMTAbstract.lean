@@ -1042,4 +1042,42 @@ theorem guardedEvolution_isEvolution
   · exact Or.inr ⟨W, v, hW, hlow,
       window_strict_of_not_mem (guardedEvolution_sound hge h0 n).2.2.1 hW hnot hwin, heq⟩
 
+/-! ## Genesis-rooted capstones — the headline guarantees for real histories
+
+Specializing the analytic theorems to a `GuardedEvolution` from the genesis
+singleton `{⟨0,0⟩}`.  These are the statements a concrete `L2InteropCommitmentTree`
+run discharges directly: no `Evolution`/`SoundState` obligations survive — the
+guard shape and genesis are the only hypotheses (plus timestamp monotonicity for
+the delivery statement). -/
+
+/-- **RECLAIM DICHOTOMY FOR REAL HISTORIES.**  Along any guarded history from
+genesis, a nonzero commit value `v` has a valid reclaim witness at snapshot `j`
+iff `v` is absent from `S j`: the refund gate fires on exactly the legs the tree
+never delivered — no false refunds, no missed refunds. -/
+theorem guardedEvolution_reclaimable_iff_absent
+    {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S)
+    (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
+    {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) :
+    (∃ W ∈ S j, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+      ↔ v ∉ keys (S j) := by
+  have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  have hzero : (0 : UInt256) ∈ keys (S 0) := by rw [hgen]; exact genesis_zero_mem
+  exact reclaimable_iff_absent (guardedEvolution_isEvolution hge h0) h0 hzero hv0
+
+/-- **DELIVERY IS FINAL FOR REAL HISTORIES.**  On-time delivery evidence for
+`v` at snapshot `i` (of a guarded history from genesis, with monotone settlement
+timestamps) persists at every later snapshot AND forecloses every future reclaim
+witness for `v`: a delivered leg can never be raced by a refund. -/
+theorem guardedEvolution_delivered_available_forever
+    {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
+    (hge : GuardedEvolution S) (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
+    (htmono : Monotone t)
+    {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i)) :
+    (∀ j, i ≤ j → v ∈ keys (S j))
+    ∧ (∀ j (W : AbsLeaf), D < t (j+1) → W ∈ S j → W.key < v →
+        ¬ (W.nextKey = 0 ∨ v < W.nextKey)) := by
+  have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  exact delivered_leg_available_forever (guardedEvolution_isEvolution hge h0)
+    h0.1 h0.2.1 htmono hti hdel
+
 end IMTAbstract
