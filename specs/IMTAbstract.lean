@@ -977,4 +977,24 @@ theorem guarded_insert_sound_step
           imtInsert_windowPos hwp hlow hstrict⟩,
         imtInsert_keys_eq hW⟩
 
+/-- **THE GUARDED INSERT TOGGLES RECLAIMABILITY ATOMICALLY.**  At the exact
+delivery event, `v` flips from reclaimable to permanently un-reclaimable:
+*before* the guarded insert the low leaf `W` is itself a straddling reclaim
+witness for the absent `v`; *after* it, `v` is a key of the tree, so — by
+`present_not_reclaimable` on the (still sound) result — NO leaf carries a
+window straddling `v`.  A leg cannot be both refunded and delivered across
+the single step that delivers it: the no-double-spend guarantee localized to
+the delivery boundary. -/
+theorem guarded_insert_toggles_reclaimable
+    {s : Finset AbsLeaf} {W : AbsLeaf} {v : UInt256}
+    (hs : SoundState s) (hW : W ∈ s)
+    (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v ≤ W.nextKey)
+    (hnot : v ∉ keys s) :
+    (∃ W' ∈ s, W'.key < v ∧ (W'.nextKey = 0 ∨ v < W'.nextKey))
+      ∧ ¬ ∃ W' ∈ imtInsert s W v, W'.key < v ∧ (W'.nextKey = 0 ∨ v < W'.nextKey) := by
+  have hstrict := window_strict_of_not_mem hs.2.2.1 hW hnot hwin
+  refine ⟨⟨W, hW, hlow, hstrict⟩, ?_⟩
+  have hstep := guarded_insert_sound_step hs hW hlow hwin hnot
+  exact present_not_reclaimable hstep.1.1 (imtInsert_key_mem hW)
+
 end IMTAbstract
