@@ -1080,4 +1080,25 @@ theorem guardedEvolution_delivered_available_forever
   exact delivered_leg_available_forever (guardedEvolution_isEvolution hge h0)
     h0.1 h0.2.1 htmono hti hdel
 
+/-- **DELIVERY IS EXACTLY-ONCE FOR REAL HISTORIES.**  Along any guarded history
+from genesis, a nonzero commit value present at step `n` has EXACTLY ONE entry
+step — provenance is a total function on delivered values, so no leg is ever
+delivered twice.  The third headline guarantee, hypothesized on only the guard
+shape + genesis. -/
+theorem guardedEvolution_delivery_exactly_once
+    {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S)
+    (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
+    {v : UInt256} (hv0 : v ≠ 0) {n : ℕ} (hmem : v ∈ keys (S n)) :
+    ∃! m, m < n ∧ v ∉ keys (S m) ∧ keys (S (m+1)) = insert v (keys (S m)) := by
+  have h0s : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  have hv0' : v ∉ keys (S 0) := by
+    rw [hgen]
+    intro hmem0
+    obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem0
+    rw [Finset.mem_singleton] at hL
+    rw [hL] at hLkey
+    exact hv0 hLkey.symm
+  exact evolution_key_origin_exists_unique
+    (guardedEvolution_isEvolution hge h0s) hv0' hmem
+
 end IMTAbstract
