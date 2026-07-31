@@ -733,4 +733,18 @@ theorem walkPure_inj (h : Hash) (sibs : ℕ → UInt256)
       · rw [if_neg hpar, if_neg hpar] at hcomb
         exact (hinj _ _ _ _ hcomb).1
 
+/-- **WALK SIBLING FRAME.**  `walkPure` reads the sibling stream only at the
+levels `[lvl, lvl+k)` it actually climbs, so two streams agreeing there give
+equal walks — the frame that lets a caller supply siblings level-by-level and
+lets the atlas re-anchor the sibling reads between levels (R2). -/
+theorem walkPure_congr_sibs (h : Hash) (s₁ s₂ : ℕ → UInt256) :
+    ∀ (k lvl idx : ℕ) (x : UInt256),
+      (∀ l, lvl ≤ l → l < lvl + k → s₁ l = s₂ l) →
+      walkPure h s₁ lvl k idx x = walkPure h s₂ lvl k idx x
+  | 0, _, _, _, _ => by rw [walkPure_zero, walkPure_zero]
+  | k + 1, lvl, idx, x, hsib => by
+      rw [walkPure_succ, walkPure_succ, hsib lvl (le_refl _) (by omega)]
+      exact walkPure_congr_sibs h s₁ s₂ k (lvl + 1) (idx / 2) _
+        (fun l h1 h2 => hsib l (by omega) (by omega))
+
 end MerkleSpec
