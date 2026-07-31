@@ -1101,4 +1101,65 @@ theorem guardedEvolution_delivery_exactly_once
   exact evolution_key_origin_exists_unique
     (guardedEvolution_isEvolution hge h0s) hv0' hmem
 
+/-! ## Sharpness — witness MEMBERSHIP is indispensable
+
+`gap_excludes_member` / `present_not_reclaimable` exclude a straddling window
+only for a witness that is *in* the leaf set (`W ∈ s`).  That hypothesis is not
+decorative: the theorem below exhibits a fully `SoundState` tree in which a
+DELIVERED value `v` nonetheless admits a straddling window carried by a
+NON-member leaf `⟨0, 0⟩`.  So no invariant on the leaf set alone can save the
+reclaim gate — the contract must separately guarantee that a presented low leaf
+really is a tree leaf.
+
+This is exactly the forged-non-inclusion attack that the padding-hash fix
+addresses: when empty positions are padded with `hashLeaf {0,0,0}`, a *padded*
+(non-existent) index verifies as the `⟨0, 0⟩` low leaf, whose window
+(`nextKey = 0`) straddles every value — including delivered ones.  Padding
+empty positions with a dedicated constant distinct from `hashLeaf {0,0,0}`
+is what makes `W ∈ s` discharge-able, and hence what makes the exclusivity
+theorems applicable. -/
+
+/-- **THE FORGED-PADDING WITNESS BREAKS EXCLUSIVITY.**  For any nonzero `a`
+there is a sound tree (`{⟨0, a⟩, ⟨a, 0⟩}`) in which `a` is delivered, yet the
+non-member leaf `⟨0, 0⟩` — the hash-of-`{0,0,0}` padding leaf — carries a window
+straddling `a`.  Hence `W ∈ s` in `present_not_reclaimable` cannot be dropped,
+and empty-slot padding must be distinguishable from the real zero leaf. -/
+theorem forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :
+    ∃ (s : Finset AbsLeaf) (v : UInt256) (W : AbsLeaf),
+      SoundState s ∧ v ∈ keys s ∧ W ∉ s
+        ∧ W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey) := by
+  have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
+  have hnlt : ¬ (a < (0 : UInt256)) := by
+    intro h; exact absurd (lt_trans hapos h) (lt_irrefl _)
+  refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, a, ⟨0, 0⟩, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, hapos, Or.inl rfl⟩
+  · -- GapSound
+    intro W hW L hL hlt
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hW hL
+    rcases hW with rfl | rfl <;> rcases hL with rfl | rfl <;>
+      simp_all
+  · -- KeyInj
+    intro A hA B hB hkey
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hA hB
+    rcases hA with rfl | rfl <;> rcases hB with rfl | rfl <;> simp_all
+  · -- NextClosed
+    intro W hW hnz
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hW
+    rcases hW with rfl | rfl
+    · exact ⟨⟨a, 0⟩, by simp, rfl⟩
+    · exact absurd rfl hnz
+  · -- WindowPos
+    intro W hW
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hW
+    rcases hW with rfl | rfl
+    · exact Or.inr hapos
+    · exact Or.inl rfl
+  · -- a is delivered
+    exact Finset.mem_image.mpr ⟨⟨a, 0⟩, by simp, rfl⟩
+  · -- the forged witness is NOT a leaf
+    simp only [Finset.mem_insert, Finset.mem_singleton]
+    push_neg
+    constructor
+    · intro h; exact ha (congrArg AbsLeaf.nextKey h).symm
+    · intro h; exact ha (congrArg AbsLeaf.key h).symm
+
 end IMTAbstract
