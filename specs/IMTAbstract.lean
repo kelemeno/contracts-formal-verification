@@ -953,4 +953,28 @@ theorem window_strict_of_not_mem
         rw [heq]
         exact Finset.mem_image.mpr ⟨L, hL, hLkey⟩
 
+/-- **THE CONCRETE GUARD IMPLEMENTS ONE SOUND INSERT STEP.**  From a sound
+state, the contract's actual loop-exit — the WEAK window `nextKey = 0 ∨
+v ≤ nextKey` — together with the dedup gate (`v ∉ keys`) performs a genuine
+sound `imtInsert` that adds *exactly* `v`.  Strictness of the window (which
+`Evolution`/`imtInsert_*` require) is recovered from the gate via
+`window_strict_of_not_mem`, and every invariant of `SoundState` is preserved.
+This is the bridge from the concrete insert path to an `Evolution` step:
+its two conclusions discharge the `hwin`/soundness premise and the exact
+key-set effect an `Evolution` witness must supply. -/
+theorem guarded_insert_sound_step
+    {s : Finset AbsLeaf} {W : AbsLeaf} {v : UInt256}
+    (hs : SoundState s) (hW : W ∈ s)
+    (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v ≤ W.nextKey)
+    (hnot : v ∉ keys s) :
+    SoundState (imtInsert s W v) ∧ keys (imtInsert s W v) = insert v (keys s) := by
+  obtain ⟨hgs, hinj, hnc, hwp⟩ := hs
+  have hstrict : W.nextKey = 0 ∨ v < W.nextKey :=
+    window_strict_of_not_mem hnc hW hnot hwin
+  exact ⟨⟨imtInsert_gapSound hgs hinj hW hlow hstrict,
+          imtInsert_keyInj hgs hinj hW hlow hstrict,
+          imtInsert_nextClosed hnc hW hlow hstrict,
+          imtInsert_windowPos hwp hlow hstrict⟩,
+        imtInsert_keys_eq hW⟩
+
 end IMTAbstract
