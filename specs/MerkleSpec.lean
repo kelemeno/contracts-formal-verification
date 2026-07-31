@@ -590,4 +590,90 @@ theorem rootOf_append (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
       Nat.div_eq_of_lt hcap, List.take_zero, List.nil_append]
   rfl
 
+/-! ## M-D — root injectivity from node-hash injectivity
+
+The tree-shaped generalization of `foldRoot_binding`: when the two-child
+hash `h` is injective on the pairs it is fed, the recomputed root pins the
+whole leaf multiset — same width and same root ⟹ same leaves.  Node-hash
+injectivity `hinj` is discharged downstream from keccak injectivity (R6),
+exactly as the abstract `h` is instantiated from the keccak cache. -/
+
+/-- `levelUp` is injective on equal-width levels when `h` is pair-injective:
+a lone left tail combines with the fixed zero `z`, so its parent still
+determines it. -/
+theorem levelUp_inj (h : Hash) (z : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) :
+    ∀ L₁ L₂ : List UInt256, L₁.length = L₂.length →
+      levelUp h z L₁ = levelUp h z L₂ → L₁ = L₂
+  | [], [], _, _ => rfl
+  | [], _ :: _ :: _, hlen, _ => by
+      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | [], [_], hlen, _ => by
+      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | [_], [], hlen, _ => by
+      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | _ :: _ :: _, [], hlen, _ => by
+      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | [a], [c], _, he => by
+      rw [levelUp_single, levelUp_single, List.cons.injEq] at he
+      rw [(hinj a z c z he.1).1]
+  | [_], _ :: _ :: _, hlen, _ => by
+      simp only [List.length_cons, List.length_nil] at hlen; try omega
+  | _ :: _ :: _, [_], hlen, _ => by
+      simp only [List.length_cons, List.length_nil] at hlen; try omega
+  | a :: b :: rest, c :: d :: rest', hlen, he => by
+      rw [levelUp_cons₂, levelUp_cons₂, List.cons.injEq] at he
+      obtain ⟨hh, ht⟩ := he
+      obtain ⟨rfl, rfl⟩ := hinj a b c d hh
+      have hrl : rest.length = rest'.length := by
+        simp only [List.length_cons] at hlen; omega
+      rw [levelUp_inj h z hinj rest rest' hrl ht]
+
+/-- Level width depends only on the leaf-list width. -/
+theorem levels_length_eq (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
+    (hlen : L₁.length = L₂.length) :
+    ∀ l, (levels h z0 L₁ l).length = (levels h z0 L₂ l).length
+  | 0 => by rw [levels_zero, levels_zero]; exact hlen
+  | l + 1 => by
+      rw [levels_succ, levels_succ, levelUp_length, levelUp_length,
+          levels_length_eq h z0 L₁ L₂ hlen l]
+
+/-- Equal-width leaf lists whose level-`l` lists coincide are equal. -/
+theorem levels_inj (h : Hash) (z0 : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    (L₁ L₂ : List UInt256) (hlen : L₁.length = L₂.length) :
+    ∀ l, levels h z0 L₁ l = levels h z0 L₂ l → L₁ = L₂
+  | 0 => by rw [levels_zero, levels_zero]; exact id
+  | l + 1 => fun he => by
+      rw [levels_succ, levels_succ] at he
+      exact levels_inj h z0 hinj L₁ L₂ hlen l
+        (levelUp_inj h (zeros h z0 l) hinj _ _
+          (levels_length_eq h z0 L₁ L₂ hlen l) he)
+
+/-- **M-D.**  For a non-full tree (`0 < width ≤ 2^height`), the level-`height`
+list is a singleton, so it equals its root. -/
+theorem levels_height_singleton (h : Hash) (z0 : UInt256) (L : List UInt256)
+    (height : ℕ) (hne : L.length ≠ 0) (hcap : L.length ≤ 2 ^ height) :
+    levels h z0 L height = [rootOf h z0 L height] := by
+  have hlen1 : (levels h z0 L height).length = 1 := by
+    rw [levels_length h z0 L hne height, Nat.div_eq_of_lt (by omega)]
+  obtain ⟨a, ha⟩ := List.length_eq_one.mp hlen1
+  rw [rootOf_def, ha]
+  rfl
+
+/-- **M-D — `rootOf_inj_of_h_inj`.**  When the node hash is pair-injective,
+the recomputed root of a non-full tree pins the whole leaf list: same width,
+same root ⟹ same leaves.  The tree-shaped `foldRoot_binding`. -/
+theorem rootOf_inj_of_h_inj (h : Hash) (z0 : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    (L₁ L₂ : List UInt256) (height : ℕ)
+    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hcap : L₁.length ≤ 2 ^ height)
+    (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
+    L₁ = L₂ := by
+  apply levels_inj h z0 hinj L₁ L₂ hlen height
+  rw [levels_height_singleton h z0 L₁ height hne hcap,
+      levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
+      hroot]
+
 end MerkleSpec
