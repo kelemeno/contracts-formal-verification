@@ -712,4 +712,25 @@ theorem rootOf_set_inj (h : Hash) (z0 : UInt256)
     rw [heq]
   rwa [getD_set_self x leaves idx x hidx, getD_set_self y leaves idx x hidx] at hx
 
+/-- **M-D walk-level binding.**  The update walk is injective in its leaf
+accumulator when `h` is pair-injective: each level combines the accumulator
+with a sibling via `h`, so injectivity propagates from the root back down to
+the leaf, regardless of the sibling stream or path parities.  The `walkPure`
+shadow of `rootOf_set_inj`, and the walk-level form of "the recomputed root
+pins the written leaf" (R8). -/
+theorem walkPure_inj (h : Hash) (sibs : ℕ → UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) :
+    ∀ (k lvl idx : ℕ) (x y : UInt256),
+      walkPure h sibs lvl k idx x = walkPure h sibs lvl k idx y → x = y
+  | 0, _, _, _, _ => by rw [walkPure_zero, walkPure_zero]; exact id
+  | k + 1, lvl, idx, x, y => by
+      simp only [walkPure_succ]
+      intro hh
+      have hcomb := walkPure_inj h sibs hinj k (lvl + 1) (idx / 2) _ _ hh
+      by_cases hpar : idx % 2 = 1
+      · rw [if_pos hpar, if_pos hpar] at hcomb
+        exact (hinj _ _ _ _ hcomb).2
+      · rw [if_neg hpar, if_neg hpar] at hcomb
+        exact (hinj _ _ _ _ hcomb).1
+
 end MerkleSpec
