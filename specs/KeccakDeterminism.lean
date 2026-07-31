@@ -1164,4 +1164,16 @@ theorem accStateFold_junk_agree
   rw [accStateFold_junk_window hi pairs₁ σ₁, accStateFold_junk_window hi pairs₂ σ₂]
   exact h
 
+/-- **FOLD PHASE COMPOSITION.**  Threading a concatenated level list is the same
+as threading the two segments in turn — the pure shape behind composing a walk's
+phases (update walk ++ pad ++ push walk) into one state evolution. -/
+theorem accStateFold_append (σ : EVMState) (p q : List (UInt256 × UInt256)) :
+    accStateFold σ (p ++ q) = accStateFold (accStateFold σ p) q := by
+  induction p generalizing σ with
+  | nil => rfl
+  | cons hd tl ih =>
+      obtain ⟨k, b⟩ := hd
+      simp only [List.cons_append, accStateFold]
+      exact ih (accOut σ k b).2
+
 end Clear.KeccakDeterminism
