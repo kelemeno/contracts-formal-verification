@@ -31,11 +31,14 @@ import Clear.UInt256
   bridging to `Fin`/UInt256 `shiftRight` is deliberately left to the
   concrete layer (blueprint §4.7).
 
-  Pure list/arithmetic reasoning — no EVM semantics, no extra axioms.
+  * M-D — `rootOf_inj_of_h_inj`: pointwise injectivity of `rootOf` from
+    pair-injectivity of `h` (the tree-shaped generalization of
+    `foldRoot_binding`).  Engine `levelUp_inj` (equal-width levels) lifts
+    through `levels_inj`; `levels_height_singleton` collapses a non-full
+    tree's top level to its root.  Node-hash injectivity is discharged
+    downstream from keccak injectivity (R6).
 
-  TODO (M-D, deferred): `rootOf_inj_of_h_inj` — pointwise injectivity of
-  `rootOf` from injectivity of `h` on the pairs used in both recomputations,
-  the tree-shaped generalization of `foldRoot_binding`.
+  Pure list/arithmetic reasoning — no EVM semantics, no extra axioms.
 -/
 
 namespace MerkleSpec
