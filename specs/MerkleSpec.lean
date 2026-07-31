@@ -679,4 +679,19 @@ theorem rootOf_inj_of_h_inj (h : Hash) (z0 : UInt256)
       levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
       hroot]
 
+/-- **M-D binding corollary.**  Appending different leaves to the *same*
+frontier of a non-full tree yields different roots: the recomputed root
+pins the just-appended leaf.  The tree-level statement behind
+`refund is bound to the committed bundle hash`. -/
+theorem rootOf_append_inj (h : Hash) (z0 : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    (leaves : List UInt256) (x y : UInt256) (height : ℕ)
+    (hcap : (leaves ++ [x]).length ≤ 2 ^ height)
+    (hroot : rootOf h z0 (leaves ++ [x]) height
+      = rootOf h z0 (leaves ++ [y]) height) :
+    x = y := by
+  have heq := rootOf_inj_of_h_inj h z0 hinj (leaves ++ [x]) (leaves ++ [y])
+    height (by simp) (by simp) hcap hroot
+  simpa using heq
+
 end MerkleSpec
