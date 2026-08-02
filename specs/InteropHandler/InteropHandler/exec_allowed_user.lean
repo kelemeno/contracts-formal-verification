@@ -59,7 +59,7 @@ private lemma lookup_insert_self_fin {evm : EVMState} {σ : VarStore}
 
 /-- The authorization computation: self-call, or (right chain ∨ any-chain)
 and the masked designated address equals the caller. -/
-private def authBlk : Stmt := <s
+def authBlk : Stmt := <s
   {
     let split_expr_2 := caller()
     let split_expr_3 := address()

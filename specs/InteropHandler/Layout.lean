@@ -243,15 +243,7 @@ def AuthorizedExecutor (evm : EVMState) (C A : UInt256) : Prop :=
   IsSelfCall evm ∨ (ChainAllows evm C ∧ ExecutorIsCaller evm A)
 
 /-- **THE AUTHORIZATION CASE SPLIT.**  Decomposes `AuthorizedExecutor` into the
-exact two shapes the proved pass-theorems consume: `auth_self_pass` wants
-`caller = self`, and `auth_executor_pass` wants `caller ≠ self` together with the
-chain and executor conditions.  A caller discharges authorization by `rcases`-ing
-this and applying the corresponding theorem.
-
-(The two pass-theorems cannot be composed into a single statement here: they are
-stated over `authBlk`, which is `private` to `exec_allowed_user.lean`.  Making it
-non-private — or moving these definitions into a shared base module that
-`exec_allowed_user` also imports — would allow the one-theorem form.) -/
+exact two shapes the proved pass-theorems consume. -/
 theorem authorized_cases {evm : EVMState} {C A : UInt256}
     (hauth : AuthorizedExecutor evm C A) :
     IsSelfCall evm
@@ -261,5 +253,28 @@ theorem authorized_cases {evm : EVMState} {C A : UInt256}
   · rcases hauth with hs | ⟨hc, he⟩
     · exact absurd hs hself
     · exact Or.inr ⟨hself, hc, he⟩
+
+/-- **AUTHORIZED CALLERS PASS THE GATE.**  One theorem for the whole accepting
+surface of the executor gate, composed from `auth_self_pass` and
+`auth_executor_pass`: if `AuthorizedExecutor` holds of the parsed
+`(chainId, executor)` pair, the authorization block computes `expr = 1` and
+leaves the EVM untouched.
+
+Read with `unauthorized_sender_reverts`, this is the positive half of the
+access-control story — that theorem says an unauthenticated message cannot reach
+the verified write; this one says exactly which callers the executor gate
+admits. -/
+theorem authorized_passes
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {C A : Literal}
+    (hC : (Ok evm store)["expr_287_component"]!! = C)
+    (hA : (Ok evm store)["expr_component"]!! = A)
+    (hauth : AuthorizedExecutor evm C A) :
+    ∃ σ' : VarStore,
+      exec (fuel+1) generated.InteropHandler.InteropHandler.authBlk (Ok evm store)
+        = Ok evm σ'
+      ∧ (Ok evm σ')["expr"]!! = 1 := by
+  rcases authorized_cases hauth with hs | ⟨hns, hc, he⟩
+  · exact generated.InteropHandler.InteropHandler.auth_self_pass hs
+  · exact generated.InteropHandler.InteropHandler.auth_executor_pass hC hA hns hc he
 
 end InteropHandler.Layout
