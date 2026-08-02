@@ -172,4 +172,43 @@ theorem slot_block_derives_bundleStatusSlot
               "cleaned_1" 0).insert "cleaned_1" 0) :=
   generated.InteropHandler.InteropHandler.verify_slot_block hbh
 
+/-! ## The composite: what `_verifyBundle`'s status path actually does -/
+
+/-- Reading back the slot the derivation block just bound.  The two `cleaned_1`
+writes sit above `dataSlot` in the store, so the lookup skips them. -/
+private lemma lookup_dataSlot
+    {E : EVMState} {store : VarStore} {v : UInt256} :
+    (Ok E (((store.insert "dataSlot" v).insert "cleaned_1" 0).insert
+        "cleaned_1" 0))["dataSlot"]!! = v := by
+  unfold State.lookup!
+  dsimp only
+  rw [Finmap.lookup_insert_of_ne _ (by decide),
+      Finmap.lookup_insert_of_ne _ (by decide),
+      Finmap.lookup_insert]
+  rfl
+
+/-- **THE STATUS PATH MARKS THE BUNDLE VERIFIED** — the fully readable
+end-to-end statement of `_verifyBundle`'s state effect.
+
+Running the mapping-slot derivation block and then the status-write block leaves
+`bundleStatus[bh]` reading exactly `Verified`.
+
+Read together with the two revert gates, this is the whole story of the
+function's status path:
+
+* `unauthorized_sender_reverts` — unreachable unless the proof's message sender
+  is the canonical interop center;
+* `not_included_reverts` — unreachable without a positive inclusion answer;
+* this theorem — and when reached, `bundleStatus[bh]` becomes `Verified`. -/
+theorem verify_path_marks_bundle_verified
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {bh : Literal}
+    (hbh : (Ok evm store)["var__bundleHash"]!! = bh)
+    (hacc : (((accOut evm bh 1).2).lookupAccount
+        ((accOut evm bh 1).2).execution_env.code_owner).isSome) :
+    statusOf (exec (fuel+1) block_4779748611206726122
+        (exec (fuel+1) block_8249276522053995858 (Ok evm store))).evm
+      (bundleStatusSlot evm bh) = Verified := by
+  rw [slot_block_derives_bundleStatusSlot hbh]
+  exact verify_write_marks_verified lookup_dataSlot hacc
+
 end InteropHandler.Layout
