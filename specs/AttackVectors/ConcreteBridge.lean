@@ -153,4 +153,50 @@ theorem imt_no_theft {σ : ℕ → EVMState} {t : ℕ → UInt256} {D v : UInt25
   · intro m₁ m₂ h1 h2
     exact evolution_key_origin_unique hevo h1 h2
 
+/-! ## Contract-level vocabulary
+
+`imt_no_theft` above is stated through `NoTheft.Delivered` / `NoTheft.Reclaimable`
+applied to `fun n => leafSetOf (σ n)`, which is precise but reads as abstract
+set membership.  These name the same two conditions as facts about ONE deployed
+contract state, so the capstone can be read without unfolding the history
+plumbing. -/
+
+/-- The leg with commit value `v` HAS BEEN DELIVERED in state `s`: its leaf is in
+the tree the contract's storage represents. -/
+def bundleDelivered (s : EVMState) (v : UInt256) : Prop :=
+  v ∈ keys (leafSetOf s)
+
+/-- A REFUND WITNESS for `v` exists in state `s`: some tree leaf's linked-list
+window straddles `v`, which is what the reclaim gate demands as proof that `v`
+was never inserted. -/
+def refundWitnessExists (s : EVMState) (v : UInt256) : Prop :=
+  ∃ W ∈ leafSetOf s, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
+
+/-- **NO THEFT, IN CONTRACT TERMS.**  The same content as `imt_no_theft`, stated
+over single deployed states rather than the abstract history:
+
+1. at every deadline-pinned snapshot each nonzero leg is either delivered or
+   refundable, and never both;
+2. an on-time delivered leg admits no refund witness at any deadline-pinned
+   snapshot;
+3. delivery is permanent.
+
+Proved by `exact`-ing `imt_no_theft`: `bundleDelivered` and `refundWitnessExists`
+are definitionally the abstract predicates, so this is the same proposition in
+readable clothing.  The trusted base is unchanged — see the file header. -/
+theorem imt_no_theft_in_contract_terms
+    {σ : ℕ → EVMState} {t : ℕ → UInt256} {D v : UInt256}
+    (hhist : ConcreteLeafHistory σ)
+    (hgen : leafSetOf (σ 0) = ({⟨0, 0⟩} : Finset AbsLeaf))
+    (htmono : Monotone t) (hv0 : v ≠ 0) :
+    (∀ j : ℕ, D < t (j + 1) →
+        (bundleDelivered (σ j) v ∨ refundWitnessExists (σ j) v)
+        ∧ ¬ (bundleDelivered (σ j) v ∧ refundWitnessExists (σ j) v))
+    ∧ (∀ i j : ℕ, t i ≤ D → bundleDelivered (σ i) v → D < t (j + 1) →
+          ¬ refundWitnessExists (σ j) v)
+    ∧ (∀ i j : ℕ, bundleDelivered (σ i) v → i ≤ j → bundleDelivered (σ j) v) :=
+  by
+  obtain ⟨h1, h2, h3, _, _⟩ := imt_no_theft (D := D) hhist hgen htmono hv0
+  exact ⟨h1, h2, h3⟩
+
 end AttackVectors.ConcreteBridge
