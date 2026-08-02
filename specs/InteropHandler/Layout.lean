@@ -1,4 +1,5 @@
 import specs.InteropHandler.InteropHandler.fun_verifyBundle_user
+import specs.KeccakDeterminism
 
 /-
   READABLE VOCABULARY for the InteropHandler memory layout.
@@ -42,7 +43,7 @@ import specs.InteropHandler.InteropHandler.fun_verifyBundle_user
 
 namespace InteropHandler.Layout
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
+open Clear Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities
 open InteropHandler.Common generated.InteropHandler.InteropHandler
 
 /-! ## Address arithmetic -/
@@ -143,5 +144,32 @@ theorem not_included_reverts
     (h : (Ok evm store)["expr"]!! = 0) :
     (exec (fuel+1) if_7459957530221088163 (Ok evm store)).evm.reverted = true :=
   generated.InteropHandler.InteropHandler.not_included_reverts h
+
+/-! ## Mapping-slot derivation -/
+
+/-- The storage slot of `m[key]` for a mapping declared at slot `base`: the
+Solidity rule `keccak256(key ‖ base)`, computed via the scratch space at
+offsets 0 and 32.  This is exactly `accOut`'s value component, so every
+determinism and cache-agreement lemma proved for `accOut` applies to it. -/
+def mappingSlot (evm : EVMState) (key base : UInt256) : UInt256 :=
+  (accOut evm key base).1
+
+/-- `bundleStatus` is declared at slot 1, so the status word for `bh` lives at
+`keccak256(bh ‖ 1)`. -/
+def bundleStatusSlot (evm : EVMState) (bh : UInt256) : UInt256 :=
+  mappingSlot evm bh 1
+
+/-- **THE SLOT BLOCK DERIVES THE BUNDLE-STATUS SLOT** (readable form of
+`verify_slot_block`).  The compiled derivation block binds `dataSlot` to exactly
+the storage slot of `bundleStatus[bh]`, and advances the EVM to `accOut`'s
+post-state (carrying the two scratch writes and the keccak cache update). -/
+theorem slot_block_derives_bundleStatusSlot
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {bh : Literal}
+    (hbh : (Ok evm store)["var__bundleHash"]!! = bh) :
+    exec (fuel+1) block_8249276522053995858 (Ok evm store)
+      = Ok (accOut evm bh 1).2
+          (((store.insert "dataSlot" (bundleStatusSlot evm bh)).insert
+              "cleaned_1" 0).insert "cleaned_1" 0) :=
+  generated.InteropHandler.InteropHandler.verify_slot_block hbh
 
 end InteropHandler.Layout
