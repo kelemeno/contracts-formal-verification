@@ -1,5 +1,6 @@
 import specs.InteropHandler.InteropHandler.fun_verifyBundle_user
 import specs.KeccakDeterminism
+import specs.InteropHandler.InteropHandler.exec_allowed_user
 
 /-
   READABLE VOCABULARY for the InteropHandler memory layout.
@@ -210,5 +211,55 @@ theorem verify_path_marks_bundle_verified
       (bundleStatusSlot evm bh) = Verified := by
   rw [slot_block_derives_bundleStatusSlot hbh]
   exact verify_write_marks_verified lookup_dataSlot hacc
+
+/-! ## Execution authorization
+
+`exec_allowed_user.lean` proves the two accepting cases of the authorization
+block separately (`auth_self_pass`, `auth_executor_pass`).  Naming the predicate
+lets them be stated as one theorem about one condition. -/
+
+/-- `caller()` — the immediate sender of the current call. -/
+def caller (evm : EVMState) : UInt256 := (evm.execution_env.source : UInt256)
+
+/-- `address()` — the handler contract itself. -/
+def self (evm : EVMState) : UInt256 := (evm.execution_env.code_owner : UInt256)
+
+/-- The call came from the handler itself (a re-entrant self-call). -/
+def IsSelfCall (evm : EVMState) : Prop := caller evm = self evm
+
+/-- The bundle's declared execution chain is acceptable: either it names the
+current chain, or it is the CHAIN-AGNOSTIC `0`, which any chain may execute. -/
+def ChainAllows (evm : EVMState) (C : UInt256) : Prop :=
+  C = evm.chainId ∨ C = 0
+
+/-- The bundle's declared executor address (masked to 160 bits) is the caller. -/
+def ExecutorIsCaller (evm : EVMState) (A : UInt256) : Prop :=
+  asAddress A = caller evm
+
+/-- **THE AUTHORIZATION CONDITION.**  Execution of a restricted bundle is
+permitted exactly when the caller is the handler itself, or the bundle's declared
+(chain, executor) pair designates this caller on this chain. -/
+def AuthorizedExecutor (evm : EVMState) (C A : UInt256) : Prop :=
+  IsSelfCall evm ∨ (ChainAllows evm C ∧ ExecutorIsCaller evm A)
+
+/-- **THE AUTHORIZATION CASE SPLIT.**  Decomposes `AuthorizedExecutor` into the
+exact two shapes the proved pass-theorems consume: `auth_self_pass` wants
+`caller = self`, and `auth_executor_pass` wants `caller ≠ self` together with the
+chain and executor conditions.  A caller discharges authorization by `rcases`-ing
+this and applying the corresponding theorem.
+
+(The two pass-theorems cannot be composed into a single statement here: they are
+stated over `authBlk`, which is `private` to `exec_allowed_user.lean`.  Making it
+non-private — or moving these definitions into a shared base module that
+`exec_allowed_user` also imports — would allow the one-theorem form.) -/
+theorem authorized_cases {evm : EVMState} {C A : UInt256}
+    (hauth : AuthorizedExecutor evm C A) :
+    IsSelfCall evm
+      ∨ (¬ IsSelfCall evm ∧ ChainAllows evm C ∧ ExecutorIsCaller evm A) := by
+  by_cases hself : IsSelfCall evm
+  · exact Or.inl hself
+  · rcases hauth with hs | ⟨hc, he⟩
+    · exact absurd hs hself
+    · exact Or.inr ⟨hself, hc, he⟩
 
 end InteropHandler.Layout
