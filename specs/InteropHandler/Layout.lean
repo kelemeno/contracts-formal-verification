@@ -99,4 +99,49 @@ theorem unauthorized_sender_reverts
     s₉.evm.reverted = true :=
   generated.InteropHandler.InteropHandler.unauthorized_sender_reverts hP hbad hexec
 
+/-! ## Bundle status: the packed low byte of a status slot -/
+
+/-- The low-byte mask Solidity uses for a packed `uint8` status field. -/
+def STATUS_MASK : UInt256 := 255
+
+/-- `BundleStatus.Verified = 1`. -/
+def Verified : UInt256 := 1
+
+/-- Read the packed status byte out of a full storage word. -/
+def statusOf (evm : EVMState) (slot : UInt256) : UInt256 :=
+  Fin.land (evm.sload slot) STATUS_MASK
+
+/-- Clear the low status byte of `w` and set it to `st` — the clear-then-set
+idiom the compiler emits for writing a packed `uint8` field. -/
+def setStatus (w st : UInt256) : UInt256 :=
+  Fin.lor (Fin.land w (Clear.UInt256.lnot STATUS_MASK)) st
+
+/-! ## The status-write results, restated -/
+
+/-- **THE VERIFY WRITE MARKS THE BUNDLE VERIFIED** (readable form composed from
+`verify_write_block` and `verified_status_reads_one`).
+
+Running the compiled status-write block leaves the bundle's status slot reading
+exactly `Verified`.  This is the state effect that `unauthorized_sender_reverts`
+and `not_included_reverts` gate: the two revert results say the write is
+unreachable without the canonical sender and a positive inclusion answer, and
+this says what the write does when it is reached. -/
+theorem verify_write_marks_verified
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {d : Literal}
+    (hd : (Ok evm store)["dataSlot"]!! = d)
+    (hacc : (evm.lookupAccount evm.execution_env.code_owner).isSome) :
+    statusOf (exec (fuel+1) block_4779748611206726122 (Ok evm store)).evm d = Verified := by
+  unfold statusOf STATUS_MASK Verified
+  rw [generated.InteropHandler.InteropHandler.verify_write_block hd]
+  exact generated.InteropHandler.InteropHandler.verified_status_reads_one hacc
+
+/-- **NO VERIFICATION WITHOUT INCLUSION** (readable form of
+`not_included_reverts`): when the decoded answer of the `_proveInclusion`
+staticcall is zero, the gate reverts (`MessageNotIncluded`). -/
+theorem not_included_reverts
+    {evm : EVMState} {store : VarStore} {fuel : ℕ}
+    (h : (Ok evm store)["expr"]!! = 0) :
+    (exec (fuel+1) if_7459957530221088163 (Ok evm store)).evm.reverted = true :=
+  generated.InteropHandler.InteropHandler.not_included_reverts h
+
 end InteropHandler.Layout
