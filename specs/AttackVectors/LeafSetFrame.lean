@@ -161,4 +161,27 @@ theorem leafSetOf_arrWrite {σ : EVMState} {a j v wa : UInt256}
       = decodeLeaf σ (m : UInt256)
   exact decodeLeaf_arrWrite (σₐ := σ) hca hw hj
 
+/-! ## Third instance: reserved low-slot writes
+
+Array `push` also bumps the array's LENGTH, which lives in a reserved low slot
+(2 for `_nodes`, 3 for `_zeros`) rather than at a keccak image.  Those writes are
+framed by the general lemma, since a keccak image is never a reserved low slot. -/
+
+/-- **RESERVED LOW-SLOT WRITES DO NOT MOVE THE LEAF SET.**  Writing any reserved
+low slot other than the leaf count (slot 1) — in particular the `_nodes` and
+`_zeros` array LENGTH slots that `array_push` bumps — leaves the represented leaf
+set unchanged. -/
+theorem leafSetOf_lowSlotWrite {σ : EVMState} {c v : UInt256}
+    (hc1 : c ≠ 1) (hlow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore c v) = leafSetOf σ := by
+  refine leafSetOf_sstore_frame hc1 hcaches ?_ ?_
+  · intro m hm
+    obtain ⟨w, hw⟩ := hcaches m hm
+    exact Ne.symm (leafSlot_ne_low c hw hlow)
+  · intro m hm
+    obtain ⟨w, hw⟩ := hcaches m hm
+    exact Ne.symm (leafSlot_add_ne_low 2 c hw (by decide) hlow)
+
 end AttackVectors.LeafSetFrame
