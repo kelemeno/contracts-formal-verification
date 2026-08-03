@@ -104,4 +104,38 @@ theorem arrWindowOf_mstore_high {σ : EVMState} {a v : UInt256}
     arrWindowOf (σ.mstore a v) = arrWindowOf σ :=
   arrWindow_mstore_high ha hnw
 
+/-! ## The self-overwrite case
+
+R0(ii)'s remaining half: the window is unchanged by a PRECEDING `mstore 0`.  This
+is what makes two accessor calls composable — the second one's own `mstore 0 a`
+overwrites bytes `[0, 32)` wholesale, so whatever the first wrote there is
+irrelevant, and bytes `[32, 63)` were never touched by a write at 0 at all. -/
+
+/-- **A PRECEDING `mstore 0` IS IRRELEVANT.**  `arrWindow` after two successive
+writes at address 0 equals `arrWindow` after just the second: the later write pins
+`[0, 32)` as a pure function of its value, and neither write reaches `[32, 63)`. -/
+theorem arrWindow_double_mstore_zero {m : MachineState} {x y : UInt256}
+    (hnd : (window (0 : UInt256)).Nodup) :
+    arrWindow ((m.updateMemory 0 x).updateMemory 0 y)
+      = arrWindow (m.updateMemory 0 y) := by
+  refine arrWindow_eq_of_byte_agree ?_
+  intro i hi
+  have h0 : ((0 : UInt256)).val = 0 := by decide
+  by_cases h32 : i.val < 32
+  · -- inside the second write: the byte is a function of `y` and the offset only
+    have hik : (↑(i.val) : UInt256) + 0 = i := by
+      simp only [add_zero]
+      exact Fin.cast_val_eq_self i
+    rw [← hik,
+        lookup_updateMemory_at (m.updateMemory 0 x) 0 y i.val h32 hnd,
+        lookup_updateMemory_at m 0 y i.val h32 hnd]
+  · -- outside both writes: each lookup passes straight through to `m`
+    push_neg at h32
+    rw [lookup_updateMemory_outside_val (m.updateMemory 0 x) 0 y i
+          (by rw [h0]; norm_num) (Or.inr (by rw [h0]; omega)),
+        lookup_updateMemory_outside_val m 0 x i
+          (by rw [h0]; norm_num) (Or.inr (by rw [h0]; omega)),
+        lookup_updateMemory_outside_val m 0 y i
+          (by rw [h0]; norm_num) (Or.inr (by rw [h0]; omega))]
+
 end Clear.ArrWindow
