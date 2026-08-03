@@ -138,4 +138,35 @@ theorem arrWindow_double_mstore_zero {m : MachineState} {x y : UInt256}
         lookup_updateMemory_outside_val m 0 y i
           (by rw [h0]; norm_num) (Or.inr (by rw [h0]; omega))]
 
+/-! ## Nested accessor chains
+
+The contract reads a sibling with `arrOut` applied to the OUTPUT of `arrOut`
+(`sibRead` in the blueprint's vocabulary).  For the atlas to keep one anchor
+across such a chain, the window must survive the inner call — which it does,
+because an accessor's only effects are an `mstore 0` (handled by
+`arrWindow_double_mstore_zero`) and a keccak step, and keccak touches no memory. -/
+
+/-- **A KECCAK STEP CANNOT MOVE THE ACCESSOR KEY.**  `keccakOut` may extend the
+cache, but it leaves the machine state alone. -/
+theorem arrWindowOf_keccakOut (σ : EVMState) (p n : UInt256) :
+    arrWindowOf (keccakOut σ p n).2 = arrWindowOf σ := by
+  unfold arrWindowOf
+  rw [keccakOut_machine_state]
+
+/-- **THE WINDOW SURVIVES A WHOLE NESTED ACCESSOR CALL.**  An accessor is
+`mstore 0 a` followed by a keccak; so from the point of view of the OUTER
+accessor's cache key, running an inner accessor first changes nothing — its
+`mstore 0` is overwritten by the outer one and its keccak is memory-neutral.
+
+This is what lets a single atlas anchor serve a nested `sibRead` chain, rather than
+needing a fresh anchor per level. -/
+theorem arrWindowOf_after_inner_accessor {σ : EVMState} {a y : UInt256}
+    (hnd : (window (0 : UInt256)).Nodup) :
+    arrWindow (((keccakOut (σ.mstore 0 a) 0 32).2.machine_state).updateMemory 0 y)
+      = arrWindow (σ.machine_state.updateMemory 0 y) := by
+  rw [keccakOut_machine_state]
+  show arrWindow ((σ.machine_state.updateMemory 0 a).updateMemory 0 y)
+      = arrWindow (σ.machine_state.updateMemory 0 y)
+  exact arrWindow_double_mstore_zero hnd
+
 end Clear.ArrWindow
