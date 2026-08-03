@@ -75,4 +75,31 @@ theorem committed_member_gap_impossible_of_history
   have hsound := evolution_sound hevo h0 n
   exact committed_member_gap_impossible hsound.1 habs hmem hgapleaf hlow hwin
 
+/-! ## The same, from an arbitrary sound start
+
+`committed_member_gap_impossible_of_history` takes the genesis equation, but uses it
+for one thing only: to obtain `SoundState` at step 0 so `evolution_sound` can carry
+the invariant forward.  Asking for soundness directly generalizes it to a tree
+already in service or carried across an invariant-preserving upgrade — the same
+weakening applied to the two no-theft capstones in b7633c5. -/
+
+/-- **DELIVERED-XOR-RECLAIMED FROM ANY SOUND START.**  As
+`committed_member_gap_impossible_of_history`, but hypothesizing soundness of the
+initial represented leaf set instead of equality with the genesis singleton. -/
+theorem committed_member_gap_impossible_of_sound_start
+    {σ : ℕ → EVMState} (n : ℕ)
+    (hhist : ConcreteBridge.ConcreteLeafHistory σ)
+    (h0 : SoundState
+      (generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf (σ 0)))
+    {R value wk wnk nk₁ : UInt256} {d : ℕ} {idx₁ idx₂ : UInt256}
+    (habs : ∀ idx key nk, CommittedLeafAt R d idx key nk →
+      (⟨key, nk⟩ : AbsLeaf) ∈
+        generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf (σ n))
+    (hmem : CommittedLeafAt R d idx₁ value nk₁)
+    (hgapleaf : CommittedLeafAt R d idx₂ wk wnk)
+    (hlow : wk < value)
+    (hwin : wnk = 0 ∨ value < wnk) : False := by
+  have hevo := ConcreteBridge.concreteHistory_isEvolution hhist
+  exact committed_member_gap_impossible (evolution_sound hevo h0 n).1 habs hmem hgapleaf hlow hwin
+
 end AttackVectors.CrossContract
