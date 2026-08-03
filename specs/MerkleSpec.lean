@@ -747,4 +747,25 @@ theorem walkPure_congr_sibs (h : Hash) (s₁ s₂ : ℕ → UInt256) :
       exact walkPure_congr_sibs h s₁ s₂ k (lvl + 1) (idx / 2) _
         (fun l h1 h2 => hsib l (by omega) (by omega))
 
+/-- **M-D WITHOUT THE NONEMPTINESS HYPOTHESIS.**  `rootOf_inj_of_h_inj` requires
+`L₁.length ≠ 0`, but that hypothesis is SPURIOUS: two equal-length lists that are
+empty are equal outright, so the degenerate case needs no Merkle reasoning at all.
+
+Worth removing because `hne` is the one hypothesis of M-D that
+`AttackVectors.TreeShape` does NOT exhibit a counterexample for — it proved `hlen`
+and `hcap` load-bearing but left `hne` unexamined, and this shows why: it was never
+needed. -/
+theorem rootOf_inj_of_h_inj' (h : Hash) (z0 : UInt256)
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    (L₁ L₂ : List UInt256) (height : ℕ)
+    (hlen : L₁.length = L₂.length)
+    (hcap : L₁.length ≤ 2 ^ height)
+    (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
+    L₁ = L₂ := by
+  by_cases hne : L₁.length = 0
+  · have h1 : L₁ = [] := List.length_eq_zero.mp hne
+    have h2 : L₂ = [] := List.length_eq_zero.mp (by rw [← hlen]; exact hne)
+    rw [h1, h2]
+  · exact rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
+
 end MerkleSpec
