@@ -115,6 +115,76 @@ lemma funcname_abs_of_concrete {s₀ s₉ : State} {ret arg1 arg2} :
 | `s🏪⟦s'⟧` | `setStore s s'` |
 | `❓s` | `isOutOfFuel s` |
 
+### Recipe for `Common/` block specs
+
+The `Common/{block,if,switch,for}_*_user.lean` stubs are compiled Yul fragments.
+Roughly 148 of InteropHandler's 276 have genuine specs; the recipe below is what
+worked, distilled from doing them.
+
+**Write the spec in CLOSED FORM over the entry state** — each bound variable
+expressed in terms of `s₀`, intermediate bindings substituted away — and state the
+whole memory/storage effect as one composed chain. Do *not* write
+`A_foo := foo_concrete_of_code.1 …`: that alias makes the bridge lemma
+"concrete → concrete", removing the `sorry` while proving nothing. ~98% of the
+repo's other "complete" block specs do this, so **`grep -L sorry` is not a progress
+metric — use `#print axioms`.** A genuine result depends only on
+`propext`/`Quot.sound`/`Classical.choice`; a stub-routed one reports `sorryAx`.
+
+**Proof skeleton** (`∀`-shaped spec; use `spec_eq` then `intro`/`cases` for the
+state):
+
+```lean
+  unfold block_X_concrete_of_code A_block_X
+  rcases s₀ with ⟨evm, store⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro _hne hc
+  intro evmA storeA hok
+  cases hok
+  simp only [setEvm_Ok, evm_Ok] at hc          -- Clear.KeccakPrimOps
+  -- keccak blocks only: unfold, then split the Option
+  unfold accOut keccakOut                       -- or just keccakOut
+  rcases hk : <scrutinee> with _ | pr
+  all_goals rw [hk] at hc
+  all_goals (
+    repeat rw [multifill_cons] at hc
+    repeat rw [multifill_nil] at hc
+    repeat first
+      | rw [lookup_insert' (by aesop)] at hc
+      | rw [lookup_insert] at hc
+      | rw [lookup_insert_of_ne (by decide)] at hc)
+  all_goals dsimp only
+  all_goals exact hc.symm
+```
+
+**Traps, each of which cost at least one session:**
+
+- **Read the collapsed hypothesis before writing the spec.** `simp only [setEvm_Ok,
+  evm_Ok] at hc` turns an unreadable tower of `🇪⟦…⟧` into a short `match`. Several
+  early failures were a spec that was simply *wrong* about the compiled shape (insert
+  order reversed; repeated assignments to one variable collapse to ONE insert), which
+  no tactic work can fix.
+- **`lookup_insert` needs a bare `Ok` base.** Any block with two or more chained
+  bindings needs `lookup_insert' (by aesop)`. Same for `setEvm_Ok`.
+- **`multifill_cons` needs `rw`, not `simp only`** — simp makes no progress on it.
+- **`primCall_keccakOut`** (`specs/KeccakPrimOps.lean`) folds the raw keccak `Option`
+  match into `keccakOut`; without it the `Option` must be split by hand.
+- **Guard normalization is not what the Yul says.** `iszero(v)` compiles to
+  `if v = 0 then … else …`; `gt(a,b)` to `if a ≤ b` with branches SWAPPED;
+  `slt(a,b)` to a test against `false`; a comparison `let` arrives pre-reduced as
+  `if p then 1 else 0`. Validate one block per family before batching.
+- **Don't rewrite with `UInt256.size = 2^256`** — it appears in `Fin`'s type, so the
+  motive breaks. Pass it to `omega` as a hypothesis instead.
+- **The general `(s🇪⟦e⟧).evm = e` is FALSE** (fails on non-`Ok` states); only the
+  `Ok`-restricted form holds.
+- **When a build fails, read the reported line:column** and fix exactly one obstacle.
+  Varying several things per attempt makes every error uninformative — that is what
+  turned tractable goals into multi-session stalls.
+
+**Known gap:** blocks that continue with scratch writes *after* the keccak (e.g.
+`block_2862394693737849679`, level one of a nested-mapping chain) are not covered —
+the trailing `setEvm`s sit on a state that already carries a binding and resist
+collapsing.
+
 ## solc Compilation Notes
 
 - era-contracts requires solc 0.8.28
