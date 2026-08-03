@@ -205,4 +205,45 @@ theorem imt_no_theft_in_contract_terms
   obtain ⟨h1, h2, h3, _, _⟩ := imt_no_theft (D := D) hhist hgen htmono hv0
   exact ⟨h1, h2, h3⟩
 
+/-! ## The deployed capstone from an arbitrary sound start
+
+`imt_no_theft` requires the represented leaf set to begin at the genesis singleton.
+As with the abstract `no_theft`, that is stronger than the argument needs and is
+UNAVAILABLE for a tree already in service or carried across an invariant-preserving
+upgrade — cases where the genesis equation simply cannot be established.
+
+This routes the deployed capstone through `NoTheft.no_theft_of_sound_start`, so it
+asks only for soundness, the zero sentinel, and the leg being undelivered at the
+start. -/
+
+/-- **NO THEFT FOR THE DEPLOYED INSERT PATH, FROM ANY SOUND START.**  Same content as
+`imt_no_theft` but without the genesis requirement: a concrete history whose
+represented leaf set is sound at the start, contains the zero sentinel, and does not
+already contain `v` satisfies the no-theft clauses for that leg.
+
+The trusted base is unchanged — see the file header; the keccak idealizations enter
+only where `leafSetOf_evolution_step` discharges `ConcreteLeafHistory`. -/
+theorem imt_no_theft_of_sound_start
+    {σ : ℕ → EVMState} {t : ℕ → UInt256} {D v : UInt256}
+    (hhist : ConcreteLeafHistory σ)
+    (h0 : SoundState (leafSetOf (σ 0)))
+    (hzero : (0 : UInt256) ∈ keys (leafSetOf (σ 0)))
+    (hvabs : v ∉ keys (leafSetOf (σ 0)))
+    (htmono : Monotone t) (hv0 : v ≠ 0) :
+    (∀ j : ℕ, D < t (j + 1) →
+        (NoTheft.Delivered (fun n => leafSetOf (σ n)) v j
+          ∨ NoTheft.Reclaimable (fun n => leafSetOf (σ n)) v j)
+        ∧ ¬ (NoTheft.Delivered (fun n => leafSetOf (σ n)) v j
+          ∧ NoTheft.Reclaimable (fun n => leafSetOf (σ n)) v j))
+    ∧ (∀ i j : ℕ, t i ≤ D → NoTheft.Delivered (fun n => leafSetOf (σ n)) v i →
+          D < t (j + 1) → ¬ NoTheft.Reclaimable (fun n => leafSetOf (σ n)) v j)
+    ∧ (∀ i j : ℕ, NoTheft.Delivered (fun n => leafSetOf (σ n)) v i → i ≤ j →
+          NoTheft.Delivered (fun n => leafSetOf (σ n)) v j)
+    ∧ (∀ n : ℕ, NoTheft.Delivered (fun n => leafSetOf (σ n)) v n →
+          ∃ m, m < n ∧ NoTheft.EntersAt (fun n => leafSetOf (σ n)) v m)
+    ∧ (∀ m₁ m₂ : ℕ, NoTheft.EntersAt (fun n => leafSetOf (σ n)) v m₁ →
+          NoTheft.EntersAt (fun n => leafSetOf (σ n)) v m₂ → m₁ = m₂) := by
+  exact NoTheft.no_theft_of_sound_start (concreteHistory_isEvolution hhist)
+    h0 hzero hvabs htmono hv0
+
 end AttackVectors.ConcreteBridge

@@ -330,11 +330,16 @@ below are establishable. -/
 the genesis hypothesis replaced by exactly what the proof consumes: the start state
 is sound, contains the zero leaf, and does not already contain `v`.
 
-`no_theft` is the special case where the start is `{⟨0,0⟩}`, which supplies all
-three (`genesis_soundState`, `genesis_zero_mem`, and `v ≠ 0`). -/
+`no_theft` is the special case where the start is `{⟨0,0⟩}` and the history is a
+`GuardedEvolution`, which supplies all of these.
+
+The history hypothesis is `Evolution`, NOT `GuardedEvolution`: the proof only ever
+uses the derived `Evolution`, so demanding the guarded form would exclude callers
+that establish the strict window directly without a dedup gate — which is exactly
+what `ConcreteBridge.ConcreteLeafHistory` provides. -/
 theorem no_theft_of_sound_start
     {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
-    (hge : GuardedEvolution S)
+    (hevo : Evolution S)
     (h0 : SoundState (S 0))
     (hzero : (0 : UInt256) ∈ keys (S 0))
     (hvabs : v ∉ keys (S 0))
@@ -346,7 +351,6 @@ theorem no_theft_of_sound_start
     ∧ (∀ i j : ℕ, Delivered S v i → i ≤ j → Delivered S v j)
     ∧ (∀ n : ℕ, Delivered S v n → ∃ m, m < n ∧ EntersAt S v m)
     ∧ (∀ m₁ m₂ : ℕ, EntersAt S v m₁ → EntersAt S v m₂ → m₁ = m₂) := by
-  have hevo := guardedEvolution_isEvolution hge h0
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro j _
     constructor
