@@ -166,6 +166,12 @@ state):
 - **`lookup_insert` needs a bare `Ok` base.** Any block with two or more chained
   bindings needs `lookup_insert' (by aesop)`. Same for `setEvm_Ok`.
 - **`multifill_cons` needs `rw`, not `simp only`** — simp makes no progress on it.
+- **Repeated assignments to one variable coalesce ONLY IF ADJACENT.** When two
+  writes to the same variable are separated by an effect (a `mstore`, say), BOTH
+  inserts survive in the compiled term, sitting either side of the `setEvm`. Writing
+  the spec with them coalesced fails to match. `block_2731350847861160598` collapses
+  (adjacent); `block_3194558141570459385` does not (`dst` written, `mstore`, `dst`
+  rewritten).
 - **`primCall_keccakOut`** (`specs/KeccakPrimOps.lean`) folds the raw keccak `Option`
   match into `keccakOut`; without it the `Option` must be split by hand.
 - **Guard normalization is not what the Yul says.** `iszero(v)` compiles to
