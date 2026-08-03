@@ -40,4 +40,25 @@ lemma primCall_keccakOut {s : State} {a b : UInt256} :
   · simp only [hk]
   · simp only [hk]
 
+/-! ## State-shape collapsing lemmas
+
+Compiled-block hypotheses arrive as towers of `setEvm` applications with `.evm`
+projections between them, which display as unreadable walls and block every
+rewrite.  These two collapse the tower.  Together with `primCall_keccakOut` they
+are what makes a mapping-slot block's hypothesis legible at all — before applying
+them the goal is hundreds of characters of nested `🇪⟦…⟧`; after, it is a single
+`match` over the keccak result.
+
+NOTE the `Ok` restriction on `setEvm_Ok`.  The general form `(s🇪⟦e⟧).evm = e` is
+FALSE: `setEvm` does not install the EVM on non-`Ok` states, so only the `Ok`-shaped
+version holds. -/
+
+/-- The EVM of an `Ok` state. -/
+lemma evm_Ok (evm : EVM) (store : VarStore) : (Ok evm store).evm = evm := rfl
+
+/-- `setEvm` on an `Ok` state yields an `Ok` state.  This is the rewrite that
+collapses a chain of `setEvm`s, after which `evm_Ok` reduces the projections. -/
+lemma setEvm_Ok (evm : EVM) (store : VarStore) (e : EVM) :
+    (Ok evm store🇪⟦e⟧) = Ok e store := rfl
+
 end Clear.KeccakPrimOps
