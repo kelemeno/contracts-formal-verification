@@ -314,4 +314,56 @@ theorem no_theft
   · intro m₁ m₂ h1 h2
     exact evolution_key_origin_unique hevo h1 h2
 
+/-! ## The capstone from an arbitrary sound start
+
+`no_theft` requires the history to begin at the genesis singleton `{⟨0,0⟩}`.  That
+is the right hypothesis for a freshly deployed tree, but it is stronger than the
+proof needs: what the argument actually uses is that the initial state is SOUND,
+contains the zero leaf, and does not already contain `v`.
+
+Generalizing matters for deployments that do not start from genesis in the proof's
+sense — a tree already in service, or one carried across an upgrade that preserves
+the linked-list invariant.  For those, `hgen` is unavailable but the three facts
+below are establishable. -/
+
+/-- **NO THEFT FROM ANY SOUND START.**  Same five conclusions as `no_theft`, with
+the genesis hypothesis replaced by exactly what the proof consumes: the start state
+is sound, contains the zero leaf, and does not already contain `v`.
+
+`no_theft` is the special case where the start is `{⟨0,0⟩}`, which supplies all
+three (`genesis_soundState`, `genesis_zero_mem`, and `v ≠ 0`). -/
+theorem no_theft_of_sound_start
+    {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
+    (hge : GuardedEvolution S)
+    (h0 : SoundState (S 0))
+    (hzero : (0 : UInt256) ∈ keys (S 0))
+    (hvabs : v ∉ keys (S 0))
+    (htmono : Monotone t) (hv0 : v ≠ 0) :
+    (∀ j : ℕ, D < t (j + 1) →
+        (Delivered S v j ∨ Reclaimable S v j)
+          ∧ ¬ (Delivered S v j ∧ Reclaimable S v j))
+    ∧ (∀ i j : ℕ, t i ≤ D → Delivered S v i → D < t (j + 1) → ¬ Reclaimable S v j)
+    ∧ (∀ i j : ℕ, Delivered S v i → i ≤ j → Delivered S v j)
+    ∧ (∀ n : ℕ, Delivered S v n → ∃ m, m < n ∧ EntersAt S v m)
+    ∧ (∀ m₁ m₂ : ℕ, EntersAt S v m₁ → EntersAt S v m₂ → m₁ = m₂) := by
+  have hevo := guardedEvolution_isEvolution hge h0
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro j _
+    constructor
+    · by_cases hd : v ∈ keys (S j)
+      · exact Or.inl hd
+      · exact Or.inr (reclaim_witness_available hevo h0 hzero hv0 hd)
+    · rintro ⟨hd, hr⟩
+      exact present_not_reclaimable (evolution_sound hevo h0 j).1 hd hr
+  · intro i j hti hdel hpin hrec
+    obtain ⟨W, hW, hlow, hwin⟩ := hrec
+    exact delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hdel hpin hW hlow hwin
+  · intro i j hdel hij
+    exact evolution_keys_mono hevo hij hdel
+  · intro n hdel
+    obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hdel hvabs
+    exact ⟨m, hmn, habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
+  · intro m₁ m₂ h1 h2
+    exact evolution_key_origin_unique hevo h1 h2
+
 end AttackVectors.NoTheft
