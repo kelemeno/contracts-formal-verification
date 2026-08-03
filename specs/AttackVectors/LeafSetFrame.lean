@@ -79,4 +79,42 @@ theorem leafSetOf_sstore_frame_noop {σ σ' : EVMState} {a v : UInt256}
   rw [hstep]
   exact leafSetOf_sstore_frame hcount hcaches hval hnext
 
+/-! ## A worked instance: the `valueToIndex` write
+
+The insert path also writes the `valueToIndex` mapping (base 5).  Everything
+needed to frame that write past the leaf set already exists in
+`imt_fidelity_user.lean` — `leafCount_vtiWrite` and `decodeLeaf_vtiWrite`, both
+resting on base-4 vs base-5 preimage separation.  Composing them gives the
+no-op disjunct for this write outright, with no side conditions beyond the cache
+witnesses.
+
+This is the pattern for every other entry point: prove the write misses slot 1
+and the leaf fields, then conclude the leaf set is untouched. -/
+
+/-- **THE `valueToIndex` WRITE DOES NOT MOVE THE LEAF SET.**  A concrete
+instance of the frame: writing the `valueToIndex` entry for `v` leaves the
+represented leaf set exactly as it was, so such a step satisfies the no-op
+disjunct of `ConcreteLeafHistory`.
+
+Unlike `leafSetOf_sstore_frame`, this DOES enlarge the trusted base — but only by
+TWO of the four keccak idealizations, verified with #print axioms:
+`keccak256_ne_lowSlot` (a keccak image is never a low reserved slot, used by
+`leafCount_vtiWrite` to separate the write from slot 1) and `keccak256_slot_sep`
+(used via `decodeLeaf_vtiWrite` for base-4 vs base-5 preimage separation).
+Notably NOT `keccak256_inj`: distinguishing these two slot families does not
+require full injectivity. -/
+theorem leafSetOf_vtiWrite {σ : EVMState} {v u wv : UInt256}
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore (vtiSlot σ v) u) = leafSetOf σ := by
+  unfold leafSetOf
+  rw [leafCount_vtiWrite hcv]
+  refine Finset.image_congr ?_
+  intro m hm
+  rw [Finset.mem_coe, Finset.mem_range] at hm
+  obtain ⟨w, hw⟩ := hcaches m hm
+  show decodeLeaf (σ.sstore (vtiSlot σ v) u) (m : UInt256) = decodeLeaf σ (m : UInt256)
+  exact decodeLeaf_vtiWrite hcv hw
+
 end AttackVectors.LeafSetFrame
