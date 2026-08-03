@@ -12,8 +12,10 @@ import specs.MerkleSpec
 
     (1) ABSTRACT KERNEL — equal roots force equal leaf lists, so membership
         transfers between any two lists sharing a root.  Proved here from
-        `MerkleSpec.rootOf_inj_of_h_inj` (M-D), with node-hash pair-injectivity as
-        a HYPOTHESIS standing in for keccak collision resistance.
+        `MerkleSpec.rootOf_inj_of_h_inj'` (M-D without its spurious nonemptiness
+        hypothesis), with node-hash pair-injectivity as a HYPOTHESIS standing in for
+        keccak collision resistance.  Since `hne` is gone these apply at an EMPTY
+        tree too, which matters for instantiating them at genesis.
     (2) FOLD CORRESPONDENCE — the contract's `foldRoot` path recomputation agrees
         with `MerkleSpec.rootOf` on the same leaves.  NOT proved; this is the
         root-fidelity track (`ROOT_FIDELITY_BLUEPRINT.md` R0–R9), of which only the
@@ -40,11 +42,11 @@ as `hinj`. -/
 theorem mem_of_rootOf_eq (h : Hash) (z0 : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (height : ℕ)
-    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height)
     {x : UInt256} (hx : x ∈ L₁) : x ∈ L₂ := by
-  rw [← rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot]
+  rw [← rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot]
   exact hx
 
 /-- **THE INDEXED FORM.**  The same fact at a position: equal roots force equal
@@ -53,11 +55,11 @@ proof names the index it opens. -/
 theorem getD_of_rootOf_eq (h : Hash) (z0 : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (height : ℕ)
-    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height)
     (i : ℕ) (d : UInt256) : L₁.getD i d = L₂.getD i d := by
-  rw [rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot]
+  rw [rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot]
 
 /-- **CONTRAPOSITIVE: A FORGED LEAF CHANGES THE ROOT.**  If a leaf appears in one
 list and not the other, the two roots differ — so a published root cannot be
@@ -65,12 +67,12 @@ reused to vouch for a leaf the tree does not contain. -/
 theorem rootOf_ne_of_not_mem (h : Hash) (z0 : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (height : ℕ)
-    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     {x : UInt256} (hx : x ∈ L₁) (hnx : x ∉ L₂) :
     rootOf h z0 L₁ height ≠ rootOf h z0 L₂ height := by
   intro hroot
-  exact hnx (mem_of_rootOf_eq h z0 hinj L₁ L₂ height hlen hne hcap hroot hx)
+  exact hnx (mem_of_rootOf_eq h z0 hinj L₁ L₂ height hlen hcap hroot hx)
 
 /-! ## Piece (3): the list/set correspondence, abstract kernel
 
