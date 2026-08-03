@@ -180,10 +180,22 @@ state):
   Varying several things per attempt makes every error uninformative — that is what
   turned tractable goals into multi-session stalls.
 
-**Known gap:** blocks that continue with scratch writes *after* the keccak (e.g.
-`block_2862394693737849679`, level one of a nested-mapping chain) are not covered —
-the trailing `setEvm`s sit on a state that already carries a binding and resist
-collapsing.
+**Known gaps.**
+
+1. Blocks that continue with scratch writes *after* the keccak (e.g.
+   `block_2862394693737849679`, level one of a nested-mapping chain) are not
+   covered — the trailing `setEvm`s sit on a state that already carries a binding
+   and resist collapsing.
+2. Blocks containing a LARGE shift constant — the error-selector builders, e.g.
+   `shl(224, 3653389487)` in `block_3212380387923472875`, or `shl(225, …)`,
+   `shl(248, …)` elsewhere — cannot currently be specified at all. Elaborating
+   `Fin.shiftLeft c 224` exhausts the `whnf` heartbeat budget while *checking the
+   spec definition*, before any proof runs. Raising `maxHeartbeats` to 2 000 000 does
+   not help, and hiding the constant behind an `irreducible_def` does not either
+   (the definition body still elaborates). This is independent of the state-encoding
+   blowup that affected multi-write blocks. Roughly a handful of blocks are affected;
+   they need either a `Fin`-level shift lemma that avoids evaluation, or the selector
+   supplied as an opaque parameter.
 
 ## solc Compilation Notes
 
