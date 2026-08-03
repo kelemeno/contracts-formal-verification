@@ -226,4 +226,40 @@ theorem noop_step_of_congr {σ σ' : EVMState}
     leafSetOf σ' = leafSetOf σ :=
   leafSetOf_congr hcount hleaf
 
+/-! ## Set-level cross-state transport
+
+`decodeLeaf_deterministic` (in `imt_fidelity_user.lean`) transports ONE leaf
+across two states given the junk-window frame, cache monotonicity, cleanliness,
+and `sload` agreement at its two field slots.  Lifting it over the index range
+gives the transport an ENTRY-POINT proof actually needs: "if a function preserves
+the junk window, only grows the keccak cache, and leaves the leaf field slots and
+the count alone, then the leaf set is unchanged." -/
+
+/-- **LEAF-SET TRANSPORT ACROSS AN ARBITRARY STEP.**  The set-level form of
+`decodeLeaf_deterministic`.  This is the intended route for the contract's
+read-only entry points: rather than the (invalid) shortcut "wrote no storage, so
+the set is fixed", a caller discharges the junk-window frame and cache
+monotonicity from the function's closed form, and gets leaf-set preservation. -/
+theorem leafSetOf_deterministic {σ₁ σ₂ : EVMState}
+    (hcount : σ₁.sload 1 = σ₂.sload 1)
+    (hframe : ∀ b : UInt256, 64 ≤ b.val → b.val ≤ 94 →
+      Finmap.lookup b σ₁.machine_state.memory
+        = Finmap.lookup b σ₂.machine_state.memory)
+    (hmono : ∀ m : ℕ, m < (σ₁.sload 1).val → ∀ w : UInt256,
+      Finmap.lookup (accInterval σ₁ (m : UInt256) 4)
+          (accOut σ₁ (m : UInt256) 4).2.keccak_map = some w →
+        Finmap.lookup (accInterval σ₁ (m : UInt256) 4) σ₂.keccak_map = some w)
+    (hclean : ∀ m : ℕ, m < (σ₁.sload 1).val →
+      (accOut σ₁ (m : UInt256) 4).2.hash_collision = false)
+    (hs0 : ∀ m : ℕ, m < (σ₁.sload 1).val →
+      σ₂.sload (leafSlot σ₁ (m : UInt256)) = σ₁.sload (leafSlot σ₁ (m : UInt256)))
+    (hs2 : ∀ m : ℕ, m < (σ₁.sload 1).val →
+      σ₂.sload (leafSlot σ₁ (m : UInt256) + 2)
+        = σ₁.sload (leafSlot σ₁ (m : UInt256) + 2)) :
+    leafSetOf σ₁ = leafSetOf σ₂ := by
+  refine leafSetOf_congr hcount ?_
+  intro m hm
+  exact (decodeLeaf_deterministic hframe (hmono m hm) (hclean m hm)
+    (hs0 m hm) (hs2 m hm)).symm
+
 end AttackVectors.LeafSetFrame
