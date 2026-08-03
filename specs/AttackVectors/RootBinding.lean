@@ -72,4 +72,40 @@ theorem rootOf_ne_of_not_mem (h : Hash) (z0 : UInt256)
   intro hroot
   exact hnx (mem_of_rootOf_eq h z0 hinj L₁ L₂ height hlen hne hcap hroot hx)
 
+/-! ## Piece (3): the list/set correspondence, abstract kernel
+
+The Merkle layer speaks of a leaf LIST; `leafSetOf` speaks of a Finset image over
+an index range.  Nothing in the corpus yet defines the concrete leaf-hash list
+(the blueprint schedules it as R7), so there is no concrete statement to aim at.
+What CAN be settled now is the generic fact underneath: an image over
+`Finset.range` and a `map` over `List.range` have the same members.
+
+Small, but it is the shape the eventual correspondence proof consumes, and it
+records that the list/set mismatch is pure bookkeeping with no hidden content. -/
+
+/-- **IMAGE OVER A RANGE = MAP OVER A RANGE.**  Membership agrees between the
+Finset-image view (`leafSetOf`'s shape) and the list-map view (the Merkle layer's
+shape). -/
+theorem mem_image_range_iff_mem_map_range {α : Type*} [DecidableEq α]
+    (f : ℕ → α) (n : ℕ) (x : α) :
+    x ∈ (Finset.range n).image f ↔ x ∈ (List.range n).map f := by
+  rw [Finset.mem_image, List.mem_map]
+  constructor
+  · rintro ⟨i, hi, hfi⟩
+    exact ⟨i, List.mem_range.mpr (Finset.mem_range.mp hi), hfi⟩
+  · rintro ⟨i, hi, hfi⟩
+    exact ⟨i, Finset.mem_range.mpr (List.mem_range.mp hi), hfi⟩
+
+/-- The `leafSetOf`-shaped direction, spelled out: a value is in the image exactly
+when some in-range index maps to it. -/
+theorem mem_image_range_iff {α : Type*} [DecidableEq α]
+    (f : ℕ → α) (n : ℕ) (x : α) :
+    x ∈ (Finset.range n).image f ↔ ∃ i, i < n ∧ f i = x := by
+  rw [Finset.mem_image]
+  constructor
+  · rintro ⟨i, hi, hfi⟩
+    exact ⟨i, Finset.mem_range.mp hi, hfi⟩
+  · rintro ⟨i, hi, hfi⟩
+    exact ⟨i, Finset.mem_range.mpr hi, hfi⟩
+
 end AttackVectors.RootBinding
