@@ -71,4 +71,39 @@ theorem foldRoot_eq_walkPure
       have : idx.val % 2 = 1 := (land_one_ne_zero_iff idx).mp hpar
       rw [if_pos this]
 
+/-! ## The composite: the contract's fold recomputes the whole-tree root
+
+`foldRoot_eq_walkPure` gives fold = walk; `MerkleSpec.walkPure_update` (M-A) gives
+walk = whole-tree root of the updated leaf list.  Chaining them closes root-binding
+piece (2) end to end: the contract's path fold is the root of the tree with the leaf
+written at `idx`. -/
+
+/-- **THE CONTRACT'S FOLD IS THE UPDATED TREE'S ROOT.**  Under the same three
+hypotheses as `foldRoot_eq_walkPure` (pure pair-hash, fixed sibling stream, no level
+wraparound) plus M-A's requirements on the sibling stream, the fold started at level
+`0` from index `idx` with accumulator `cur` returns exactly
+`rootOf h z0 (leaves.set idx.val cur) height`.
+
+Together with `AttackVectors.RootBinding.mem_of_rootOf_eq` — equal roots force equal
+leaf lists — this is what lets a published root be read as a statement about the
+tree's leaves rather than about a fold. -/
+theorem foldRoot_eq_rootOf
+    (h : Hash) (z0 : UInt256) (path : UInt256) (sibs : ℕ → UInt256)
+    (hpure : ∀ (σ' : EVMState) (a b : UInt256), (accOut σ' a b).1 = h a b)
+    (hsib : ∀ (σ' : EVMState) (j : UInt256),
+      σ'.mload ((path + Fin.shiftLeft j 5) + 32) = sibs j.val)
+    (leaves : List UInt256) (idx : UInt256) (cur : UInt256) (height : ℕ)
+    (σ : EVMState)
+    (hb : height < 2 ^ 256)
+    (hidx : idx.val < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
+    (hsibs : ∀ l, l < height →
+      sibs l = (levels h z0 (leaves.set idx.val cur) l).getD (sibIdx (idx.val / 2 ^ l))
+        (zeros h z0 l)) :
+    (foldRoot σ path height 0 idx cur).1
+      = rootOf h z0 (leaves.set idx.val cur) height := by
+  have h0 : ((0 : UInt256)).val = 0 := by decide
+  rw [foldRoot_eq_walkPure h path sibs hpure hsib height 0 idx cur σ (by rw [h0]; omega)]
+  rw [h0]
+  exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
+
 end Clear.FoldWalkBridge
