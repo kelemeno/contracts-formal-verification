@@ -217,6 +217,17 @@ state):
 - `scripts/generate-vc.sh` copies to `generated/` and renames `Generated.` → `generated.` in imports
 - The generator creates files for each Yul function + `Common/` for control flow (if/for/switch blocks)
 - **Known bug**: `expressionSplitterFix` in `Preprocessor.hs` only splits `pop()` statements, not `LetInit`/`Assignment` with nested `Call` in primitive args. This causes `EVMSub'`/`EVMAdd'` rewrites to fail when arguments contain function calls.
+- **Known bug — statically-dead guarded call.** Some `_gen.lean` files DO NOT COMPILE,
+  so their `_user.lean` stub cannot be filled no matter what spec is written. Example:
+  `generated/L2AssetRouter/L2AssetRouter/Common/if_2527630709993567669_gen.lean:53`
+  reports `unknown identifier 'hs'`. Its Yul is
+  `if gt(1, 18446744073709551615) { panic_error_0x41() }` — a Solidity
+  allocation-overflow check the compiler emitted with BOTH operands constant, so the
+  guard is false outright and the call is unreachable. The generated script does
+  `generalize hs : execCall _ _ _ _ = s` and then uses `hs`; with no reachable
+  `execCall` the `generalize` introduces nothing and every later reference to `hs`
+  fails. **Before spending effort on a stub, check that its `_gen` module builds:**
+  `lake build --old generated.<Contract>.<Contract>.Common.<name>_gen`.
 
 ## Building & Running Commands
 
