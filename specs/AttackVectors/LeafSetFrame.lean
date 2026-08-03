@@ -184,4 +184,46 @@ theorem leafSetOf_lowSlotWrite {σ : EVMState} {c v : UInt256}
     obtain ⟨w, hw⟩ := hcaches m hm
     exact Ne.symm (leafSlot_add_ne_low 2 c hw (by decide) hlow)
 
+/-! ## The cross-state congruence
+
+The frames above all concern one `sstore` at a time.  For transporting `leafSetOf`
+across an arbitrary step — a whole function call, say — the useful shape is a
+CONGRUENCE: two states with the same count and the same in-range leaves represent
+the same set.
+
+Why this is the right tool rather than a memory frame.  One might hope that a
+step writing no STORAGE leaves the leaf set alone, so that the contract's
+read-only entry points are trivially no-ops.  That is NOT free in this model:
+`leafSlot σ i = (accOut σ i 4).1` is a keccak image whose preimage interval
+depends on memory bytes `[64, 95)`, so a plain `mstore` — an allocator bump, for
+instance — can in principle move every leaf slot.  (This is the junk-window drift
+the corpus handles elsewhere with its re-anchoring discipline.)  So a caller must
+actually supply leaf agreement; the congruence below is what consumes it. -/
+
+/-- **LEAF-SET CONGRUENCE.**  Two states with the same leaf count and the same
+decoded leaf at every in-range index represent the same leaf set.  Axiom-free:
+this is pure `Finset.image` reasoning, with no appeal to keccak behaviour. -/
+theorem leafSetOf_congr {σ₁ σ₂ : EVMState}
+    (hcount : σ₁.sload 1 = σ₂.sload 1)
+    (hleaf : ∀ m : ℕ, m < (σ₁.sload 1).val →
+      decodeLeaf σ₁ (m : UInt256) = decodeLeaf σ₂ (m : UInt256)) :
+    leafSetOf σ₁ = leafSetOf σ₂ := by
+  unfold leafSetOf
+  rw [hcount]
+  refine Finset.image_congr ?_
+  intro m hm
+  rw [Finset.mem_coe, Finset.mem_range] at hm
+  show decodeLeaf σ₁ (m : UInt256) = decodeLeaf σ₂ (m : UInt256)
+  exact hleaf m (by rw [hcount]; exact hm)
+
+/-- **CONGRUENCE, PACKAGED AS A NO-OP STEP.**  Directly the no-op disjunct of
+`ConcreteLeafHistory`, for a step characterised by count- and leaf-preservation
+rather than by which slots it wrote. -/
+theorem noop_step_of_congr {σ σ' : EVMState}
+    (hcount : σ'.sload 1 = σ.sload 1)
+    (hleaf : ∀ m : ℕ, m < (σ'.sload 1).val →
+      decodeLeaf σ' (m : UInt256) = decodeLeaf σ (m : UInt256)) :
+    leafSetOf σ' = leafSetOf σ :=
+  leafSetOf_congr hcount hleaf
+
 end AttackVectors.LeafSetFrame
