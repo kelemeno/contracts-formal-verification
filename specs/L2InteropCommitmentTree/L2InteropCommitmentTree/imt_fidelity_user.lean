@@ -506,7 +506,7 @@ slots, 32-byte preimages) and reserved low slots; leaf structs live at
 slot-separation axiom keep the two families disjoint at any small offsets. -/
 
 /-- The cached-hash success witness for an array data slot. -/
-private lemma arrOut_keccak {σ : EVMState} {a w : UInt256}
+lemma arrOut_keccak {σ : EVMState} {a w : UInt256}
     (hc : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
         σ.keccak_map = some w) :
     (σ.mstore 0 a).keccak256 0 32 = some (w, σ.mstore 0 a)

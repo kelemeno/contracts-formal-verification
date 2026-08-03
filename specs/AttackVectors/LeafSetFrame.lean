@@ -117,4 +117,48 @@ theorem leafSetOf_vtiWrite {σ : EVMState} {v u wv : UInt256}
   show decodeLeaf (σ.sstore (vtiSlot σ v) u) (m : UInt256) = decodeLeaf σ (m : UInt256)
   exact decodeLeaf_vtiWrite hcv hw
 
+/-! ## Second instance: the Merkle node/zeros array writes
+
+The insert path also writes the `_nodes` and `_zeros` arrays (bases 2 and 3),
+addressed as `arrOut σ a + j`.  `decodeLeaf_arrWrite` already frames the leaf
+fields past such a write; the missing half is the leaf COUNT, which follows from
+a keccak image never landing on a reserved low slot. -/
+
+/-- **The leaf count survives a node-array write.**  `arrOut σ a + j` is a keccak
+image offset by a small `j`, so it is never the reserved slot 1. -/
+theorem leafCount_arrWrite {σ : EVMState} {a j v wa : UInt256}
+    (hca : Finmap.lookup (EVMState.mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    (σ.sstore ((arrOut σ a).1 + j) v).sload 1 = σ.sload 1 := by
+  obtain ⟨hka, hva⟩ := arrOut_keccak hca
+  refine sload_sstore_ne ?_
+  rw [hva]
+  exact Clear.KeccakInjective.keccak256_add_ne_lowSlot j 1 hka hj (by decide)
+
+/-- **THE MERKLE ARRAY WRITES DO NOT MOVE THE LEAF SET.**  Writing a `_nodes` or
+`_zeros` element leaves the represented leaf set exactly as it was, so every step
+of the root-recomputation walk satisfies the no-op disjunct of
+`ConcreteLeafHistory`.
+
+This matters because the walk performs MANY such writes: it is the bulk of the
+insert path's storage traffic, and none of it can disturb the leaf set that
+no-theft is stated over. -/
+theorem leafSetOf_arrWrite {σ : EVMState} {a j v wa : UInt256}
+    (hca : Finmap.lookup (EVMState.mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore ((arrOut σ a).1 + j) v) = leafSetOf σ := by
+  unfold leafSetOf
+  rw [leafCount_arrWrite hca hj]
+  refine Finset.image_congr ?_
+  intro m hm
+  rw [Finset.mem_coe, Finset.mem_range] at hm
+  obtain ⟨w, hw⟩ := hcaches m hm
+  show decodeLeaf (σ.sstore ((arrOut σ a).1 + j) v) (m : UInt256)
+      = decodeLeaf σ (m : UInt256)
+  exact decodeLeaf_arrWrite (σₐ := σ) hca hw hj
+
 end AttackVectors.LeafSetFrame
