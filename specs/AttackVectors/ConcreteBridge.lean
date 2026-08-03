@@ -56,9 +56,15 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
     pins that leaf set) is separate — `MerkleSpec` M-D plus
     `AttackVectors.RootForgery`, and it rests on node-hash pair-injectivity as a
     hypothesis.
-  * The no-op disjunct is a hypothesis about the OTHER entry points: this file
-    does not enumerate the contract's remaining functions to prove none of them
-    mutates the leaf set outside the insert path.
+  * The no-op disjunct is no longer bare — see `AttackVectors.LeafSetFrame`,
+    which supplies the general frame (`leafSetOf_sstore_frame`: a write missing
+    slot 1 and the leaf fields cannot move the set) plus discharged instances for
+    both other storage families the insert path touches: the `valueToIndex`
+    mapping (`leafSetOf_vtiWrite`) and the Merkle `_nodes`/`_zeros` arrays
+    (`leafSetOf_arrWrite`, which covers the bulk of the walk's storage traffic).
+    What REMAINS a hypothesis is coverage: nobody has enumerated the contract's
+    entry points to check that every storage write in every function falls into
+    one of those framed families.  The tools are in place; the audit is not done.
   * Genesis is a hypothesis, discharged in practice by the one-time-guarded
     `setup`; see `AttackVectors.ResetAndZero` for why that guard is load-bearing.
   * GOVERNANCE remains excepted by construction.
