@@ -11,8 +11,12 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 18 of 19 depend only on Lean's standard base
-  (`propext`, `Quot.sound`, `Classical.choice`):
+  RESULT as of this commit — 22 of 23 depend only on Lean's standard base
+  (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
+  the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
+  initial state, so they apply to a tree already in service or carried across an
+  invariant-preserving upgrade — the form a migrated deployment needs, since such a
+  tree cannot establish a genesis equation.
 
       CLEAN   no_theft                                    abstract capstone
       CLEAN   imt_no_theft                                deployed insert path
@@ -59,16 +63,21 @@ import specs.AttackVectors.StaleSnapshot
 import specs.AttackVectors.TreeShape
 import specs.AttackVectors.ResetAndZero
 import specs.FoldWalkBridge
+import specs.MerkleSpec
 import specs.InteropHandler.Layout
 import specs.AtomicFlowManager.Layout
 
 #print axioms AttackVectors.NoTheft.no_theft
+#print axioms AttackVectors.NoTheft.no_theft_of_sound_start
 #print axioms AttackVectors.ConcreteBridge.imt_no_theft
+#print axioms AttackVectors.ConcreteBridge.imt_no_theft_of_sound_start
 #print axioms AttackVectors.ConcreteBridge.imt_no_theft_in_contract_terms
 #print axioms AttackVectors.CrossContract.committed_member_gap_impossible_of_history
+#print axioms AttackVectors.CrossContract.committed_member_gap_impossible_of_sound_start
 #print axioms AttackVectors.LeafSetFrame.leafSetOf_sstore_frame
 #print axioms AttackVectors.LeafSetFrame.leafSetOf_arrWrite
 #print axioms AttackVectors.RootBinding.mem_of_rootOf_eq
+#print axioms MerkleSpec.rootOf_inj_of_h_inj'
 #print axioms Clear.FoldWalkBridge.foldRoot_eq_rootOf
 #print axioms AttackVectors.RootForgery.no_false_inclusion
 #print axioms AttackVectors.FlowAtomicity.mixed_outcomes_permitted
