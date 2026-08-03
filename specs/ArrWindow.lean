@@ -72,4 +72,36 @@ theorem arrWindow_eq_of_mem_eq {m₁ m₂ : MachineState}
   intro i _
   rw [hmem]
 
+/-! ## `EVMState`-level wrappers
+
+R1 consumes the window at the `EVMState` level, so the three facts are restated
+there.  `machine_state_sstore` is reproved locally (four lines) rather than widening
+the scope of the `private` copy in `imt_replay_user.lean`. -/
+
+/-- The accessor cache key of a whole state. -/
+def arrWindowOf (σ : EVMState) : List UInt256 := arrWindow σ.machine_state
+
+/-- `sstore` leaves the machine state alone. -/
+private lemma machine_state_sstore (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).machine_state = σ.machine_state := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some act => rfl
+
+/-- **`sstore` CANNOT MOVE THE ACCESSOR KEY.**  Storage writes leave memory
+untouched, so every array-accessor cache entry survives them — this is what lets
+the atlas carry cached slots across the walk's storage traffic. -/
+theorem arrWindowOf_sstore (σ : EVMState) (a v : UInt256) :
+    arrWindowOf (σ.sstore a v) = arrWindowOf σ := by
+  unfold arrWindowOf
+  rw [machine_state_sstore]
+
+/-- **A HIGH MEMORY WRITE CANNOT MOVE THE ACCESSOR KEY.**  In particular the
+allocator bumps, which write at `≥ 64`. -/
+theorem arrWindowOf_mstore_high {σ : EVMState} {a v : UInt256}
+    (ha : 63 ≤ a.val) (hnw : a.val + 32 ≤ 2 ^ 256) :
+    arrWindowOf (σ.mstore a v) = arrWindowOf σ :=
+  arrWindow_mstore_high ha hnw
+
 end Clear.ArrWindow
