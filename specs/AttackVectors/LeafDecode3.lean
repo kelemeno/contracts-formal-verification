@@ -77,4 +77,44 @@ theorem toAbs_inj_of_nextIndex_eq {L M : Leaf3}
   cases L; cases M
   simp_all
 
+/-! ## From a hashed leaf to set membership — piece (3), concrete
+
+`MerkleSpec` parameterizes over the node hash rather than defining one, since the model
+has no global pure keccak.  The leaf hash gets the same treatment: `lh` is any function
+from a three-field leaf to a word — whatever the concrete layer supplies (`hashLeafOut`
+composed with the memory layout) — and its INJECTIVITY is a hypothesis standing in for
+leaf-hash collision resistance, exactly as node-hash pair-injectivity does for `h`.
+
+The statements take the leaf's INDEX explicitly rather than quantifying over list
+membership.  That is both easier to consume and closer to reality: a Merkle proof names
+the index it opens, so a verifier always has it in hand. -/
+
+/-- **PIECE (3), CONCRETE.**  If the leaf hash is injective and the leaf at index `i`
+hashes to the same word as `L`, then `L`'s abstract projection is a member of the
+represented leaf set.
+
+This is the shape `AttackVectors.CrossContract`'s `habs` obligation needs: it converts
+"the tree hashes this leaf at index `i`" into "this leaf is in `leafSetOf`".  With
+`RootBinding.mem_of_rootOf_eq` (equal roots force equal leaf lists) it completes the
+route from a published root to abstract set membership. -/
+theorem mem_leafSetOf_of_hash_eq
+    {lh : Leaf3 → UInt256} (hinj : ∀ L M : Leaf3, lh L = lh M → L = M)
+    {σ : EVMState} {L : Leaf3} {i : ℕ}
+    (hi : i < (σ.sload 1).val)
+    (heq : lh (decodeLeaf3 σ (i : UInt256)) = lh L) :
+    L.toAbs ∈ leafSetOf σ := by
+  have hL : decodeLeaf3 σ (i : UInt256) = L := hinj _ _ heq
+  unfold leafSetOf
+  refine Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, ?_⟩
+  rw [← decodeLeaf3_toAbs σ (i : UInt256), hL]
+
+/-- The contrapositive, which a NON-inclusion argument consumes: if a leaf's projection
+is absent from the represented set, no in-range index hashes to it. -/
+theorem hash_ne_of_not_mem_leafSetOf
+    {lh : Leaf3 → UInt256} (hinj : ∀ L M : Leaf3, lh L = lh M → L = M)
+    {σ : EVMState} {L : Leaf3} (hnot : L.toAbs ∉ leafSetOf σ)
+    {i : ℕ} (hi : i < (σ.sload 1).val) :
+    lh (decodeLeaf3 σ (i : UInt256)) ≠ lh L :=
+  fun heq => hnot (mem_leafSetOf_of_hash_eq hinj hi heq)
+
 end AttackVectors.LeafDecode3
