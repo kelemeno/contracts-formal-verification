@@ -106,4 +106,112 @@ theorem foldRoot_eq_rootOf
   rw [h0]
   exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
 
+/-! ## THE HYPOTHESES, WEAKENED TO AN INVARIANT
+
+`foldRoot_eq_walkPure` quantifies `hpure` and `hsib` over ALL states.  Nothing can satisfy
+that: `specs/CachedHash.lean` shows the node hash must be read off a keccak cache (Clear's
+keccak is freshness-based, so no global pure function exists), and a cache-derived hash agrees
+with `accOut` only where the entry is present — never universally.  The same over-strength
+defeated the leaf hash until `LeafDecode3.root_binding_restricted` restricted injectivity to a
+predicate.
+
+The fix is the same shape, and here it is exact rather than merely sufficient: `foldRoot`
+evolves its state ONLY by `accOut` (see its definition in `imt_path_user.lean`), so the
+hypotheses are needed precisely on states reachable from the start by `accOut` steps.  Taking
+an arbitrary predicate closed under one step captures that with no reachability machinery.
+
+`KeccakDeterminism` already supplies the three closure facts an instantiation needs —
+`accOut_junk_window` (the junk window survives a step), `accOut_lookup_mono` (cache entries
+survive), `accOut_mload_high` (words above the scratch survive).  That is what makes a
+concrete `Good` constructible.
+-/
+
+/-- **THE FOLD IS THE WALK, ON AN INVARIANT.**  As `foldRoot_eq_walkPure`, but the pure-hash
+and fixed-sibling hypotheses are required only on states satisfying `Good`, which need only
+hold at the start and be closed under one `accOut` step.
+
+This is the form a cache-derived hash can instantiate. -/
+theorem foldRoot_eq_walkPure_of_inv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256) (Good : EVMState → Prop)
+    (hclosed : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → Good (accOut σ' a b).2)
+    (hpure : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → (accOut σ' a b).1 = h a b)
+    (hsib : ∀ (σ' : EVMState) (j : UInt256), Good σ' →
+      σ'.mload ((path + Fin.shiftLeft j 5) + 32) = sibs j.val) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState), Good σ →
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur := by
+  intro k
+  induction k with
+  | zero =>
+    intro i idx cur σ _ _
+    rfl
+  | succ k ih =>
+    intro i idx cur σ hg hb
+    have h1 : ((1 : UInt256)).val = 1 := by decide
+    have hsz : UInt256.size = 2 ^ 256 := by norm_num
+    have hisucc : (i + 1).val = i.val + 1 := by
+      rw [Fin.val_add, h1]
+      exact Nat.mod_eq_of_lt (by omega)
+    show (foldRoot _ path k (i + 1) (Fin.shiftRight idx 1) _).1 = _
+    have hbnd : (i + 1).val + k < 2 ^ 256 := by rw [hisucc]; omega
+    -- the invariant survives this level's hash step, whichever orientation it takes
+    have hg2 : Good (if Fin.land idx 1 = 0
+        then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+        else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).2 := by
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar]; exact hclosed σ _ _ hg
+      · rw [if_neg hpar]; exact hclosed σ _ _ hg
+    refine Eq.trans (ih (i + 1) (Fin.shiftRight idx 1) _ _ hg2 hbnd) ?_
+    simp only [walkPure_succ, hisucc, shiftRight_one_val]
+    congr 1
+    by_cases hpar : Fin.land idx 1 = 0
+    · rw [if_pos hpar, hsib σ i hg, hpure _ _ _ hg]
+      have : idx.val % 2 = 0 := (land_one_eq_zero_iff idx).mp hpar
+      rw [if_neg (by omega)]
+    · rw [if_neg hpar, hsib σ i hg, hpure _ _ _ hg]
+      have : idx.val % 2 = 1 := (land_one_ne_zero_iff idx).mp hpar
+      rw [if_pos this]
+
+/-- The unrestricted `foldRoot_eq_walkPure` is the `Good := True` instance — recorded so the
+weakening is visibly a generalization, not a parallel development. -/
+theorem foldRoot_eq_walkPure_of_of_inv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256)
+    (hpure : ∀ (σ' : EVMState) (a b : UInt256), (accOut σ' a b).1 = h a b)
+    (hsib : ∀ (σ' : EVMState) (j : UInt256),
+      σ'.mload ((path + Fin.shiftLeft j 5) + 32) = sibs j.val) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState),
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur :=
+  fun k i idx cur σ hb =>
+    foldRoot_eq_walkPure_of_inv h path sibs (fun _ => True)
+      (fun _ _ _ _ => trivial) (fun σ' a b _ => hpure σ' a b)
+      (fun σ' j _ => hsib σ' j) k i idx cur σ trivial hb
+
+/-- **THE CONTRACT'S FOLD IS THE UPDATED TREE'S ROOT, ON AN INVARIANT.**  The composite of
+`foldRoot_eq_walkPure_of_inv` with M-A, i.e. `foldRoot_eq_rootOf` with its two state-indexed
+hypotheses restricted to a one-step-closed predicate.
+
+This is the version root binding should be read through: its hash hypothesis is satisfiable
+by a cache-derived hash, whereas `foldRoot_eq_rootOf`'s is not. -/
+theorem foldRoot_eq_rootOf_of_inv
+    (h : Hash) (z0 : UInt256) (path : UInt256) (sibs : ℕ → UInt256) (Good : EVMState → Prop)
+    (hclosed : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → Good (accOut σ' a b).2)
+    (hpure : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → (accOut σ' a b).1 = h a b)
+    (hsib : ∀ (σ' : EVMState) (j : UInt256), Good σ' →
+      σ'.mload ((path + Fin.shiftLeft j 5) + 32) = sibs j.val)
+    (leaves : List UInt256) (idx : UInt256) (cur : UInt256) (height : ℕ)
+    (σ : EVMState) (hg : Good σ)
+    (hb : height < 2 ^ 256)
+    (hidx : idx.val < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
+    (hsibs : ∀ l, l < height →
+      sibs l = (levels h z0 (leaves.set idx.val cur) l).getD (sibIdx (idx.val / 2 ^ l))
+        (zeros h z0 l)) :
+    (foldRoot σ path height 0 idx cur).1
+      = rootOf h z0 (leaves.set idx.val cur) height := by
+  have h0 : ((0 : UInt256)).val = 0 := by decide
+  rw [foldRoot_eq_walkPure_of_inv h path sibs Good hclosed hpure hsib height 0 idx cur σ hg
+      (by rw [h0]; omega)]
+  rw [h0]
+  exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
+
 end Clear.FoldWalkBridge
