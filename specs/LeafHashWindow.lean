@@ -549,4 +549,51 @@ theorem leafHashOf_shift {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
   unfold leafHashOf
   rw [leafInterval_shift hp hq htail, hkm]
 
+/-! ## THE KECCAK STEP AND THE CACHE-DERIVED HASH AGREE
+
+`leafHashOut` is the keccak STEP — what the contract executes.  `leafHashOf` reads the hash off a
+reference state's CACHE — what the abstract layer reasons with, and what `LeafDecode3.lh3` is.
+Root binding's premises are stated with the latter, so a run's own hash values have to be recognised
+as it.
+
+They agree exactly when the preimage is already cached, which is the situation after the state has
+hashed that leaf.  Nothing here is a new assumption about keccak: the step and the cache read are
+the same value on a cache hit, by the model's own definition of `keccak256`. -/
+
+/-- **THE STEP IS THE CACHE READ, ON A HIT.**  If the state already caches the leaf's preimage, the
+keccak step returns exactly the cache-derived hash.
+
+The preimage of `leafHashOut σ p v ni nv` IS `leafInterval σ p v ni nv` by definition, and the
+scratch writes do not touch the cache, so this is immediate — which is the point: recognising a run's
+hash as `leafHashOf` costs only cache presence. -/
+theorem leafHashOut_eq_leafHashOf_of_cached {σ : EVMState} {p v ni nv r : UInt256}
+    (hc : Finmap.lookup (leafInterval σ p v ni nv) σ.keccak_map = some r) :
+    (leafHashOut σ p v ni nv).1 = leafHashOf σ p v ni nv := by
+  have hmap : (leafWrites σ p v ni nv).keccak_map = σ.keccak_map := rfl
+  have hstep : (leafHashOut σ p v ni nv).1 = r := by
+    unfold leafHashOut
+    rw [keccakOut_of_cached (by rw [hmap]; exact hc)]
+  rw [hstep, leafHashOf_eq_of_cached hc]
+
+/-- Cross-state form: the step in `σ` is the reference state `SF`'s cache-derived hash, given the two
+agree on the 31-byte tail and `σ` carries `SF`'s entry.
+
+This is the form a verifier needs — it recomputes in its own state but must land on the builder's
+hash. -/
+theorem leafHashOut_eq_leafHashOf_frame {SF σ : EVMState} {p v ni nv r : UInt256}
+    (hnw : p.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ i : UInt256, p.val + 128 ≤ i.val → i.val < p.val + 159 →
+      Finmap.lookup i SF.machine_state.memory = Finmap.lookup i σ.machine_state.memory)
+    (hcSF : Finmap.lookup (leafInterval SF p v ni nv) SF.keccak_map = some r)
+    (hcσ : Finmap.lookup (leafInterval SF p v ni nv) σ.keccak_map = some r) :
+    (leafHashOut σ p v ni nv).1 = leafHashOf SF p v ni nv := by
+  have hI : leafInterval σ p v ni nv = leafInterval SF p v ni nv :=
+    (leafInterval_eq_of_tail_agree hnw htail).symm
+  have hmap : (leafWrites σ p v ni nv).keccak_map = σ.keccak_map := rfl
+  have hstep : (leafHashOut σ p v ni nv).1 = r := by
+    unfold leafHashOut
+    rw [keccakOut_of_cached (by rw [hmap]; rw [show mkInterval (leafWrites σ p v ni nv).machine_state
+        (p + 32) 96 = leafInterval σ p v ni nv from rfl, hI]; exact hcσ)]
+  rw [hstep, leafHashOf_eq_of_cached hcSF]
+
 end Clear.LeafHashWindow

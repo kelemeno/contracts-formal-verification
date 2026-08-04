@@ -131,13 +131,10 @@ theorem committed_roots_agree
 
 Two steps, neither a rephrasing:
 
-1. **The committed leaf's hash must be recognised as `lh3`.**  `root_binding_fully_cached` takes
-   `claimed.getD i 0 = lh3 SF p L`, where `lh3` reads the hash off `SF`'s CACHE.
-   `committed_leafhash_modelled` gives the committed hash as `leafHashOut`, which is the keccak
-   STEP.  The two agree exactly when the preimage is already cached in `SF`
-   (`LeafHashWindow.leafHashOf_eq_of_cached` supplies that direction), so this step is a
-   cache-presence obligation on the witness — provable for a builder's end state, but it must be
-   stated and threaded, not assumed.
+1. ~~**The committed leaf's hash must be recognised as `lh3`.**~~  CLOSED below by
+   `committed_leafhash_is_cached`: the keccak step and the cache read coincide on a cache hit
+   (`LeafHashWindow.leafHashOut_eq_leafHashOf_of_cached`), so this costs only a cache-presence fact
+   about the witness — no new assumption about keccak.
 
 2. **The tree's own leaf list must be tied to `leafSetOf`.**  Root binding concludes membership in
    `leafSetOf σ` from `hleaves`, the pointwise claim that `leaves` is the tree's leaf-hash list.
@@ -148,5 +145,42 @@ Two steps, neither a rephrasing:
 Step 2 is the substantive one, and it is the same obligation the abstract chain has always carried
 under the name `habs`.  What has changed is that everything AROUND it is now concrete.
 -/
+
+/-! ## STEP 1, CLOSED
+
+`LeafHashWindow.leafHashOut_eq_leafHashOf_of_cached` shows the keccak step and the cache-derived hash
+coincide on a cache hit.  Composing it with the deployed bridge recognises a COMMITTED leaf's hash as
+the cache-derived one — which is exactly `LeafDecode3.lh3` at the leaf's three fields, definitionally.
+
+So root binding's `hclaim` premise is now obtainable from a witness plus one cache-presence fact, and
+step 1 of the two named below is closed. -/
+
+/-- **THE COMMITTED LEAF'S HASH IS THE CACHE-DERIVED HASH.**  For a committed leaf whose preimage the
+hashing state already holds — the situation after that state hashed it — the value the contract
+computed is `leafHashOf` at the leaf's three fields.
+
+`LeafDecode3.lh3 σh P ⟨v, ni, nv⟩` unfolds to exactly the right-hand side, so this is the `hclaim`
+premise of `RootBindingFull.root_binding_fully_cached`, with no assumption beyond cache presence. -/
+theorem committed_leafhash_is_cached {σh : EVMState} {leaf : UInt256} {r : UInt256}
+    (hpb : (σh.mload 64).val + 128 ≤ 18446744073709551615)
+    (hplow : 96 ≤ (σh.mload 64).val)
+    (hc : Finmap.lookup
+      (leafInterval σh (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+        (σh.mload (leaf + 64))) σh.keccak_map = some r) :
+    (hashLeafOut σh leaf).1
+      = leafHashOf σh (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+          (σh.mload (leaf + 64)) := by
+  rw [committed_leafhash_modelled hpb hplow]
+  exact leafHashOut_eq_leafHashOf_of_cached hc
+
+/-- The same, delivering the cached VALUE directly — the form that instantiates a `getD` premise. -/
+theorem committed_leafhash_eq_cached_value {σh : EVMState} {leaf : UInt256} {r : UInt256}
+    (hpb : (σh.mload 64).val + 128 ≤ 18446744073709551615)
+    (hplow : 96 ≤ (σh.mload 64).val)
+    (hc : Finmap.lookup
+      (leafInterval σh (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+        (σh.mload (leaf + 64))) σh.keccak_map = some r) :
+    (hashLeafOut σh leaf).1 = r := by
+  rw [committed_leafhash_is_cached hpb hplow hc, leafHashOf_eq_of_cached hc]
 
 end AttackVectors.CommittedRoot
