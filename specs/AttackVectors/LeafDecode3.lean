@@ -1,5 +1,6 @@
 import specs.AttackVectors.ConcreteBridge
 import specs.AttackVectors.RootBinding
+import specs.LeafHashWindow
 
 /-
   THE THREE-FIELD LEAF DECODE — first step of root-binding piece (3).
@@ -165,5 +166,141 @@ theorem root_binding
     RootBinding.getD_of_rootOf_eq h z0 hnodeinj claimed leaves height hlen hcap hroot i 0
   refine mem_leafSetOf_of_hash_eq hinj hi ?_
   rw [← hleaves i hi, ← hsame, hclaim]
+
+/-! ## RESTRICTED INJECTIVITY — what a cache-derived hash can actually supply
+
+`root_binding` asks for `hinj` over ALL of `Leaf3`.  The contract's leaf hash cannot
+satisfy that as modelled: `LeafHashWindow.leafHashOf` reads keccak off a state's cache, so
+every UNCACHED leaf maps to `0` and injectivity fails vacuously on the tail.  That is a
+property of the freshness-based keccak model, not a defect in the tree.
+
+The fix costs nothing, because `hinj` is used at exactly TWO leaves — the decoded leaf at
+the opened index and the claimed one.  So injectivity restricted to any predicate `P`
+holding at those two is enough, and a cache-presence predicate is such a `P`.  The
+unrestricted theorems above are the `P := fun _ => True` instances.
+-/
+
+/-- `mem_leafSetOf_of_hash_eq` with injectivity restricted to a predicate `P`. -/
+theorem mem_leafSetOf_of_hash_eq_restricted
+    {lh : Leaf3 → UInt256} {P : Leaf3 → Prop}
+    (hinj : ∀ L M : Leaf3, P L → P M → lh L = lh M → L = M)
+    {σ : EVMState} {L : Leaf3} {i : ℕ}
+    (hi : i < (σ.sload 1).val)
+    (hPi : P (decodeLeaf3 σ (i : UInt256))) (hPL : P L)
+    (heq : lh (decodeLeaf3 σ (i : UInt256)) = lh L) :
+    L.toAbs ∈ leafSetOf σ := by
+  have hL : decodeLeaf3 σ (i : UInt256) = L := hinj _ _ hPi hPL heq
+  unfold leafSetOf
+  refine Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, ?_⟩
+  rw [← decodeLeaf3_toAbs σ (i : UInt256), hL]
+
+/-- **ROOT BINDING, RESTRICTED.**  As `root_binding`, but the leaf hash need only be
+injective on leaves satisfying `P`, and `P` need only hold at the two leaves the argument
+touches: the tree's leaf at the opened index, and the claimed one.
+
+This is the form the CONTRACT's hash can instantiate — see `root_binding_cached` below. -/
+theorem root_binding_restricted
+    {lh : Leaf3 → UInt256} {P : Leaf3 → Prop}
+    (hinj : ∀ L M : Leaf3, P L → P M → lh L = lh M → L = M)
+    {h : MerkleSpec.Hash} {z0 : UInt256}
+    (hnodeinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {σ : EVMState} {height : ℕ}
+    {leaves claimed : List UInt256}
+    (hleaves : ∀ j : ℕ, j < (σ.sload 1).val →
+      leaves.getD j 0 = lh (decodeLeaf3 σ (j : UInt256)))
+    (hlen : claimed.length = leaves.length)
+    (hcap : claimed.length ≤ 2 ^ height)
+    (hroot : MerkleSpec.rootOf h z0 claimed height
+      = MerkleSpec.rootOf h z0 leaves height)
+    {L : Leaf3} {i : ℕ} (hi : i < (σ.sload 1).val)
+    (hPi : P (decodeLeaf3 σ (i : UInt256))) (hPL : P L)
+    (hclaim : claimed.getD i 0 = lh L) :
+    L.toAbs ∈ leafSetOf σ := by
+  have hsame : claimed.getD i 0 = leaves.getD i 0 :=
+    RootBinding.getD_of_rootOf_eq h z0 hnodeinj claimed leaves height hlen hcap hroot i 0
+  refine mem_leafSetOf_of_hash_eq_restricted hinj hi hPi hPL ?_
+  rw [← hleaves i hi, ← hsame, hclaim]
+
+/-- The unrestricted `root_binding` is the `P := True` instance — recorded so the
+generalization is visibly a generalization, not a parallel development. -/
+theorem root_binding_of_restricted
+    {lh : Leaf3 → UInt256} (hinj : ∀ L M : Leaf3, lh L = lh M → L = M)
+    {h : MerkleSpec.Hash} {z0 : UInt256}
+    (hnodeinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {σ : EVMState} {height : ℕ}
+    {leaves claimed : List UInt256}
+    (hleaves : ∀ j : ℕ, j < (σ.sload 1).val →
+      leaves.getD j 0 = lh (decodeLeaf3 σ (j : UInt256)))
+    (hlen : claimed.length = leaves.length)
+    (hcap : claimed.length ≤ 2 ^ height)
+    (hroot : MerkleSpec.rootOf h z0 claimed height
+      = MerkleSpec.rootOf h z0 leaves height)
+    {L : Leaf3} {i : ℕ} (hi : i < (σ.sload 1).val)
+    (hclaim : claimed.getD i 0 = lh L) :
+    L.toAbs ∈ leafSetOf σ :=
+  root_binding_restricted (P := fun _ => True) (fun L M _ _ he => hinj L M he)
+    hnodeinj hleaves hlen hcap hroot hi trivial trivial hclaim
+
+/-! ## THE CONTRACT'S LEAF HASH, PLUGGED IN
+
+`lh3` is `LeafHashWindow.leafHashOf` viewed as a function on `Leaf3`, i.e. the hash
+`fun_hashLeaf` computes when the leaf is laid out at pointer `p` in the reference state
+`SF`.  `Cached` is the cache-presence predicate.  `lh3_inj_on_cached` is R7's `hinj`, and
+`root_binding_cached` is root binding with NO abstract leaf hash left in it. -/
+
+/-- The contract's leaf hash, as a function on `Leaf3`. -/
+def lh3 (SF : EVMState) (p : UInt256) (L : Leaf3) : UInt256 :=
+  Clear.LeafHashWindow.leafHashOf SF p L.value L.nextIndex L.nextValue
+
+/-- The leaf's hash preimage is present in the reference state's keccak cache. -/
+def Cached (SF : EVMState) (p : UInt256) (L : Leaf3) : Prop :=
+  ∃ r : UInt256, Finmap.lookup
+    (Clear.LeafHashWindow.leafInterval SF p L.value L.nextIndex L.nextValue)
+    SF.keccak_map = some r
+
+/-- **R7's `hinj`, for the CONTRACT's hash.**  On cached leaves, the deployed leaf hash is
+injective — given keccak cache injectivity, the model-level form of collision resistance.
+No assumption about an abstract `lh` remains. -/
+theorem lh3_inj_on_cached
+    {SF : EVMState} {p : UInt256} (hnw : p.val + 160 ≤ 2 ^ 256)
+    (hcinj : ∀ (I J : List UInt256) (r : UInt256),
+      Finmap.lookup I SF.keccak_map = some r →
+        Finmap.lookup J SF.keccak_map = some r → I = J) :
+    ∀ L M : Leaf3, Cached SF p L → Cached SF p M → lh3 SF p L = lh3 SF p M → L = M := by
+  intro L M hL hM heq
+  obtain ⟨hv, hni, hnv⟩ :=
+    Clear.LeafHashWindow.leafHashOf_inj_of_eq hnw hcinj hL hM heq
+  cases L; cases M
+  simp_all
+
+/-- **ROOT BINDING FOR THE DEPLOYED LEAF HASH.**  A leaf placed at index `i` by any list
+carrying the tree's published root really is a leaf of the represented set — with the leaf
+hash being the one `fun_hashLeaf` computes, not an abstract stand-in.
+
+The remaining cryptographic hypotheses are exactly two, both stated at the model's own
+granularity: node-hash pair-injectivity (`hnodeinj`) and keccak cache injectivity
+(`hcinj`).  The cache-presence side conditions are discharged in a real run by the fact
+that the tree HASHED both leaves — that is what put them in the cache. -/
+theorem root_binding_cached
+    {SF : EVMState} {p : UInt256} (hnw : p.val + 160 ≤ 2 ^ 256)
+    (hcinj : ∀ (I J : List UInt256) (r : UInt256),
+      Finmap.lookup I SF.keccak_map = some r →
+        Finmap.lookup J SF.keccak_map = some r → I = J)
+    {h : MerkleSpec.Hash} {z0 : UInt256}
+    (hnodeinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {σ : EVMState} {height : ℕ}
+    {leaves claimed : List UInt256}
+    (hleaves : ∀ j : ℕ, j < (σ.sload 1).val →
+      leaves.getD j 0 = lh3 SF p (decodeLeaf3 σ (j : UInt256)))
+    (hlen : claimed.length = leaves.length)
+    (hcap : claimed.length ≤ 2 ^ height)
+    (hroot : MerkleSpec.rootOf h z0 claimed height
+      = MerkleSpec.rootOf h z0 leaves height)
+    {L : Leaf3} {i : ℕ} (hi : i < (σ.sload 1).val)
+    (hCi : Cached SF p (decodeLeaf3 σ (i : UInt256))) (hCL : Cached SF p L)
+    (hclaim : claimed.getD i 0 = lh3 SF p L) :
+    L.toAbs ∈ leafSetOf σ :=
+  root_binding_restricted (P := Cached SF p) (lh3_inj_on_cached hnw hcinj)
+    hnodeinj hleaves hlen hcap hroot hi hCi hCL hclaim
 
 end AttackVectors.LeafDecode3
