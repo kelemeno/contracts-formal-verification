@@ -41,9 +41,18 @@ import specs.MerkleSpec
       `single_sibling_substitution` — changing EXACTLY ONE sibling level (all
       other levels held fixed) also cannot preserve the walk result.
 
-      *** HONEST LIMITATION ***  We do NOT claim, and it is NOT provable from
-      `hinj` alone, that an arbitrary change to the sibling stream cannot
-      preserve the root.  With two or more sibling levels free, an adversary
+      *** SCOPE, CORRECTED ***  The limitation below is real but narrower than
+      it reads, and `specs/MerkleProofSound.lean` now proves the missing part.
+      Against ANOTHER WALK — both sides free — `hinj` alone indeed does not
+      forbid a compensating multi-level sibling change. Against a TREE ROOT it
+      does: peeling the top combine forces the accumulator AND the sibling to be
+      the tree's, level by level, so an accepted walk must have used the honest
+      siblings (`walk_pins_leaf_and_sibs`). The claim below should be read as
+      being about walk-vs-walk only.
+
+      *** HONEST LIMITATION (walk-vs-walk) ***  We do NOT claim, and it is NOT
+      provable from `hinj` alone, that an arbitrary change to the sibling stream
+      cannot preserve another WALK's value.  With two or more sibling levels free, an adversary
       could in principle pick a compensating pair of sibling values whose
       combines happen to coincide: pair-injectivity constrains each `h`-node
       individually, but it says nothing that forbids a different (leaf,
