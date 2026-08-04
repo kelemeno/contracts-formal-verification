@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 28 of 29 depend only on Lean's standard base
+  RESULT as of this commit — 29 of 30 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
@@ -86,6 +86,7 @@ import specs.AtomicFlowManager.Layout
 #print axioms Clear.CachedHash.accOut_eq_hashOf
 #print axioms Clear.LeafHashWindow.leafInterval_inj
 #print axioms Clear.LeafHashWindow.leafHashOf_inj
+#print axioms Clear.LeafHashWindow.leafInterval_eq_of_tail_agree
 #print axioms AttackVectors.LeafDecode3.lh3_inj_on_cached
 #print axioms AttackVectors.LeafDecode3.root_binding_cached
 #print axioms AttackVectors.RootForgery.no_false_inclusion

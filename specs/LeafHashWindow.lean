@@ -242,4 +242,117 @@ theorem leafHashOf_inj_of_eq
   subst heq
   exact leafHashOf_inj hnw hcinj hr₁ hr₂
 
+/-! ## THE LEAF HASH DEPENDS ONLY ON THE FIELDS AND A 31-BYTE TAIL
+
+`lh3 SF p` fixes a reference state and a pointer, so nothing so far rules out the leaf hash
+also depending on unrelated memory — which would make it a per-call artifact rather than a
+hash of the leaf.  This section bounds that dependence exactly.
+
+`mkInterval m (p+32) 96` reads a word at EVERY byte offset in `[p+32, p+128)`, and each read
+covers 32 bytes, so the preimage depends on bytes `[p+32, p+159)`.  The three field writes
+determine `[p+32, p+128)`; the remaining 31 bytes `[p+128, p+159)` leak in from pre-existing
+memory.  So the honest statement is TAIL-CONDITIONED, and the unconditional "the leaf hash
+depends only on the leaf" is FALSE in this model — the same shape as the `[64, 95)` junk
+window for the mapping accessor (`KeccakDeterminism.accInterval_eq`).
+
+31 bytes is the sharp bound: `mkInterval` stops at offset 95, whose word read ends at
+`p+159`. -/
+
+private lemma val_coe_add' (k : ℕ) (a : UInt256) (hk : k < 32) (ha : a.val + 32 ≤ 2 ^ 256) :
+    (((↑k : UInt256) + a)).val = k + a.val := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hkv : ((↑k : UInt256)).val = k := Fin.val_cast_of_lt (by omega)
+  have h1 : (((↑k : UInt256) + a)).val
+      = (((↑k : UInt256)).val + a.val) % UInt256.size := rfl
+  rw [h1, hkv, Nat.mod_eq_of_lt (by omega)]
+
+/-- **Inside a written window the byte is a pure function of the value and the offset** —
+independent of the memory written to.  This is what makes the field bytes agree across two
+unrelated states. -/
+private lemma byte_in_window {m₁ m₂ : MachineState} {a v i : UInt256}
+    (ha : a.val + 32 ≤ 2 ^ 256) (hlo : a.val ≤ i.val) (hhi : i.val < a.val + 32) :
+    Finmap.lookup i (m₁.updateMemory a v).memory
+      = Finmap.lookup i (m₂.updateMemory a v).memory := by
+  have hk : i.val - a.val < 32 := by omega
+  have hik : i = ((i.val - a.val : ℕ) : UInt256) + a := by
+    apply Fin.ext
+    rw [val_coe_add' _ a hk ha]
+    omega
+  rw [hik, lookup_updateMemory_at m₁ a v _ hk (window_nodup a ha),
+      lookup_updateMemory_at m₂ a v _ hk (window_nodup a ha)]
+
+/-- Outside a written window the byte passes through, stated on `val` bounds. -/
+private lemma byte_outside {m : MachineState} {a v i : UInt256}
+    (ha : a.val + 32 ≤ 2 ^ 256) (hd : i.val < a.val ∨ a.val + 32 ≤ i.val) :
+    Finmap.lookup i (m.updateMemory a v).memory = Finmap.lookup i m.memory := by
+  apply lookup_updateMemory_outside
+  intro k hk he
+  have hv := congrArg Fin.val he
+  rw [val_coe_add' k a hk ha] at hv
+  omega
+
+/-- **THE LEAF HASH'S EXACT DEPENDENCE.**  Two states that agree on the 31-byte tail
+`[p+128, p+159)` produce the same leaf-hash preimage for the same three fields.
+
+Everything else in memory is irrelevant: the field bytes are pure functions of the fields,
+and no other byte enters the preimage.  So `leafHashOf SF p` really is a hash of the LEAF,
+up to the tail — which is the sharp truth in a model where `mkInterval` reads unaligned
+words past the end of the region. -/
+theorem leafInterval_eq_of_tail_agree {σ₁ σ₂ : EVMState} {p v ni nv : UInt256}
+    (hnw : p.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ i : UInt256, p.val + 128 ≤ i.val → i.val < p.val + 159 →
+      Finmap.lookup i σ₁.machine_state.memory = Finmap.lookup i σ₂.machine_state.memory) :
+    leafInterval σ₁ p v ni nv = leafInterval σ₂ p v ni nv := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hv96 : ((96 : UInt256)).val = 96 := by decide
+  have h32 : (p + 32).val = p.val + 32 := val_add_32 (by omega)
+  have h64 : (p + 64).val = p.val + 64 := val_add_64 (by omega)
+  have h96 : (p + 96).val = p.val + 96 := val_add_96 (by omega)
+  -- non-wrapping of each written window, in ℕ terms
+  have wp : p.val + 32 ≤ 2 ^ 256 := by omega
+  have w32 : (p + 32).val + 32 ≤ 2 ^ 256 := by rw [h32]; omega
+  have w64 : (p + 64).val + 32 ≤ 2 ^ 256 := by rw [h64]; omega
+  have w96 : (p + 96).val + 32 ≤ 2 ^ 256 := by rw [h96]; omega
+  unfold leafInterval
+  refine mkInterval_eq_of_byte_agree (by rw [h32, hv96]; omega) ?_
+  intro i hlo hhi
+  rw [h32] at hlo
+  rw [h32, hv96] at hhi
+  rw [ms_leafWrites, ms_leafWrites]
+  -- the ABI length word at [p, p+32) lies below the hashed region
+  rw [byte_outside (a := p) wp (by right; omega),
+      byte_outside (a := p) wp (by right; omega)]
+  by_cases hc3 : p.val + 96 ≤ i.val
+  · by_cases hin3 : i.val < p.val + 128
+    · -- inside nextValue's window
+      exact byte_in_window w96 (by rw [h96]; omega) (by rw [h96]; omega)
+    · -- the 31-byte tail: peel all three field writes, then use the hypothesis
+      rw [byte_outside (a := p + 96) w96 (by rw [h96]; right; omega),
+          byte_outside (a := p + 96) w96 (by rw [h96]; right; omega),
+          byte_outside (a := p + 64) w64 (by rw [h64]; right; omega),
+          byte_outside (a := p + 64) w64 (by rw [h64]; right; omega),
+          byte_outside (a := p + 32) w32 (by rw [h32]; right; omega),
+          byte_outside (a := p + 32) w32 (by rw [h32]; right; omega)]
+      exact htail i (by omega) (by omega)
+  · rw [byte_outside (a := p + 96) w96 (by rw [h96]; left; omega),
+        byte_outside (a := p + 96) w96 (by rw [h96]; left; omega)]
+    by_cases hc2 : p.val + 64 ≤ i.val
+    · -- inside nextIndex's window
+      exact byte_in_window w64 (by rw [h64]; omega) (by rw [h64]; omega)
+    · rw [byte_outside (a := p + 64) w64 (by rw [h64]; left; omega),
+          byte_outside (a := p + 64) w64 (by rw [h64]; left; omega)]
+      -- inside value's window
+      exact byte_in_window w32 (by rw [h32]; omega) (by rw [h32]; omega)
+
+/-- Value form: under tail agreement the two states' leaf hashes agree, whenever one of
+them has the preimage cached. -/
+theorem leafHashOf_eq_of_tail_agree {σ₁ σ₂ : EVMState} {p v ni nv : UInt256}
+    (hnw : p.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ i : UInt256, p.val + 128 ≤ i.val → i.val < p.val + 159 →
+      Finmap.lookup i σ₁.machine_state.memory = Finmap.lookup i σ₂.machine_state.memory)
+    (hkm : σ₁.keccak_map = σ₂.keccak_map) :
+    leafHashOf σ₁ p v ni nv = leafHashOf σ₂ p v ni nv := by
+  unfold leafHashOf
+  rw [leafInterval_eq_of_tail_agree hnw htail, hkm]
+
 end Clear.LeafHashWindow
