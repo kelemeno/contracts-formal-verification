@@ -355,4 +355,198 @@ theorem leafHashOf_eq_of_tail_agree {σ₁ σ₂ : EVMState} {p v ni nv : UInt25
   unfold leafHashOf
   rw [leafInterval_eq_of_tail_agree hnw htail, hkm]
 
+/-! ## POINTER-INDEPENDENCE
+
+The previous section bounded the leaf hash's dependence on MEMORY.  Its dependence on the
+POINTER `p` is a separate question, and a live one: `finalize_allocation` advances the
+free-memory pointer, so successive `hashLeaf` calls in one run write at DIFFERENT `p`.  If
+the preimage depended on `p`, the same leaf would hash differently at different times and
+`root_binding_cached`'s `hleaves` — which fixes one `(SF, p)` — could never be met.
+
+It does not.  The preimage is the list of words READ at `p`-relative offsets, so shifting
+the construction by a constant shifts every read address in step and leaves the list alone,
+provided the two 31-byte tails agree.
+
+This does not go through `mkInterval_eq_of_byte_agree`, which compares one address range in
+two memories; here the ranges differ.  It goes through `mkInterval` directly: entry `j` of
+each list is the word at `p+32+j` resp. `q+32+j`, and those words agree byte-for-byte by the
+same in-window / tail case split, now indexed by an offset from the base pointer. -/
+
+/-- Base-relative address value, for offsets inside the construction. -/
+private lemma val_base_add {r : UInt256} {t : ℕ}
+    (hr : r.val + 160 ≤ 2 ^ 256) (ht : t < 160) :
+    (r + (t : UInt256)).val = r.val + t := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have htv : ((t : UInt256)).val = t := Fin.val_cast_of_lt (by omega)
+  have h1 : (r + (t : UInt256)).val = (r.val + ((t : UInt256)).val) % UInt256.size := rfl
+  rw [h1, htv, Nat.mod_eq_of_lt (by omega)]
+
+/-- `leafWrites` with every write address in base-relative `ℕ`-offset form. -/
+private lemma ms_leafWrites' (σ : EVMState) (r v ni nv : UInt256) :
+    (leafWrites σ r v ni nv).machine_state
+      = ((((σ.machine_state.updateMemory (r + ((32 : ℕ) : UInt256)) v).updateMemory
+            (r + ((64 : ℕ) : UInt256)) ni).updateMemory
+            (r + ((96 : ℕ) : UInt256)) nv).updateMemory
+            (r + ((0 : ℕ) : UInt256)) 96) := by
+  have e0 : ((0 : ℕ) : UInt256) = 0 := by decide
+  have e32 : ((32 : ℕ) : UInt256) = (32 : UInt256) := by decide
+  have e64 : ((64 : ℕ) : UInt256) = (64 : UInt256) := by decide
+  have e96 : ((96 : ℕ) : UInt256) = (96 : UInt256) := by decide
+  rw [e0, e32, e64, e96, add_zero, ms_leafWrites]
+
+/-- The byte at `r + t` INSIDE the window written at `r + a` is a pure function of the value
+and `t - a` — independent of the base pointer and of the memory written to. -/
+private lemma byte_write_at {m : MachineState} {r : UInt256} {a t : ℕ} {v : UInt256}
+    (hr : r.val + 160 ≤ 2 ^ 256) (ha : a + 32 ≤ 160) (hlo : a ≤ t) (hhi : t < a + 32) :
+    Finmap.lookup (r + (t : UInt256))
+        (m.updateMemory (r + (a : UInt256)) v).memory
+      = (Clear.UInt256.toBytes! v).get? (t - a) := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hav : (r + (a : UInt256)).val = r.val + a := val_base_add hr (by omega)
+  have hk : t - a < 32 := by omega
+  have haddr : r + (t : UInt256) = ((t - a : ℕ) : UInt256) + (r + (a : UInt256)) := by
+    apply Fin.ext
+    rw [val_coe_add' _ _ hk (by omega), hav, val_base_add hr (by omega)]
+    omega
+  rw [haddr, lookup_updateMemory_at m _ v _ hk (window_nodup _ (by omega))]
+
+/-- The byte at `r + t` OUTSIDE the window written at `r + a` passes through. -/
+private lemma byte_pass_at {m : MachineState} {r : UInt256} {a t : ℕ} {v : UInt256}
+    (hr : r.val + 160 ≤ 2 ^ 256) (ha : a + 32 ≤ 160) (ht : t < 160)
+    (hd : t < a ∨ a + 32 ≤ t) :
+    Finmap.lookup (r + (t : UInt256))
+        (m.updateMemory (r + (a : UInt256)) v).memory
+      = Finmap.lookup (r + (t : UInt256)) m.memory := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hav : (r + (a : UInt256)).val = r.val + a := val_base_add hr (by omega)
+  apply lookup_updateMemory_outside
+  intro k hk he
+  have hv := congrArg Fin.val he
+  rw [val_coe_add' k _ hk (by omega), hav, val_base_add hr ht] at hv
+  omega
+
+/-- **BYTE-LEVEL POINTER SHIFT.**  At every offset the hashed region touches, the byte after
+writing the fields at `p` equals the byte after writing the SAME fields at `q` — given the
+two 31-byte tails agree. -/
+private lemma byte_shift_at {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
+    (hp : p.val + 160 ≤ 2 ^ 256) (hq : q.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ d : ℕ, 128 ≤ d → d < 159 →
+      Finmap.lookup (p + (d : UInt256)) σ₁.machine_state.memory
+        = Finmap.lookup (q + (d : UInt256)) σ₂.machine_state.memory)
+    (t : ℕ) (hlo : 32 ≤ t) (hhi : t < 159) :
+    Finmap.lookup (p + (t : UInt256)) (leafWrites σ₁ p v ni nv).machine_state.memory
+      = Finmap.lookup (q + (t : UInt256)) (leafWrites σ₂ q v ni nv).machine_state.memory := by
+  rw [ms_leafWrites', ms_leafWrites']
+  -- the ABI length word sits at offset 0, below everything the region reads
+  rw [byte_pass_at (a := 0) hp (by omega) (by omega) (by right; omega),
+      byte_pass_at (a := 0) hq (by omega) (by omega) (by right; omega)]
+  by_cases h3 : 96 ≤ t
+  · by_cases h3' : t < 128
+    · rw [byte_write_at (a := 96) hp (by omega) (by omega) (by omega),
+          byte_write_at (a := 96) hq (by omega) (by omega) (by omega)]
+    · rw [byte_pass_at (a := 96) hp (by omega) (by omega) (by right; omega),
+          byte_pass_at (a := 96) hq (by omega) (by omega) (by right; omega),
+          byte_pass_at (a := 64) hp (by omega) (by omega) (by right; omega),
+          byte_pass_at (a := 64) hq (by omega) (by omega) (by right; omega),
+          byte_pass_at (a := 32) hp (by omega) (by omega) (by right; omega),
+          byte_pass_at (a := 32) hq (by omega) (by omega) (by right; omega)]
+      exact htail t (by omega) hhi
+  · rw [byte_pass_at (a := 96) hp (by omega) (by omega) (by left; omega),
+        byte_pass_at (a := 96) hq (by omega) (by omega) (by left; omega)]
+    by_cases h2 : 64 ≤ t
+    · rw [byte_write_at (a := 64) hp (by omega) (by omega) (by omega),
+          byte_write_at (a := 64) hq (by omega) (by omega) (by omega)]
+    · rw [byte_pass_at (a := 64) hp (by omega) (by omega) (by left; omega),
+          byte_pass_at (a := 64) hq (by omega) (by omega) (by left; omega),
+          byte_write_at (a := 32) hp (by omega) (by omega) (by omega),
+          byte_write_at (a := 32) hq (by omega) (by omega) (by omega)]
+
+/-- Word-level pointer shift: entry `j` of the two preimages agrees. -/
+private lemma leafWrites_word_shift {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
+    (hp : p.val + 160 ≤ 2 ^ 256) (hq : q.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ d : ℕ, 128 ≤ d → d < 159 →
+      Finmap.lookup (p + (d : UInt256)) σ₁.machine_state.memory
+        = Finmap.lookup (q + (d : UInt256)) σ₂.machine_state.memory)
+    (j : ℕ) (hj : j < 96) :
+    (leafWrites σ₁ p v ni nv).machine_state.lookupMemory ((p + 32) + (j : UInt256))
+      = (leafWrites σ₂ q v ni nv).machine_state.lookupMemory ((q + 32) + (j : UInt256)) := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  unfold MachineState.lookupMemory
+  refine congrArg (fun l => ((Clear.UInt256.fromBytes! l : ℕ) : UInt256)) ?_
+  apply List.map_congr
+  intro o ho
+  have hov : o.val < 32 := by
+    have hoffs : UInt256.offsets = (List.range 32).map (fun k : ℕ => ((↑k : UInt256))) := by
+      decide
+    rw [hoffs, List.mem_map] at ho
+    obtain ⟨k, hk, rfl⟩ := ho
+    rw [List.mem_range] at hk
+    rw [Fin.val_cast_of_lt (by omega)]; omega
+  -- rewrite both read addresses as base + (32 + j + o.val)
+  have key : ∀ {r : UInt256}, r.val + 160 ≤ 2 ^ 256 →
+      ((r + 32) + (j : UInt256)) + o = r + ((32 + j + o.val : ℕ) : UInt256) := by
+    intro r hr
+    apply Fin.ext
+    have e1 : ((j : UInt256)).val = j := Fin.val_cast_of_lt (by omega)
+    have l1 : (r + 32).val = r.val + 32 := val_add_32 (by omega)
+    have l2 : ((r + 32) + (j : UInt256)).val = r.val + 32 + j := by
+      have h : ((r + 32) + (j : UInt256)).val
+          = ((r + 32).val + ((j : UInt256)).val) % UInt256.size := rfl
+      rw [h, l1, e1, Nat.mod_eq_of_lt (by omega)]
+    have l3 : (((r + 32) + (j : UInt256)) + o).val = r.val + 32 + j + o.val := by
+      have h : (((r + 32) + (j : UInt256)) + o).val
+          = (((r + 32) + (j : UInt256)).val + o.val) % UInt256.size := rfl
+      rw [h, l2, Nat.mod_eq_of_lt (by omega)]
+    rw [l3, val_base_add hr (by omega)]
+    omega
+  have hbs := byte_shift_at (v := v) (ni := ni) (nv := nv) hp hq htail
+    (32 + j + o.val) (by omega) (by omega)
+  rw [← key hp, ← key hq] at hbs
+  exact congrArg Option.get! hbs
+
+/-- The preimage list has one entry per byte of the hashed length. -/
+theorem mkInterval_length (m : MachineState) (q n : UInt256) :
+    (mkInterval m q n).length = n.val := by
+  unfold EVMState.mkInterval
+  rw [List.length_map, List.length_map, List.length_range']
+
+/-- **POINTER-INDEPENDENCE OF THE LEAF HASH PREIMAGE.**  The same three fields laid out at
+two DIFFERENT pointers produce the same keccak preimage, provided the two 31-byte tails
+agree.
+
+So the leaf hash is not an artifact of where the free-memory pointer happened to be: it is a
+function of the leaf, up to the tail.  This is what lets a real run — in which
+`finalize_allocation` moves the pointer between `hashLeaf` calls — meet
+`root_binding_cached`'s `hleaves`, which fixes a single `(SF, p)`. -/
+theorem leafInterval_shift {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
+    (hp : p.val + 160 ≤ 2 ^ 256) (hq : q.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ d : ℕ, 128 ≤ d → d < 159 →
+      Finmap.lookup (p + (d : UInt256)) σ₁.machine_state.memory
+        = Finmap.lookup (q + (d : UInt256)) σ₂.machine_state.memory) :
+    leafInterval σ₁ p v ni nv = leafInterval σ₂ q v ni nv := by
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hv96 : ((96 : UInt256)).val = 96 := by decide
+  have h32p : (p + 32).val = p.val + 32 := val_add_32 (by omega)
+  have h32q : (q + 32).val = q.val + 32 := val_add_32 (by omega)
+  unfold leafInterval
+  apply List.ext
+  intro j
+  by_cases hj : j < 96
+  · rw [mkInterval_get? (by rw [hv96]; exact hj) (by rw [h32p]; omega),
+        mkInterval_get? (by rw [hv96]; exact hj) (by rw [h32q]; omega)]
+    exact congrArg some (leafWrites_word_shift hp hq htail j hj)
+  · rw [List.get?_eq_none.mpr (by rw [mkInterval_length, hv96]; omega),
+        List.get?_eq_none.mpr (by rw [mkInterval_length, hv96]; omega)]
+
+/-- Value form of pointer-independence: the hash itself agrees, given the same cache. -/
+theorem leafHashOf_shift {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
+    (hp : p.val + 160 ≤ 2 ^ 256) (hq : q.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ d : ℕ, 128 ≤ d → d < 159 →
+      Finmap.lookup (p + (d : UInt256)) σ₁.machine_state.memory
+        = Finmap.lookup (q + (d : UInt256)) σ₂.machine_state.memory)
+    (hkm : σ₁.keccak_map = σ₂.keccak_map) :
+    leafHashOf σ₁ p v ni nv = leafHashOf σ₂ q v ni nv := by
+  unfold leafHashOf
+  rw [leafInterval_shift hp hq htail, hkm]
+
 end Clear.LeafHashWindow
