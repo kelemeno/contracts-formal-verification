@@ -89,24 +89,24 @@ repackaging an inclusion-proof verifier needs. -/
 theorem no_false_inclusion (h : Hash) (z0 : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (height : ℕ)
-    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height)
     (i : ℕ) (d : UInt256) :
     L₁.getD i d = L₂.getD i d :=
   congrArg (fun L => List.getD L i d)
-    (rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot)
+    (rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot)
 
 /-- **(a), contrapositive.**  Differing at a single index already forces
 different roots: the published root is a sound commitment to every leaf. -/
 theorem root_ne_of_leaf_ne (h : Hash) (z0 : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (height : ℕ)
-    (hlen : L₁.length = L₂.length) (hne : L₁.length ≠ 0)
+    (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     (i : ℕ) (d : UInt256) (hdiff : L₁.getD i d ≠ L₂.getD i d) :
     rootOf h z0 L₁ height ≠ rootOf h z0 L₂ height := fun hroot =>
-  hdiff (no_false_inclusion h z0 hinj L₁ L₂ height hlen hne hcap hroot i d)
+  hdiff (no_false_inclusion h z0 hinj L₁ L₂ height hlen hcap hroot i d)
 
 /-! ## (b) Path forgery is impossible -/
 
