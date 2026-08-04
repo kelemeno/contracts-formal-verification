@@ -214,4 +214,133 @@ theorem foldRoot_eq_rootOf_of_inv
   rw [h0]
   exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
 
+/-! ## THE INVARIANT, INDEXED BY LEVEL AND ACCUMULATOR
+
+`foldRoot_eq_walkPure_of_inv` restricts the hypotheses to a predicate on STATES, which is
+enough to make them satisfiable in principle but not in practice: its `hpure` still ranges
+over ALL pairs `(a, b)`, so a concrete `Good` would have to assert that the reference state
+caches every pair — and a real cache is finite.
+
+The pairs the fold actually hashes are one per level: at level `i` with accumulator `cur` it
+hashes `(cur, sibs i)` in one orientation or the other, and nothing else.  Indexing the
+invariant by `(state, level, accumulator)` names exactly those, so a concrete instantiation
+has a FINITE cache obligation — one entry per level of the path.
+
+This is the last generalization needed; `hpure` below mentions only the two orientations of
+the level's own pair.
+-/
+
+/-- **THE FOLD IS THE WALK, ON A LEVEL-INDEXED INVARIANT.**  The purity hypothesis is needed
+only at the pair the level actually hashes, in the two orientations the parity bit selects.
+
+`hclosed` carries the invariant to the next level with the step's post-state and output hash;
+`hstep` is the same statement about the step's VALUE, split out so the closure obligation does
+not have to re-derive the orientation. -/
+theorem foldRoot_eq_walkPure_of_levelInv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256)
+    (Good : EVMState → UInt256 → UInt256 → Prop)
+    (hsib : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      σ'.mload ((path + Fin.shiftLeft i 5) + 32) = sibs i.val)
+    (hpure : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      (accOut σ' cur (sibs i.val)).1 = h cur (sibs i.val)
+        ∧ (accOut σ' (sibs i.val) cur).1 = h (sibs i.val) cur)
+    (hclosed : ∀ (σ' : EVMState) (i cur idx : UInt256), Good σ' i cur →
+      Good (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).2
+           (i + 1)
+           (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).1) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState), Good σ i cur →
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur := by
+  intro k
+  induction k with
+  | zero =>
+    intro i idx cur σ _ _
+    rfl
+  | succ k ih =>
+    intro i idx cur σ hg hb
+    have h1 : ((1 : UInt256)).val = 1 := by decide
+    have hsz : UInt256.size = 2 ^ 256 := by norm_num
+    have hisucc : (i + 1).val = i.val + 1 := by
+      rw [Fin.val_add, h1]
+      exact Nat.mod_eq_of_lt (by omega)
+    have hbnd : (i + 1).val + k < 2 ^ 256 := by rw [hisucc]; omega
+    have hs := hsib σ i cur hg
+    -- the level's sibling read is the stream's value, so the step is on the named pair
+    show (foldRoot (if Fin.land idx 1 = 0
+            then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+            else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).2
+          path k (i + 1) (Fin.shiftRight idx 1)
+          (if Fin.land idx 1 = 0
+            then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+            else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).1).1 = _
+    rw [hs]
+    -- the level's output hash IS the walk's, so no congruence on `walkPure` is needed
+    have hacc : (if Fin.land idx 1 = 0 then accOut σ cur (sibs i.val)
+          else accOut σ (sibs i.val) cur).1
+        = (if idx.val % 2 = 1 then h (sibs i.val) cur else h cur (sibs i.val)) := by
+      obtain ⟨hp0, hp1⟩ := hpure σ i cur hg
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar, hp0]
+        have : idx.val % 2 = 0 := (land_one_eq_zero_iff idx).mp hpar
+        rw [if_neg (by omega)]
+      · rw [if_neg hpar, hp1]
+        have : idx.val % 2 = 1 := (land_one_ne_zero_iff idx).mp hpar
+        rw [if_pos this]
+    refine Eq.trans (ih (i + 1) (Fin.shiftRight idx 1) _ _ (hclosed σ i cur idx hg) hbnd) ?_
+    simp only [walkPure_succ, hisucc, shiftRight_one_val, hacc]
+
+/-- The state-only invariant version is the instance that ignores level and accumulator —
+recorded so the finer form is visibly a generalization. -/
+theorem foldRoot_eq_walkPure_of_inv_of_levelInv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256) (Good : EVMState → Prop)
+    (hclosed : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → Good (accOut σ' a b).2)
+    (hpure : ∀ (σ' : EVMState) (a b : UInt256), Good σ' → (accOut σ' a b).1 = h a b)
+    (hsib : ∀ (σ' : EVMState) (j : UInt256), Good σ' →
+      σ'.mload ((path + Fin.shiftLeft j 5) + 32) = sibs j.val) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState), Good σ →
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur := by
+  intro k i idx cur σ hg hb
+  refine foldRoot_eq_walkPure_of_levelInv h path sibs (fun σ' _ _ => Good σ')
+    (fun σ' j _ hgg => hsib σ' j hgg)
+    (fun σ' i cur hgg => ⟨hpure σ' _ _ hgg, hpure σ' _ _ hgg⟩)
+    (fun σ' i cur idx hgg => ?_) k i idx cur σ hg hb
+  by_cases hpar : Fin.land idx 1 = 0
+  · rw [if_pos hpar]; exact hclosed σ' _ _ hgg
+  · rw [if_neg hpar]; exact hclosed σ' _ _ hgg
+
+/-- **THE CONTRACT'S FOLD IS THE UPDATED TREE'S ROOT, ON A LEVEL-INDEXED INVARIANT.**  The
+composite with M-A, on the weakest hypotheses in this file: purity is required only at the
+pair each level hashes, so a concrete instantiation owes one cache entry per level. -/
+theorem foldRoot_eq_rootOf_of_levelInv
+    (h : Hash) (z0 : UInt256) (path : UInt256) (sibs : ℕ → UInt256)
+    (Good : EVMState → UInt256 → UInt256 → Prop)
+    (hsib : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      σ'.mload ((path + Fin.shiftLeft i 5) + 32) = sibs i.val)
+    (hpure : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      (accOut σ' cur (sibs i.val)).1 = h cur (sibs i.val)
+        ∧ (accOut σ' (sibs i.val) cur).1 = h (sibs i.val) cur)
+    (hclosed : ∀ (σ' : EVMState) (i cur idx : UInt256), Good σ' i cur →
+      Good (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).2
+           (i + 1)
+           (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).1)
+    (leaves : List UInt256) (idx : UInt256) (cur : UInt256) (height : ℕ)
+    (σ : EVMState) (hg : Good σ 0 cur)
+    (hb : height < 2 ^ 256)
+    (hidx : idx.val < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
+    (hsibs : ∀ l, l < height →
+      sibs l = (levels h z0 (leaves.set idx.val cur) l).getD (sibIdx (idx.val / 2 ^ l))
+        (zeros h z0 l)) :
+    (foldRoot σ path height 0 idx cur).1
+      = rootOf h z0 (leaves.set idx.val cur) height := by
+  have h0 : ((0 : UInt256)).val = 0 := by decide
+  rw [foldRoot_eq_walkPure_of_levelInv h path sibs Good hsib hpure hclosed height 0 idx cur σ hg
+      (by rw [h0]; omega)]
+  rw [h0]
+  exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
+
 end Clear.FoldWalkBridge
