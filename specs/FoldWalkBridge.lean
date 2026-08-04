@@ -343,4 +343,133 @@ theorem foldRoot_eq_rootOf_of_levelInv
   rw [h0]
   exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
 
+/-! ## THE INVARIANT, CARRYING THE INDEX TOO
+
+`foldRoot_eq_walkPure_of_levelInv` made the cache obligation finite, but it is still not
+instantiable, and the obstruction is precise: its `hclosed` quantifies `idx` UNIVERSALLY, so
+the invariant must survive a step of EITHER parity.  A concrete `Good` would therefore have to
+carry cache entries for both orientations at every level — and since each orientation leads to
+a different accumulator, the set of accumulators it must cover doubles per level.  Finite, but
+exponential in the path length, so useless.
+
+The fix is to let the invariant see the index it is descending: closure is then required only
+at the actual next index `idx >>> 1`, which pins the parity and so pins the accumulator.  A
+concrete `Good` can then say "`cur` is the walk's own accumulator at this level, and the
+reference state caches THAT pair" — one entry per level, no branching.
+
+This is the weakest form in the file, and the one an instantiation should target. -/
+
+/-- **THE FOLD IS THE WALK, ON A PATH INVARIANT.**  As `foldRoot_eq_walkPure_of_levelInv`, but
+the invariant also carries the current index, so closure is required only at the next index the
+fold actually descends to — pinning the parity, hence the accumulator. -/
+theorem foldRoot_eq_walkPure_of_pathInv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256)
+    (Good : EVMState → UInt256 → UInt256 → UInt256 → Prop)
+    (hsib : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      σ'.mload ((path + Fin.shiftLeft i 5) + 32) = sibs i.val)
+    (hpure : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      (accOut σ' cur (sibs i.val)).1 = h cur (sibs i.val)
+        ∧ (accOut σ' (sibs i.val) cur).1 = h (sibs i.val) cur)
+    (hclosed : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      Good (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).2
+           (i + 1) (Fin.shiftRight idx 1)
+           (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).1) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState), Good σ i idx cur →
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur := by
+  intro k
+  induction k with
+  | zero =>
+    intro i idx cur σ _ _
+    rfl
+  | succ k ih =>
+    intro i idx cur σ hg hb
+    have h1 : ((1 : UInt256)).val = 1 := by decide
+    have hsz : UInt256.size = 2 ^ 256 := by norm_num
+    have hisucc : (i + 1).val = i.val + 1 := by
+      rw [Fin.val_add, h1]
+      exact Nat.mod_eq_of_lt (by omega)
+    have hbnd : (i + 1).val + k < 2 ^ 256 := by rw [hisucc]; omega
+    have hs := hsib σ i idx cur hg
+    show (foldRoot (if Fin.land idx 1 = 0
+            then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+            else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).2
+          path k (i + 1) (Fin.shiftRight idx 1)
+          (if Fin.land idx 1 = 0
+            then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+            else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).1).1 = _
+    rw [hs]
+    have hacc : (if Fin.land idx 1 = 0 then accOut σ cur (sibs i.val)
+          else accOut σ (sibs i.val) cur).1
+        = (if idx.val % 2 = 1 then h (sibs i.val) cur else h cur (sibs i.val)) := by
+      obtain ⟨hp0, hp1⟩ := hpure σ i idx cur hg
+      by_cases hpar : Fin.land idx 1 = 0
+      · rw [if_pos hpar, hp0]
+        have : idx.val % 2 = 0 := (land_one_eq_zero_iff idx).mp hpar
+        rw [if_neg (by omega)]
+      · rw [if_neg hpar, hp1]
+        have : idx.val % 2 = 1 := (land_one_ne_zero_iff idx).mp hpar
+        rw [if_pos this]
+    refine Eq.trans (ih (i + 1) (Fin.shiftRight idx 1) _ _ (hclosed σ i idx cur hg) hbnd) ?_
+    simp only [walkPure_succ, hisucc, shiftRight_one_val, hacc]
+
+/-- The level-indexed version is the instance whose invariant ignores the index. -/
+theorem foldRoot_eq_walkPure_of_levelInv_of_pathInv
+    (h : Hash) (path : UInt256) (sibs : ℕ → UInt256)
+    (Good : EVMState → UInt256 → UInt256 → Prop)
+    (hsib : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      σ'.mload ((path + Fin.shiftLeft i 5) + 32) = sibs i.val)
+    (hpure : ∀ (σ' : EVMState) (i cur : UInt256), Good σ' i cur →
+      (accOut σ' cur (sibs i.val)).1 = h cur (sibs i.val)
+        ∧ (accOut σ' (sibs i.val) cur).1 = h (sibs i.val) cur)
+    (hclosed : ∀ (σ' : EVMState) (i cur idx : UInt256), Good σ' i cur →
+      Good (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).2
+           (i + 1)
+           (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).1) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState), Good σ i cur →
+      i.val + k < 2 ^ 256 →
+      (foldRoot σ path k i idx cur).1 = walkPure h sibs i.val k idx.val cur :=
+  fun k i idx cur σ hg hb =>
+    foldRoot_eq_walkPure_of_pathInv h path sibs (fun σ' i _ cur => Good σ' i cur)
+      (fun σ' i _ cur hgg => hsib σ' i cur hgg)
+      (fun σ' i _ cur hgg => hpure σ' i cur hgg)
+      (fun σ' i idx cur hgg => hclosed σ' i cur idx hgg)
+      k i idx cur σ hg hb
+
+/-- **THE CONTRACT'S FOLD IS THE UPDATED TREE'S ROOT, ON A PATH INVARIANT.**  The composite
+with M-A on the weakest hypotheses available: purity at the level's own pair only, and closure
+only along the index the fold descends. -/
+theorem foldRoot_eq_rootOf_of_pathInv
+    (h : Hash) (z0 : UInt256) (path : UInt256) (sibs : ℕ → UInt256)
+    (Good : EVMState → UInt256 → UInt256 → UInt256 → Prop)
+    (hsib : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      σ'.mload ((path + Fin.shiftLeft i 5) + 32) = sibs i.val)
+    (hpure : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      (accOut σ' cur (sibs i.val)).1 = h cur (sibs i.val)
+        ∧ (accOut σ' (sibs i.val) cur).1 = h (sibs i.val) cur)
+    (hclosed : ∀ (σ' : EVMState) (i idx cur : UInt256), Good σ' i idx cur →
+      Good (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).2
+           (i + 1) (Fin.shiftRight idx 1)
+           (if Fin.land idx 1 = 0 then accOut σ' cur (sibs i.val)
+              else accOut σ' (sibs i.val) cur).1)
+    (leaves : List UInt256) (idx : UInt256) (cur : UInt256) (height : ℕ)
+    (σ : EVMState) (hg : Good σ 0 idx cur)
+    (hb : height < 2 ^ 256)
+    (hidx : idx.val < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
+    (hsibs : ∀ l, l < height →
+      sibs l = (levels h z0 (leaves.set idx.val cur) l).getD (sibIdx (idx.val / 2 ^ l))
+        (zeros h z0 l)) :
+    (foldRoot σ path height 0 idx cur).1
+      = rootOf h z0 (leaves.set idx.val cur) height := by
+  have h0 : ((0 : UInt256)).val = 0 := by decide
+  rw [foldRoot_eq_walkPure_of_pathInv h path sibs Good hsib hpure hclosed height 0 idx cur σ hg
+      (by rw [h0]; omega)]
+  rw [h0]
+  exact walkPure_update h z0 sibs leaves idx.val cur height hidx hcap hsibs
+
 end Clear.FoldWalkBridge
