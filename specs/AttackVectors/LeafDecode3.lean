@@ -1,4 +1,5 @@
 import specs.AttackVectors.ConcreteBridge
+import specs.AttackVectors.RootBinding
 
 /-
   THE THREE-FIELD LEAF DECODE — first step of root-binding piece (3).
@@ -116,5 +117,53 @@ theorem hash_ne_of_not_mem_leafSetOf
     {i : ℕ} (hi : i < (σ.sload 1).val) :
     lh (decodeLeaf3 σ (i : UInt256)) ≠ lh L :=
   fun heq => hnot (mem_leafSetOf_of_hash_eq hinj hi heq)
+
+/-! ## ROOT BINDING, COMPOSED
+
+The three pieces meet.  Given
+
+  * a leaf list that IS the tree's — characterized pointwise, so no list-valued
+    definition and none of the coercion trouble that shape causes;
+  * a CLAIMED list with the same published root;
+  * a leaf `L` the claim places at index `i`;
+
+the claimed list must equal the tree's (piece 1, `mem_of_rootOf_eq`'s engine), hence the
+claim's entry at `i` is the tree's hash there (piece 3's premise), hence `L`'s projection
+is in the represented leaf set (piece 3).
+
+That is `habs` — the last obligation of `AttackVectors.CrossContract` — discharged, on
+two named cryptographic hypotheses: node-hash pair-injectivity and leaf-hash
+injectivity. -/
+
+/-- **ROOT BINDING.**  A leaf placed at index `i` by any list carrying the tree's
+published root really is a leaf of the represented set.
+
+`hleaves` says the reference list is the tree's own leaf-hash list, stated pointwise.
+`hroot` is the published-root agreement a verifier checks.  `hclaim` is what the
+verifier's proof asserts at the opened index.  The conclusion is the abstract membership
+the security layer reasons about.
+
+Both cryptographic assumptions are explicit: `hnodeinj` (node-hash pair-injectivity,
+standing in for keccak collision resistance in the tree) and `hinj` (the same for the
+leaf hash).  Nothing else is assumed about either hash. -/
+theorem root_binding
+    {lh : Leaf3 → UInt256} (hinj : ∀ L M : Leaf3, lh L = lh M → L = M)
+    {h : MerkleSpec.Hash} {z0 : UInt256}
+    (hnodeinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {σ : EVMState} {height : ℕ}
+    {leaves claimed : List UInt256}
+    (hleaves : ∀ j : ℕ, j < (σ.sload 1).val →
+      leaves.getD j 0 = lh (decodeLeaf3 σ (j : UInt256)))
+    (hlen : claimed.length = leaves.length)
+    (hcap : claimed.length ≤ 2 ^ height)
+    (hroot : MerkleSpec.rootOf h z0 claimed height
+      = MerkleSpec.rootOf h z0 leaves height)
+    {L : Leaf3} {i : ℕ} (hi : i < (σ.sload 1).val)
+    (hclaim : claimed.getD i 0 = lh L) :
+    L.toAbs ∈ leafSetOf σ := by
+  have hsame : claimed.getD i 0 = leaves.getD i 0 :=
+    RootBinding.getD_of_rootOf_eq h z0 hnodeinj claimed leaves height hlen hcap hroot i 0
+  refine mem_leafSetOf_of_hash_eq hinj hi ?_
+  rw [← hleaves i hi, ← hsame, hclaim]
 
 end AttackVectors.LeafDecode3
