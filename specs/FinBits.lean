@@ -69,4 +69,17 @@ theorem land_one_ne_zero_iff (idx : UInt256) :
   simp only [ne_eq, land_one_eq_zero_iff]
   omega
 
+/-- **THE STRIDE BRIDGE.**  The contract addresses the sibling array by
+`Fin.shiftLeft i 5`, i.e. a 32-byte stride; on values that is `32 * i`.
+
+Needed by the frame argument that carries a sibling read across a hash step: to know
+the read lands above the keccak scratch one has to know its address, and the address
+is `path + 32*i + 32`.  The no-wrap hypothesis is necessary — `shiftLeft` truncates. -/
+theorem shiftLeft_five_val (i : UInt256) (h : 32 * i.val < UInt256.size) :
+    (Fin.shiftLeft i 5).val = 32 * i.val := by
+  have h5 : ((5 : UInt256)).val = 5 := by decide
+  simp only [Fin.shiftLeft, h5, Nat.shiftLeft_eq]
+  rw [show i.val * 2 ^ 5 = 32 * i.val by ring]
+  exact Nat.mod_eq_of_lt h
+
 end Clear.FinBits
