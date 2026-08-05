@@ -266,4 +266,16 @@ theorem keccak256_add_ne_lowSlot_of_config {σ σ' : EVMState} {p n r : UInt256}
   unfold lowSlotBound at *
   omega
 
+/-- `mstore` preserves the pool window — it touches neither the range nor the cache. -/
+theorem rangeInWindow_mstore {σ : EVMState} (a v : UInt256) (h : RangeInWindow σ) :
+    RangeInWindow (σ.mstore a v) := h
+
+/-- `mstore` preserves the cache window. -/
+theorem cachedInWindow_mstore {σ : EVMState} (a v : UInt256) (h : CachedInWindow σ) :
+    CachedInWindow (σ.mstore a v) := h
+
+/-- `mstore` preserves the low-slot-free pool and cache. -/
+theorem noLow_mstore {σ : EVMState} (a v : UInt256) (hR : NoLowInRange σ) (hC : NoLowCached σ) :
+    NoLowInRange (σ.mstore a v) ∧ NoLowCached (σ.mstore a v) := ⟨hR, hC⟩
+
 end Clear.KeccakLowSlot

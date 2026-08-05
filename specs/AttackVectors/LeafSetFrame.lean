@@ -1,4 +1,5 @@
 import specs.AttackVectors.ConcreteBridge
+import specs.KeccakLowSlot
 
 /-
   THE LEAF-SET FRAME.
@@ -135,6 +136,29 @@ theorem leafCount_arrWrite {σ : EVMState} {a j v wa : UInt256}
   refine sload_sstore_ne ?_
   rw [hva]
   exact Clear.KeccakInjective.keccak256_add_ne_lowSlot j 1 hka hj (by decide)
+
+/-- **The leaf count survives a node-array write — AXIOM-FREE.**  As `leafCount_arrWrite`, but the
+slot-vs-low-slot separation comes from the fresh-slot pool's two-sided window
+(`Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config`) instead of from an idealization.
+
+The two extra hypotheses are what the axiom hid: pool slots sit an array length clear of both `0` and `2^256`.
+They are stated about `σ.mstore 0 a` rather than `σ` because that is the state `arrOut_keccak` hashes in —
+`rangeInWindow_mstore` / `cachedInWindow_mstore` convert, and stating them about `σ` instead makes the elaborator
+try to refute `σ =?= σ.mstore 0 a`, which does not terminate. -/
+theorem leafCount_arrWrite_of_config {σ : EVMState} {a j v wa : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow (σ.mstore 0 a))
+    (hC : Clear.KeccakLowSlot.CachedInWindow (σ.mstore 0 a))
+    (hca : Finmap.lookup (EVMState.mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    (σ.sstore ((arrOut σ a).1 + j) v).sload 1 = σ.sload 1 := by
+  obtain ⟨hka, hva⟩ := arrOut_keccak hca
+  refine sload_sstore_ne ?_
+  rw [hva]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config j 1 hR hC hka hj
+    (by rw [show ((1 : UInt256)).val = 1 from rfl]
+        unfold Clear.KeccakInjective.lowSlotBound
+        norm_num)
 
 /-- **THE MERKLE ARRAY WRITES DO NOT MOVE THE LEAF SET.**  Writing a `_nodes` or
 `_zeros` element leaves the represented leaf set exactly as it was, so every step
