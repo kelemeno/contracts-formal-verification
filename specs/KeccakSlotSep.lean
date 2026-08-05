@@ -144,4 +144,65 @@ theorem keccak256_slot_sep_of_config {σ σ' : EVMState} {p n r v : UInt256}
     exact Or.inl ⟨_, hcached⟩
   exact hsep r v hrslot hv hne i hi
 
+/-! ## THE TWO-SIDED OFFSET FORM
+
+`imt_root_atlas_user`'s `keccak_off_ne_off` compares two slots BOTH offset by small amounts: `r₁ + k₁ ≠ r₂ + k₂`.
+It needs no two-sided separation notion — the offset difference can be absorbed into one side, reducing it to the
+one-sided `Separated`.  That is the trick the original proof uses, and it works verbatim here.
+
+At the real call sites both slots arrive as CACHE HITS (the callers hold `Finmap.lookup … = some r`), so this form
+takes hits rather than `keccak256 … = some`.  That is what makes `r₁ ≠ r₂` immediate — `CacheInj` turns the
+preimages' inequality into the slots' — and it also makes both slots visibly producible. -/
+
+/-- **DROP-IN FOR `keccak_off_ne_off`.**  Two cached slots with distinct preimages stay distinct under any two
+array-sized offsets.
+
+Both cryptographic ingredients are the derived ones: `CacheInj` for slot distinctness, `Separated` for the offsets. -/
+theorem cached_off_ne_off {σ : EVMState} {I₁ I₂ : List UInt256} {r₁ r₂ k₁ k₂ : UInt256}
+    (hsep : Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hc₁ : Finmap.lookup I₁ σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup I₂ σ.keccak_map = some r₂)
+    (hne : I₁ ≠ I₂)
+    (hs₁ : k₁.val < lowSlotBound) (hs₂ : k₂.val < lowSlotBound) :
+    r₁ + k₁ ≠ r₂ + k₂ := by
+  have hslot₁ : Slots σ r₁ := Or.inl ⟨I₁, hc₁⟩
+  have hslot₂ : Slots σ r₂ := Or.inl ⟨I₂, hc₂⟩
+  have hrne : r₁ ≠ r₂ := by
+    intro he
+    exact hne (hinj I₁ I₂ r₁ hc₁ (he ▸ hc₂))
+  intro heq
+  rcases Nat.le_total k₁.val k₂.val with hle | hle
+  · -- absorb `k₂ - k₁` into `r₂`
+    set d : UInt256 := ((k₂.val - k₁.val : ℕ) : UInt256) with hdef
+    have hd : d.val = k₂.val - k₁.val :=
+      Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.sub_le _ _) k₂.isLt)
+    have hdlt : d.val < lowSlotBound := by rw [hd]; omega
+    have hk2eq : k₁ + d = k₂ := by
+      apply Fin.ext
+      show (k₁.val + d.val) % UInt256.size = k₂.val
+      rw [hd, Nat.add_sub_cancel' hle]
+      exact Nat.mod_eq_of_lt k₂.isLt
+    have hcancel : r₁ = r₂ + d := by
+      refine add_right_cancel (b := k₁) ?_
+      calc r₁ + k₁ = r₂ + k₂ := heq
+        _ = r₂ + (k₁ + d) := by rw [hk2eq]
+        _ = r₂ + d + k₁ := by ring
+    exact hsep r₂ r₁ hslot₂ hslot₁ (Ne.symm hrne) d hdlt hcancel.symm
+  · -- symmetric: absorb `k₁ - k₂` into `r₁`
+    set d : UInt256 := ((k₁.val - k₂.val : ℕ) : UInt256) with hdef
+    have hd : d.val = k₁.val - k₂.val :=
+      Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.sub_le _ _) k₁.isLt)
+    have hdlt : d.val < lowSlotBound := by rw [hd]; omega
+    have hk1eq : k₂ + d = k₁ := by
+      apply Fin.ext
+      show (k₂.val + d.val) % UInt256.size = k₁.val
+      rw [hd, Nat.add_sub_cancel' hle]
+      exact Nat.mod_eq_of_lt k₁.isLt
+    have hcancel : r₁ + d = r₂ := by
+      refine add_right_cancel (b := k₂) ?_
+      calc r₁ + d + k₂ = r₁ + (k₂ + d) := by ring
+        _ = r₁ + k₁ := by rw [hk1eq]
+        _ = r₂ + k₂ := heq
+    exact hsep r₁ r₂ hslot₁ hslot₂ hrne d hdlt hcancel
+
 end Clear.KeccakSlotSep
