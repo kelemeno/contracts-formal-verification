@@ -188,6 +188,17 @@ state):
 
 **Known gaps.**
 
+0. **ℕ-vs-`UInt256` index round trip — an unbudgetable elaboration blowup.** Passing
+   `idx.val` (for `idx : UInt256`) to a lemma that indexes by `ℕ` forces Lean to unify
+   `((idx.val : ℕ) : UInt256)` with `idx`, i.e. reduce `idx.val % 2^256` at a 78-digit
+   modulus. It does **not** terminate at 2,000,000 heartbeats. Index by `ℕ` and coerce at
+   the application site. Same class: instantiating a concrete list built from
+   `σ.sload` where an abstract list characterized pointwise would do.
+   And for ANY elaboration timeout: **bisect before raising the budget.** Check each
+   component in isolation; if they all pass alone, the cost is in the composition and more
+   heartbeats cannot fix it. This one cost six build cycles in
+   `specs/AttackVectors/FoldMembership.lean`, five of them spent on guesses.
+
 1. Blocks that continue with scratch writes *after* the keccak (e.g.
    `block_2862394693737849679`, level one of a nested-mapping chain) are not
    covered — the trailing `setEvm`s sit on a state that already carries a binding
