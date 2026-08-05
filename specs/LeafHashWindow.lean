@@ -596,4 +596,30 @@ theorem leafHashOut_eq_leafHashOf_frame {SF σ : EVMState} {p v ni nv r : UInt25
         (p + 32) 96 = leafInterval σ p v ni nv from rfl, hI]; exact hcσ)]
   rw [hstep, leafHashOf_eq_of_cached hcSF]
 
+/-- **THE STEP AT ONE POINTER IS THE CACHE READ AT ANOTHER.**  Combining the frame transport with
+pointer-independence: a leaf hashed at `q` in `σ` is the cache-derived hash at the canonical pointer `p` in the
+reference state `SF`, given the two 31-byte tails agree ACROSS the pointers and `σ` carries `SF`'s entry.
+
+This is what a per-witness free-memory pointer needs.  `hashLeafOut`'s scratch pointer is `mload 64`, which
+differs from run to run, while an abstract leaf-hash LIST must be indexed at one fixed pointer — so the two have
+to be reconciled, and `leafInterval_shift` is what does it. -/
+theorem leafHashOut_eq_leafHashOf_shift {SF σ : EVMState} {p q v ni nv r : UInt256}
+    (hp : p.val + 160 ≤ 2 ^ 256) (hq : q.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ d : ℕ, 128 ≤ d → d < 159 →
+      Finmap.lookup (p + (d : UInt256)) SF.machine_state.memory
+        = Finmap.lookup (q + (d : UInt256)) σ.machine_state.memory)
+    (hcSF : Finmap.lookup (leafInterval SF p v ni nv) SF.keccak_map = some r)
+    (hcσ : Finmap.lookup (leafInterval SF p v ni nv) σ.keccak_map = some r) :
+    (leafHashOut σ q v ni nv).1 = leafHashOf SF p v ni nv := by
+  have hI : leafInterval SF p v ni nv = leafInterval σ q v ni nv :=
+    leafInterval_shift hp hq htail
+  have hmap : (leafWrites σ q v ni nv).keccak_map = σ.keccak_map := rfl
+  have hstep : (leafHashOut σ q v ni nv).1 = r := by
+    unfold leafHashOut
+    rw [keccakOut_of_cached (by
+      rw [hmap, show mkInterval (leafWrites σ q v ni nv).machine_state (q + 32) 96
+            = leafInterval σ q v ni nv from rfl, ← hI]
+      exact hcσ)]
+  rw [hstep, leafHashOf_eq_of_cached hcSF]
+
 end Clear.LeafHashWindow
