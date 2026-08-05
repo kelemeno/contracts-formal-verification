@@ -158,4 +158,112 @@ theorem keccak256_ne_lowSlot_of_config {σ σ' : EVMState} {p n r : UInt256} (c 
   rw [he] at hlow
   omega
 
+/-! ## THE OFFSET FORM
+
+`KeccakInjective.keccak256_add_ne_lowSlot` is the third axiom in this family: a keccak slot OFFSET by an array index
+still never equals a low slot.  Deriving it needs one more thing from the pool than `NoLowInRange` gives — that
+adding an array-sized offset does not WRAP.  Without that a slot near `2^256` could wrap down into the low range, and
+the statement would be false.
+
+So the configuration is a two-sided window: pool slots sit at least an array length above `0` and at least an array
+length below `2^256`. -/
+
+/-- Pool slots sit an array length clear of both ends of the word. -/
+def RangeInWindow (σ : EVMState) : Prop :=
+  ∀ x ∈ σ.keccak_range, lowSlotBound ≤ x.val ∧ x.val + lowSlotBound ≤ UInt256.size
+
+/-- Cached slots sit an array length clear of both ends. -/
+def CachedInWindow (σ : EVMState) : Prop :=
+  ∀ (I : List UInt256) (v : UInt256), Finmap.lookup I σ.keccak_map = some v →
+    lowSlotBound ≤ v.val ∧ v.val + lowSlotBound ≤ UInt256.size
+
+/-- The pool only shrinks, so the window survives a step. -/
+theorem rangeInWindow_keccakOut {σ : EVMState} {p n : UInt256}
+    (hR : RangeInWindow σ) : RangeInWindow (keccakOut σ p n).2 := by
+  intro x hx
+  refine hR x ?_
+  -- the post-state's range is a sublist of the pre-state's
+  cases hl : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map with
+  | some w => rw [keccakOut_of_cached hl] at hx; exact hx
+  | none =>
+    obtain ⟨used, unused, hpart⟩ :
+        ∃ used unused, List.partition (fun y => decide (y ∈ σ.used_range)) σ.keccak_range
+          = (used, unused) := ⟨_, _, rfl⟩
+    cases unused with
+    | nil =>
+      have hpost : (keccakOut σ p n).2 = σ.addHashCollision := by
+        unfold keccakOut EVMState.keccak256; simp only [hl, hpart]
+      rw [hpost] at hx; exact hx
+    | cons hd tl =>
+      have hpost : (keccakOut σ p n).2
+          = {σ with keccak_map := σ.keccak_map.insert (mkInterval σ.machine_state p n) hd,
+                    keccak_range := tl,
+                    used_range := {hd} ∪ σ.used_range} := by
+        unfold keccakOut EVMState.keccak256; simp only [hl, hpart]
+      rw [hpost] at hx
+      rw [List.partition_eq_filter_filter] at hpart
+      have h2 : hd :: tl = σ.keccak_range.filter (fun z => !decide (z ∈ σ.used_range)) :=
+        ((Prod.mk.injEq _ _ _ _).mp hpart).2.symm
+      exact List.mem_of_mem_filter (h2 ▸ List.mem_cons_of_mem hd hx)
+
+/-- **PRESERVATION.**  Values entering the cache come from the pool, so the window is maintained. -/
+theorem cachedInWindow_keccakOut {σ : EVMState} {p n : UInt256}
+    (hR : RangeInWindow σ) (hC : CachedInWindow σ) : CachedInWindow (keccakOut σ p n).2 := by
+  intro I v hv
+  cases hl : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map with
+  | some w => rw [keccakOut_of_cached hl] at hv; exact hC I v hv
+  | none =>
+    obtain ⟨used, unused, hpart⟩ :
+        ∃ used unused, List.partition (fun y => decide (y ∈ σ.used_range)) σ.keccak_range
+          = (used, unused) := ⟨_, _, rfl⟩
+    cases unused with
+    | nil =>
+      have hpost : (keccakOut σ p n).2 = σ.addHashCollision := by
+        unfold keccakOut EVMState.keccak256; simp only [hl, hpart]
+      rw [hpost] at hv; exact hC I v hv
+    | cons hd tl =>
+      have hhd : hd ∈ σ.keccak_range := by
+        rw [List.partition_eq_filter_filter] at hpart
+        have h2 : hd :: tl = σ.keccak_range.filter (fun z => !decide (z ∈ σ.used_range)) :=
+          ((Prod.mk.injEq _ _ _ _).mp hpart).2.symm
+        exact List.mem_of_mem_filter (h2 ▸ List.mem_cons_self hd tl)
+      have hpost : (keccakOut σ p n).2
+          = {σ with keccak_map := σ.keccak_map.insert (mkInterval σ.machine_state p n) hd,
+                    keccak_range := tl,
+                    used_range := {hd} ∪ σ.used_range} := by
+        unfold keccakOut EVMState.keccak256; simp only [hl, hpart]
+      rw [hpost] at hv
+      by_cases hI : I = mkInterval σ.machine_state p n
+      · subst hI
+        rw [Finmap.lookup_insert] at hv
+        rw [← Option.some.inj hv]
+        exact hR hd hhd
+      · rw [Finmap.lookup_insert_of_ne _ hI] at hv
+        exact hC I v hv
+
+/-- **DROP-IN FOR `KeccakInjective.keccak256_add_ne_lowSlot`.**  A keccak slot offset by an array index never equals a
+low slot.
+
+The window is what makes the offset safe: `lowSlotBound ≤ r.val` puts the slot above the low range, and
+`r.val + lowSlotBound ≤ size` stops the offset from wrapping back into it. -/
+theorem keccak256_add_ne_lowSlot_of_config {σ σ' : EVMState} {p n r : UInt256} (j c : UInt256)
+    (hR : RangeInWindow σ) (hC : CachedInWindow σ)
+    (h : σ.keccak256 p n = some (r, σ'))
+    (hj : j.val < lowSlotBound) (hc : c.val < lowSlotBound) : r + j ≠ c := by
+  have hko : keccakOut σ p n = (r, σ') := by unfold keccakOut; rw [h]
+  have hpost : CachedInWindow σ' := by
+    have hn := cachedInWindow_keccakOut (σ := σ) (p := p) (n := n) hR hC
+    rw [hko] at hn
+    exact hn
+  obtain ⟨hlo, hhi⟩ := hpost _ r (keccak256_caches h)
+  have hs : UInt256.size = 2 ^ 256 := by norm_num
+  have hadd : (r + j).val = r.val + j.val := by
+    have h1 : (r + j).val = (r.val + j.val) % UInt256.size := rfl
+    rw [h1, Nat.mod_eq_of_lt (by unfold lowSlotBound at *; omega)]
+  intro he
+  have := congrArg Fin.val he
+  rw [hadd] at this
+  unfold lowSlotBound at *
+  omega
+
 end Clear.KeccakLowSlot
