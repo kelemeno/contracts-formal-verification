@@ -238,6 +238,22 @@ theorem leafSetOf_lowSlotWrite {σ : EVMState} {c v : UInt256}
     obtain ⟨w, hw⟩ := hcaches m hm
     exact Ne.symm (leafSlot_add_ne_low 2 c hw (by decide) hlow)
 
+/-- **RESERVED LOW-SLOT WRITES DO NOT MOVE THE LEAF SET — AXIOM-FREE.**  As `leafSetOf_lowSlotWrite`, with both
+slot-disjointness obligations routed through the derived low-slot facts instead of the idealizations. -/
+theorem leafSetOf_lowSlotWrite_of_config {σ : EVMState} {c v : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hc1 : c ≠ 1) (hlow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore c v) = leafSetOf σ := by
+  refine leafSetOf_sstore_frame hc1 hcaches ?_ ?_
+  · intro m hm
+    obtain ⟨w, hw⟩ := hcaches m hm
+    exact Ne.symm (leafSlot_ne_low_of_config c hR hC hw hlow)
+  · intro m hm
+    obtain ⟨w, hw⟩ := hcaches m hm
+    exact Ne.symm (leafSlot_add_ne_low_of_config 2 c hR hC hw (by decide) hlow)
+
 /-! ## The cross-state congruence
 
 The frames above all concern one `sstore` at a time.  For transporting `leafSetOf`

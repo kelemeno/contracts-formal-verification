@@ -278,4 +278,12 @@ theorem cachedInWindow_mstore {σ : EVMState} (a v : UInt256) (h : CachedInWindo
 theorem noLow_mstore {σ : EVMState} (a v : UInt256) (hR : NoLowInRange σ) (hC : NoLowCached σ) :
     NoLowInRange (σ.mstore a v) ∧ NoLowCached (σ.mstore a v) := ⟨hR, hC⟩
 
+/-- The two-sided window implies the one-sided low-slot-freedom, for the pool. -/
+theorem noLowInRange_of_window {σ : EVMState} (h : RangeInWindow σ) : NoLowInRange σ :=
+  fun x hx => (h x hx).1
+
+/-- The two-sided window implies the one-sided low-slot-freedom, for the cache. -/
+theorem noLowCached_of_window {σ : EVMState} (h : CachedInWindow σ) : NoLowCached σ :=
+  fun I v hv => (h I v hv).1
+
 end Clear.KeccakLowSlot

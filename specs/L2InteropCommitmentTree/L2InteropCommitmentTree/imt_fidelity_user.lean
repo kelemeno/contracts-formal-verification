@@ -7,6 +7,7 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_replay_user
 import specs.KeccakInjective
 import specs.KeccakSlotSep
 import specs.KeccakFresh
+import specs.KeccakLowSlot
 
 /-
   IMT FIDELITY, slice 1 — the storage-to-abstract leaf abstraction.
@@ -454,6 +455,39 @@ theorem leafSlot_add_ne_low {σ : EVMState} {i w : UInt256} (k c : UInt256)
   rw [hvi]
   exact Clear.KeccakInjective.keccak256_add_ne_lowSlot k c hki hk hlow
 
+/-- **Leaf slots avoid the reserved low slots — AXIOM-FREE.**  The window hypotheses are taken at `σ` and converted
+through the accessor's two scratch writes: passing them at `σ` directly would make Lean unify `σ` with the
+double-`mstore`d state, which does not terminate. -/
+theorem leafSlot_ne_low_of_config {σ : EVMState} {i w : UInt256} (c : UInt256)
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i ≠ c := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hc
+  rw [hvi]
+  exact Clear.KeccakLowSlot.keccak256_ne_lowSlot_of_config c
+    (Clear.KeccakLowSlot.noLowInRange_of_window
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 32 4
+        (Clear.KeccakLowSlot.rangeInWindow_mstore 0 i hR)))
+    (Clear.KeccakLowSlot.noLowCached_of_window
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 32 4
+        (Clear.KeccakLowSlot.cachedInWindow_mstore 0 i hC)))
+    hki hlow
+
+/-- **Offset leaf slots avoid the reserved low slots — AXIOM-FREE.** -/
+theorem leafSlot_add_ne_low_of_config {σ : EVMState} {i w : UInt256} (k c : UInt256)
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hc : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i + k ≠ c := by
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hc
+  rw [hvi]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config k c
+    (Clear.KeccakLowSlot.rangeInWindow_mstore 32 4 (Clear.KeccakLowSlot.rangeInWindow_mstore 0 i hR))
+    (Clear.KeccakLowSlot.cachedInWindow_mstore 32 4 (Clear.KeccakLowSlot.cachedInWindow_mstore 0 i hC))
+    hki hk hlow
+
 /-! ### The clean insert agreement -/
 
 /-- **INSERT AGREEMENT, clean form** — `leafSetOf_after_write` with every
@@ -600,8 +634,8 @@ theorem arr_elem_ne_leafSlot_add_of_config {σ : EVMState} {a j i k wa w : UInt2
     (hj : j.val < Clear.KeccakInjective.lowSlotBound)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
     (arrOut σ a).1 + j ≠ leafSlot σ i + k := by
-  obtain ⟨hka, hva⟩ := arrOut_keccak hca
-  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  obtain ⟨-, hva⟩ := arrOut_keccak hca
+  obtain ⟨-, hvi⟩ := leafSlot_keccak hci
   rw [hva, hvi]
   exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hca hci
     (Clear.KeccakInjective.mkInterval_ne_of_len_ne (by decide)) hj hk
