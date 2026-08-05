@@ -183,4 +183,51 @@ theorem committed_leafhash_eq_cached_value {σh : EVMState} {leaf : UInt256} {r 
     (hashLeafOut σh leaf).1 = r := by
   rw [committed_leafhash_is_cached hpb hplow hc, leafHashOf_eq_of_cached hc]
 
+/-! ## CROSS-STATE: THE LEAF HASH RECOGNISED IN THE FOLD'S STATE
+
+`FoldMembership.fold_accept_implies_member` wants the claimed leaf's hash expressed as the cache-derived hash
+of the state the FOLD runs in.  A `CommittedLeafAt` witness hashes its leaf in `σh` but folds in `σf`, and
+those are different states, so the two have to be connected.
+
+`LeafHashWindow.leafHashOut_eq_leafHashOf_frame` is exactly that connection, and its hypotheses are the honest
+ones: the two states agree on the leaf region's 31-byte TAIL, and the fold's state carries the same cache
+entry.  Note the window is `[P+128, P+159)` — the leaf construction's tail — NOT the accessor's `[64, 95)`;
+they are different regions and conflating them would be wrong. -/
+
+/-- **THE COMMITTED LEAF'S HASH, IN THE FOLD'S STATE.**  A committed leaf's hash — computed by `hashLeafOut`
+in the hashing state `σh` — is the cache-derived leaf hash of the fold's state `σf`, given the two agree on
+the leaf region's tail and `σf` carries the entry.
+
+`AttackVectors.LeafDecode3.lh3 σf P ⟨v, ni, nv⟩` unfolds to the right-hand side, so this is what lets a
+witness's hash instantiate `fold_accept_implies_member`'s `hcurLc`. -/
+theorem committed_leafhash_in_fold_state {σh σf : EVMState} {leaf r : UInt256}
+    (hpb : (σh.mload 64).val + 128 ≤ 18446744073709551615)
+    (hplow : 96 ≤ (σh.mload 64).val)
+    (htail : ∀ i : UInt256, (σh.mload 64).val + 128 ≤ i.val →
+      i.val < (σh.mload 64).val + 159 →
+      Finmap.lookup i σf.machine_state.memory = Finmap.lookup i σh.machine_state.memory)
+    (hcf : Finmap.lookup
+      (leafInterval σf (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+        (σh.mload (leaf + 64))) σf.keccak_map = some r)
+    (hch : Finmap.lookup
+      (leafInterval σf (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+        (σh.mload (leaf + 64))) σh.keccak_map = some r) :
+    (hashLeafOut σh leaf).1
+      = leafHashOf σf (σh.mload 64) (σh.mload leaf) (σh.mload (leaf + 32))
+          (σh.mload (leaf + 64)) := by
+  rw [committed_leafhash_modelled hpb hplow]
+  exact leafHashOut_eq_leafHashOf_frame (by omega) htail hcf hch
+
+/-- The degenerate case a single-transaction run gives: the leaf is hashed and folded in the SAME state, so
+the tail agreement is reflexivity and only cache presence is needed. -/
+theorem committed_leafhash_in_fold_state_self {σ : EVMState} {leaf r : UInt256}
+    (hpb : (σ.mload 64).val + 128 ≤ 18446744073709551615)
+    (hplow : 96 ≤ (σ.mload 64).val)
+    (hc : Finmap.lookup
+      (leafInterval σ (σ.mload 64) (σ.mload leaf) (σ.mload (leaf + 32))
+        (σ.mload (leaf + 64))) σ.keccak_map = some r) :
+    (hashLeafOut σ leaf).1
+      = leafHashOf σ (σ.mload 64) (σ.mload leaf) (σ.mload (leaf + 32)) (σ.mload (leaf + 64)) :=
+  committed_leafhash_in_fold_state hpb hplow (fun _ _ _ => rfl) hc hc
+
 end AttackVectors.CommittedRoot
