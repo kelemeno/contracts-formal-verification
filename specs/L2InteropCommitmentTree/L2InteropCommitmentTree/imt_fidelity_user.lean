@@ -975,6 +975,52 @@ theorem leafCount_vtiWrite {σ : EVMState} {v u wv : UInt256}
   rw [hvv]
   exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkv (by decide)
 
+/-- **The `valueToIndex` slot never hits a leaf-field slot — AXIOM-FREE.**  The preimages differ at address 32
+(base words 5 vs 4), which `accInterval_base_ne` supplies; `CacheInj` turns that into slot distinctness and
+`Separated` handles the offset. -/
+theorem vtiSlot_ne_leafSlot_add_of_config {σ : EVMState} {v i k wv wi : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    vtiSlot σ v ≠ leafSlot σ i + k := by
+  obtain ⟨-, hvv⟩ := vtiSlot_keccak hcv
+  obtain ⟨-, hvi⟩ := leafSlot_keccak hci
+  rw [hvv, hvi]
+  have hne := Clear.KeccakSlotSep.cached_off_ne_off (k₁ := (0 : UInt256)) (k₂ := k)
+    hsep hinj hcv hci accInterval_base_ne (by decide) hk
+  intro heq
+  exact hne (by simpa using heq)
+
+/-- **Leaf decoding survives the `valueToIndex` write — AXIOM-FREE.** -/
+theorem decodeLeaf_vtiWrite_of_config {σ : EVMState} {v u i wv wi : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi) :
+    decodeLeaf (σ.sstore (vtiSlot σ v) u) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · have h0 : vtiSlot σ v ≠ leafSlot σ i + 0 :=
+      vtiSlot_ne_leafSlot_add_of_config hsep hinj hcv hci (by decide)
+    simpa using h0
+  · exact vtiSlot_ne_leafSlot_add_of_config hsep hinj hcv hci (by decide)
+
+/-- **The count survives the `valueToIndex` write — AXIOM-FREE.** -/
+theorem leafCount_vtiWrite_of_config {σ : EVMState} {v u wv : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv) :
+    (σ.sstore (vtiSlot σ v) u).sload 1 = σ.sload 1 := by
+  obtain ⟨hkv, hvv⟩ := vtiSlot_keccak hcv
+  refine sload_sstore_ne ?_
+  rw [hvv]
+  exact Clear.KeccakLowSlot.keccak256_ne_lowSlot_of_config 1
+    (Clear.KeccakLowSlot.noLowInRange_of_window
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 32 5
+        (Clear.KeccakLowSlot.rangeInWindow_mstore 0 v hR)))
+    (Clear.KeccakLowSlot.noLowCached_of_window
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 32 5
+        (Clear.KeccakLowSlot.cachedInWindow_mstore 0 v hC)))
+    hkv (by decide)
+
 /-! ### The accessor thread does not move the slot -/
 
 /-- **Self-thread stability**: recomputing the leaf slot on the accessor's

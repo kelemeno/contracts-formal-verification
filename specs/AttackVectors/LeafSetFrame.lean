@@ -118,6 +118,24 @@ theorem leafSetOf_vtiWrite {σ : EVMState} {v u wv : UInt256}
   show decodeLeaf (σ.sstore (vtiSlot σ v) u) (m : UInt256) = decodeLeaf σ (m : UInt256)
   exact decodeLeaf_vtiWrite hcv hw
 
+/-- **THE `valueToIndex` WRITE DOES NOT MOVE THE LEAF SET — AXIOM-FREE.**  As `leafSetOf_vtiWrite`, with the count
+half via the pool's low-slot freedom and the fields half via cache injectivity plus pool separation. -/
+theorem leafSetOf_vtiWrite_of_config {σ : EVMState} {v u wv : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hcv : Finmap.lookup (accInterval σ v 5) σ.keccak_map = some wv)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore (vtiSlot σ v) u) = leafSetOf σ := by
+  unfold leafSetOf
+  rw [leafCount_vtiWrite_of_config hR hC hcv]
+  refine Finset.image_congr ?_
+  intro m hm
+  rw [Finset.mem_coe, Finset.mem_range] at hm
+  obtain ⟨w, hw⟩ := hcaches m hm
+  show decodeLeaf (σ.sstore (vtiSlot σ v) u) (m : UInt256) = decodeLeaf σ (m : UInt256)
+  exact decodeLeaf_vtiWrite_of_config hsep hinj hcv hw
+
 /-! ## Second instance: the Merkle node/zeros array writes
 
 The insert path also writes the `_nodes` and `_zeros` arrays (bases 2 and 3),
