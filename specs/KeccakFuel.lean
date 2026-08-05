@@ -1,0 +1,115 @@
+import specs.KeccakFresh
+
+/-
+  KECCAK FUEL — making `hfuel` survive a fold, honestly.
+
+  `specs/FoldForced.lean` carries `hfuel`: that the keccak range still has an unused entry at the depth
+  where the argument is applied.  Threading that through a whole fold cannot be done with a bare
+  non-emptiness assumption, because every cache MISS consumes an entry.  So the descent needs a LENGTH
+  bound, and this file establishes how the length moves.
+
+  Two things surface once the model is read closely rather than assumed about:
+
+    * `keccak256` on a miss sets `keccak_range := rs`, the TAIL of the unused portion — it discards the
+      already-used prefix as well.  So the unused count drops by exactly one per miss, not by an unknown
+      amount, but only because the discarded prefix was unused-irrelevant.
+    * that "exactly one" needs `keccak_range.Nodup`.  Without it the range may hold duplicates of the
+      freshly drawn value, and marking that value used retires several entries at once.  The bound is
+      genuinely false without the hypothesis, so it is stated rather than hidden.
+
+  Axiom-free.
+-/
+
+namespace Clear.KeccakFuel
+
+open Clear Clear.KeccakDeterminism Clear.KeccakFresh EVMState
+
+/-- The unused portion of the keccak range. -/
+def unusedList (σ : EVMState) : List UInt256 :=
+  (List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range).2
+
+theorem unusedList_eq_filter (σ : EVMState) :
+    unusedList σ = σ.keccak_range.filter (fun x => !decide (x ∈ σ.used_range)) := by
+  unfold unusedList
+  rw [List.partition_eq_filter_filter]
+  simp [Function.comp]
+
+/-- Entries of the unused portion are genuinely unused. -/
+theorem not_used_of_mem_unusedList {σ : EVMState} {x : UInt256} (hx : x ∈ unusedList σ) :
+    x ∉ σ.used_range := by
+  rw [unusedList_eq_filter, List.mem_filter] at hx
+  simpa using hx.2
+
+/-- The unused portion is a sublist of the range, hence duplicate-free when the range is. -/
+theorem unusedList_nodup {σ : EVMState} (hnd : σ.keccak_range.Nodup) :
+    (unusedList σ).Nodup := by
+  rw [unusedList_eq_filter]
+  exact hnd.filter _
+
+/-- **FUEL.**  At least `n` hash steps' worth of unused range remains, and the range is duplicate-free. -/
+def Fuel (σ : EVMState) (n : ℕ) : Prop :=
+  n ≤ (unusedList σ).length ∧ σ.keccak_range.Nodup
+
+/-- Fuel is monotone downward in the step count. -/
+theorem Fuel.mono {σ : EVMState} {m n : ℕ} (h : Fuel σ n) (hmn : m ≤ n) : Fuel σ m :=
+  ⟨le_trans hmn h.1, h.2⟩
+
+/-- Positive fuel gives exactly the side condition `FoldForced` needs. -/
+theorem Fuel.nonempty {σ : EVMState} {n : ℕ} (h : Fuel σ (n + 1)) :
+    (List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range).2 ≠ [] := by
+  intro he
+  have h1 := h.1
+  have h0 : (unusedList σ).length = 0 := by unfold unusedList; rw [he]; rfl
+  omega
+
+/-- **ONE STEP COSTS AT MOST ONE UNIT OF FUEL.**  A cache hit costs nothing (the state is unchanged); a
+miss retires exactly the entry it drew, which is where `Nodup` is load-bearing. -/
+theorem Fuel.keccakOut {σ : EVMState} {p q : UInt256} {n : ℕ}
+    (h : Fuel σ (n + 1)) : Fuel (keccakOut σ p q).2 n := by
+  unfold keccakOut EVMState.keccak256
+  cases hl : Finmap.lookup (mkInterval σ.machine_state p q) σ.keccak_map with
+  | some v => simpa [hl] using h.mono (by omega)
+  | none =>
+    obtain ⟨hlen, hnd⟩ := h
+    -- the unused portion is nonempty, so name its head and tail
+    obtain ⟨used, unused, hpart⟩ :
+        ∃ used unused, List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range
+          = (used, unused) := ⟨_, _, rfl⟩
+    have hul : unusedList σ = unused := by unfold unusedList; rw [hpart]
+    cases unused with
+    | nil => rw [hul] at hlen; simp at hlen
+    | cons r rs =>
+      simp only [hl, hpart]
+      have hrs_nodup : (r :: rs).Nodup := hul ▸ unusedList_nodup hnd
+      have hrs_unused : ∀ x ∈ r :: rs, x ∉ σ.used_range := fun x hx =>
+        not_used_of_mem_unusedList (by rw [hul]; exact hx)
+      -- in the post-state every entry of `rs` is still unused
+      have hkeep : ∀ x ∈ rs, ¬(x ∈ ({r} ∪ σ.used_range : Finset UInt256)) := by
+        intro x hx hmem
+        rcases Finset.mem_union.mp hmem with h1 | h2
+        · exact (List.nodup_cons.mp hrs_nodup).1 (Finset.mem_singleton.mp h1 ▸ hx)
+        · exact hrs_unused x (List.mem_cons_of_mem _ hx) h2
+      refine ⟨?_, ?_⟩
+      · -- the new unused portion is exactly `rs`
+        have hnew : unusedList
+            ({σ with keccak_map := σ.keccak_map.insert (mkInterval σ.machine_state p q) r,
+                     keccak_range := rs,
+                     used_range := {r} ∪ σ.used_range} : EVMState) = rs := by
+          rw [unusedList_eq_filter]
+          exact List.filter_eq_self.mpr (fun x hx => by simpa using hkeep x hx)
+        rw [hnew]
+        rw [hul] at hlen
+        simp only [List.length_cons] at hlen
+        omega
+      · exact (List.nodup_cons.mp hrs_nodup).2
+
+/-- `mstore` costs no fuel — it touches neither the range nor `used_range`. -/
+theorem Fuel.mstore {σ : EVMState} (a v : UInt256) {n : ℕ} (h : Fuel σ n) :
+    Fuel (σ.mstore a v) n := h
+
+/-- **AN ACCESSOR STEP COSTS AT MOST ONE UNIT.** -/
+theorem Fuel.accOut {σ : EVMState} {key base : UInt256} {n : ℕ}
+    (h : Fuel σ (n + 1)) : Fuel (accOut σ key base).2 n :=
+  Fuel.keccakOut (Fuel.mstore 32 base (Fuel.mstore 0 key h))
+
+end Clear.KeccakFuel
