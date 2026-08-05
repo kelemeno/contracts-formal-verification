@@ -185,6 +185,36 @@ theorem leafSetOf_arrWrite {σ : EVMState} {a j v wa : UInt256}
       = decodeLeaf σ (m : UInt256)
   exact decodeLeaf_arrWrite (σₐ := σ) hca hw hj
 
+/-- **THE MERKLE ARRAY WRITES DO NOT MOVE THE LEAF SET — AXIOM-FREE.**  The same statement as
+`leafSetOf_arrWrite`, with both halves routed through the derived keccak facts instead of the trusted-base
+idealizations:
+
+* the leaf COUNT via `leafCount_arrWrite_of_config` (the pool's two-sided window);
+* the leaf FIELDS via `decodeLeaf_arrWrite_of_config` (cache injectivity + pool separation).
+
+The extra hypotheses are exactly the model configuration those axioms stood for: the fresh-slot pool sits an array
+length clear of both ends of the word, its slots are pairwise separated by more than an array length, and keccak is
+injective on the preimages already hashed. -/
+theorem leafSetOf_arrWrite_of_config {σ : EVMState} {a j v wa : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow (σ.mstore 0 a))
+    (hC : Clear.KeccakLowSlot.CachedInWindow (σ.mstore 0 a))
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hca : Finmap.lookup (EVMState.mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ w, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some w) :
+    leafSetOf (σ.sstore ((arrOut σ a).1 + j) v) = leafSetOf σ := by
+  unfold leafSetOf
+  rw [leafCount_arrWrite_of_config hR hC hca hj]
+  refine Finset.image_congr ?_
+  intro m hm
+  rw [Finset.mem_coe, Finset.mem_range] at hm
+  obtain ⟨w, hw⟩ := hcaches m hm
+  show decodeLeaf (σ.sstore ((arrOut σ a).1 + j) v) (m : UInt256)
+      = decodeLeaf σ (m : UInt256)
+  exact decodeLeaf_arrWrite_of_config hsep hinj hca hw hj
+
 /-! ## Third instance: reserved low-slot writes
 
 Array `push` also bumps the array's LENGTH, which lives in a reserved low slot

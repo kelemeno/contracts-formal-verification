@@ -5,6 +5,8 @@ import specs.IMTAbstract
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_leaf_storage_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_replay_user
 import specs.KeccakInjective
+import specs.KeccakSlotSep
+import specs.KeccakFresh
 
 /-
   IMT FIDELITY, slice 1 — the storage-to-abstract leaf abstraction.
@@ -582,6 +584,41 @@ theorem arr_elem_ne_leafSlot_add
   exact keccak_off_ne_off hka hki
     (Clear.KeccakInjective.mkInterval_ne_of_len_ne (by decide))
     hj hk
+
+/-- **A node-array element never hits a leaf-field slot — AXIOM-FREE.**  As `arr_elem_ne_leafSlot_add`, but the
+slot separation comes from `Clear.KeccakSlotSep.cached_off_ne_off` instead of the `keccak256_slot_sep`
+idealization: both slots are cache hits, so `CacheInj` turns the preimages' inequality (lengths 32 vs 64) into the
+slots', and `Separated` handles the two offsets.
+
+Stated on a single state, which is how `decodeLeaf_arrWrite` calls it — `cached_off_ne_off` needs both hits in one
+cache. -/
+theorem arr_elem_ne_leafSlot_add_of_config {σ : EVMState} {a j i k wa w : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hca : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    (arrOut σ a).1 + j ≠ leafSlot σ i + k := by
+  obtain ⟨hka, hva⟩ := arrOut_keccak hca
+  obtain ⟨hki, hvi⟩ := leafSlot_keccak hci
+  rw [hva, hvi]
+  exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hca hci
+    (Clear.KeccakInjective.mkInterval_ne_of_len_ne (by decide)) hj hk
+
+/-- **Leaf decoding survives a node-array write — AXIOM-FREE.** -/
+theorem decodeLeaf_arrWrite_of_config
+    {σ : EVMState} {a j i v wa w : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hca : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+        σ.keccak_map = some wa)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    decodeLeaf (σ.sstore ((arrOut σ a).1 + j) v) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · have := arr_elem_ne_leafSlot_add_of_config (k := 0) hsep hinj hca hci hj (by decide)
+    simpa using this
+  · exact arr_elem_ne_leafSlot_add_of_config hsep hinj hca hci hj (by decide)
 
 /-- **Leaf decoding survives a node-array write.** -/
 theorem decodeLeaf_arrWrite
