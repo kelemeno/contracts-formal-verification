@@ -72,7 +72,7 @@ theorem accInterval_inj {σ₁ σ₂ : EVMState} {a b c d : UInt256}
         = ((accInterval σ x y).get? j).get! := by
     intro σ x y j addr hj haddr
     unfold accInterval
-    rw [mkInterval_get? (by rw [h64]; exact hj) (by rw [h0]; omega), haddr]
+    rw [mkInterval_get? (by rw [h64]; exact hj), haddr]
     rfl
   have e0 : (0 : UInt256) + ((0 : ℕ) : UInt256) = 0 := by
     have : (((0 : ℕ)) : UInt256) = 0 := by decide

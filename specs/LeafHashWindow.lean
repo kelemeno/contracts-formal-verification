@@ -132,9 +132,13 @@ theorem leafWrites_read_nextValue {σ : EVMState} {p v ni nv : UInt256}
 
 /-! ## Indexing the interval -/
 
-/-- The `j`-th entry of `mkInterval m q n` is the word at `q + j`. -/
+/-- The `j`-th entry of `mkInterval m q n` is the word at `q + j`.
+
+No non-wrapping hypothesis is needed: both the interval's index and `q + j` reduce modulo `UInt256.size`, so the
+equation survives wraparound.  (An earlier version carried one; the unused-variable linter caught that it was
+never used, and dropping it simplifies every call site.) -/
 theorem mkInterval_get? {m : MachineState} {q n : UInt256} {j : ℕ}
-    (hj : j < n.val) (hnw : q.val + j < UInt256.size) :
+    (hj : j < n.val) :
     (mkInterval m q n).get? j = some (m.lookupMemory (q + (j : UInt256))) := by
   have hjv : ((j : UInt256)).val = j := Fin.val_cast_of_lt (by omega)
   have hidx : (Fin.ofNat (q.val + j) : UInt256) = q + (j : UInt256) := by
@@ -168,7 +172,7 @@ theorem leafInterval_inj {σ₁ σ₂ : EVMState} {p : UInt256}
         = ((leafInterval σ p v ni nv).get? j).get! := by
     intro j a hj ha σ v ni nv
     unfold leafInterval
-    rw [mkInterval_get? (by rw [hn96]; exact hj) (by rw [h32]; omega), ha]
+    rw [mkInterval_get? (by rw [hn96]; exact hj), ha]
     rfl
   have e0 : (p + 32) + ((0 : ℕ) : UInt256) = p + 32 := by
     have : (((0 : ℕ)) : UInt256) = 0 := by decide
@@ -532,8 +536,8 @@ theorem leafInterval_shift {σ₁ σ₂ : EVMState} {p q v ni nv : UInt256}
   apply List.ext
   intro j
   by_cases hj : j < 96
-  · rw [mkInterval_get? (by rw [hv96]; exact hj) (by rw [h32p]; omega),
-        mkInterval_get? (by rw [hv96]; exact hj) (by rw [h32q]; omega)]
+  · rw [mkInterval_get? (by rw [hv96]; exact hj),
+        mkInterval_get? (by rw [hv96]; exact hj)]
     exact congrArg some (leafWrites_word_shift hp hq htail j hj)
   · rw [List.get?_eq_none.mpr (by rw [mkInterval_length, hv96]; omega),
         List.get?_eq_none.mpr (by rw [mkInterval_length, hv96]; omega)]
