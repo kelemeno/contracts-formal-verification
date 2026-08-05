@@ -128,4 +128,98 @@ theorem witness_non_member_rejects
   fun haccept => hnot (witness_leaf_member z0 path height i hisz hpb hplow hP htail hcf hch hnw
     hLlen hL hinv hinj hfuel hne hcap hidx hCi hchain haccept)
 
+/-! ## THE ∀-FORM, ADDITIVELY
+
+`committed_member_gap_impossible` wants `habs` quantified over witnesses.  `CommittedLeafAt` cannot support that
+— it existentially quantifies the fold's STATE as well as its starting level, so `hashOf σf` varies per witness
+while the published root is fixed.  Rather than redefine a predicate the AFM spec owns, `CommittedAtIn` below is
+a NEW predicate that pins the reference state and level `0`, carries the run-level facts, and IMPLIES
+`CommittedLeafAt`.  Nothing existing changes, and a capstone conditional on the weaker hypothesis still applies.
+
+The per-witness free-memory pointer is reconciled with a canonical `p₀` by
+`LeafHashWindow.leafHashOut_eq_leafHashOf_shift`, which is why that lemma exists. -/
+
+/-- A committed leaf whose fold runs in a fixed reference state `SF` from level `0`, whose leaf hash is
+reconciled to the canonical pointer `p₀`, together with the run-level facts making it well-formed. -/
+def CommittedAtIn (SF σtree : EVMState) (p₀ path R : UInt256) (d i : ℕ) (key nk : UInt256) : Prop :=
+  ∃ (σh : EVMState) (leaf r : UInt256),
+    i < UInt256.size ∧
+    i < (σtree.sload 1).val ∧
+    (σh.mload 64).val + 128 ≤ 18446744073709551615 ∧
+    96 ≤ (σh.mload 64).val ∧
+    (generated.AtomicFlowManager.AtomicFlowManager.hashLeafOut σh leaf).2.hash_collision = false ∧
+    (generated.AtomicFlowManager.AtomicFlowManager.foldRoot SF path d 0 (i : UInt256)
+      (generated.AtomicFlowManager.AtomicFlowManager.hashLeafOut σh leaf).1).2.hash_collision = false ∧
+    (∀ x : ℕ, 128 ≤ x → x < 159 →
+      Finmap.lookup (p₀ + (x : UInt256)) SF.machine_state.memory
+        = Finmap.lookup ((σh.mload 64) + (x : UInt256)) σh.machine_state.memory) ∧
+    Finmap.lookup (leafInterval SF p₀ (σh.mload leaf) (σh.mload (leaf + 32))
+      (σh.mload (leaf + 64))) SF.keccak_map = some r ∧
+    Finmap.lookup (leafInterval SF p₀ (σh.mload leaf) (σh.mload (leaf + 32))
+      (σh.mload (leaf + 64))) σh.keccak_map = some r ∧
+    Cached SF p₀ (decodeLeaf3 σtree (i : UInt256)) ∧
+    (generated.AtomicFlowManager.AtomicFlowManager.foldRoot SF path d 0 (i : UInt256)
+      (generated.AtomicFlowManager.AtomicFlowManager.hashLeafOut σh leaf).1).1 = R ∧
+    σh.mload leaf = key ∧ σh.mload (leaf + 64) = nk
+
+/-- **THE PINNED FORM IMPLIES THE SPEC'S.**  So any result conditional on `habs` for `CommittedLeafAt` applies
+once `habs` holds for well-formed witnesses — nothing the AFM spec states is weakened. -/
+theorem committedLeafAt_of_committedAtIn {SF σtree : EVMState} {p₀ path R : UInt256} {d i : ℕ}
+    {key nk : UInt256}
+    (h : CommittedAtIn SF σtree p₀ path R d i key nk) :
+    generated.AtomicFlowManager.AtomicFlowManager.CommittedLeafAt R d (i : UInt256) key nk := by
+  obtain ⟨σh, leaf, r, -, -, hpb, hplow, hhc, hfc, -, -, -, -, hfold, hkey, hnk⟩ := h
+  exact ⟨σh, leaf, SF, path, 0, hhc, hpb, hplow, hfc, hfold, hkey, hnk⟩
+
+/-- A committed leaf's hash at the CANONICAL pointer — the pointer-reconciled form of
+`CommittedRoot.committed_leafhash_in_fold_state`. -/
+theorem committed_leafhash_at_pointer {SF σh : EVMState} {leaf p₀ r : UInt256}
+    (hpb : (σh.mload 64).val + 128 ≤ 18446744073709551615)
+    (hplow : 96 ≤ (σh.mload 64).val)
+    (hp₀ : p₀.val + 160 ≤ 2 ^ 256)
+    (htail : ∀ x : ℕ, 128 ≤ x → x < 159 →
+      Finmap.lookup (p₀ + (x : UInt256)) SF.machine_state.memory
+        = Finmap.lookup ((σh.mload 64) + (x : UInt256)) σh.machine_state.memory)
+    (hcf : Finmap.lookup (leafInterval SF p₀ (σh.mload leaf) (σh.mload (leaf + 32))
+      (σh.mload (leaf + 64))) SF.keccak_map = some r)
+    (hch : Finmap.lookup (leafInterval SF p₀ (σh.mload leaf) (σh.mload (leaf + 32))
+      (σh.mload (leaf + 64))) σh.keccak_map = some r) :
+    (generated.AtomicFlowManager.AtomicFlowManager.hashLeafOut σh leaf).1
+      = leafHashOf SF p₀ (σh.mload leaf) (σh.mload (leaf + 32)) (σh.mload (leaf + 64)) := by
+  rw [committed_leafhash_modelled hpb hplow]
+  exact leafHashOut_eq_leafHashOf_shift hp₀ (by omega) htail hcf hch
+
+/-- **`habs`, QUANTIFIED.**  Every well-formed committed witness's leaf is a member of the represented leaf set.
+
+The tree-side hypotheses are shared across witnesses; each witness carries its own run-level facts inside
+`CommittedAtIn`. -/
+theorem habs_of_committedAtIn
+    {SF σtree : EVMState} {p₀ path R z0 : UInt256} {height : ℕ} {L : List UInt256}
+    (hnw : p₀.val + 160 ≤ 2 ^ 256)
+    (hLlen : L.length = (σtree.sload 1).val)
+    (hL : ∀ j : ℕ, j < (σtree.sload 1).val →
+      L.getD j z0 = lh3 SF p₀ (decodeLeaf3 σtree (j : UInt256)))
+    (hinv : CacheInUsed SF) (hinj : CacheInj SF) (hfuel : Fuel SF height)
+    (hne : L.length ≠ 0) (hcap : L.length ≤ 2 ^ height)
+    (hR : R = rootOf (hashOf SF) z0 L height)
+    (hchain : ∀ i : ℕ, ∀ l, l < height →
+      Finmap.lookup (accInterval SF
+          (Clear.FoldDescent.bLeft (treeV (hashOf SF) z0 L (i : UInt256))
+            (treeS (hashOf SF) z0 L (i : UInt256)) (i : UInt256) l)
+          (Clear.FoldDescent.bRight (treeV (hashOf SF) z0 L (i : UInt256))
+            (treeS (hashOf SF) z0 L (i : UInt256)) (i : UInt256) l))
+        SF.keccak_map = some (treeV (hashOf SF) z0 L (i : UInt256) (l + 1))) :
+    ∀ (i : ℕ) (key nk : UInt256), CommittedAtIn SF σtree p₀ path R height i key nk →
+      (⟨key, nk⟩ : IMTAbstract.AbsLeaf)
+        ∈ generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf σtree := by
+  intro i key nk h
+  obtain ⟨σh, leaf, r, hisz, hidx, hpb, hplow, -, -, htail, hcf, hch, hCi, hfold, hkey, hnk⟩ := h
+  subst hkey; subst hnk
+  refine fold_accept_implies_member hnw z0 path height i
+    (generated.AtomicFlowManager.AtomicFlowManager.hashLeafOut σh leaf).1
+    hisz hLlen hL hinv hinj hfuel hne hcap hidx (hchain i) (by rw [hfold, hR])
+    (Lc := ⟨σh.mload leaf, σh.mload (leaf + 32), σh.mload (leaf + 64)⟩)
+    ⟨r, hcf⟩ hCi ?_
+  exact committed_leafhash_at_pointer hpb hplow hnw htail hcf hch
+
 end AttackVectors.WitnessMember
