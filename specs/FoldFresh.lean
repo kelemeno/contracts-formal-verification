@@ -81,4 +81,48 @@ theorem foldRoot_mload_high (path : UInt256) :
     · rw [if_pos hpar]; exact accOut_mload_high ha hnw
     · rw [if_neg hpar]; exact accOut_mload_high ha hnw
 
+/-! ## PREIMAGE TRANSPORT
+
+A root-downward descent has to compare cache entries indexed by accessor PREIMAGES computed at depth `l`
+against entries the builder left in the fold's start state.  `accInterval` depends on memory — the two
+scratch writes fix bytes `[0, 64)`, but bytes `[64, 95)` leak in — so the two are the same preimage only if
+the fold leaves that window alone.  It does, and these say so. -/
+
+/-- **THE JUNK WINDOW SURVIVES THE WHOLE FOLD.**  Every byte at or above 64 is untouched at any depth: the
+scratch writes stay below it and keccak does not write memory. -/
+theorem foldRoot_junk_window (path : UInt256) :
+    ∀ (k : ℕ) (i idx cur : UInt256) (σ : EVMState) (a : UInt256), 64 ≤ a.val →
+      Finmap.lookup a (foldRoot σ path k i idx cur).2.machine_state.memory
+        = Finmap.lookup a σ.machine_state.memory := by
+  intro k
+  induction k with
+  | zero => intro i idx cur σ a _; rfl
+  | succ k ih =>
+    intro i idx cur σ a ha
+    show Finmap.lookup a (foldRoot (if Fin.land idx 1 = 0
+        then accOut σ cur (σ.mload ((path + Fin.shiftLeft i 5) + 32))
+        else accOut σ (σ.mload ((path + Fin.shiftLeft i 5) + 32)) cur).2
+      path k (i + 1) (Fin.shiftRight idx 1) _).2.machine_state.memory
+      = Finmap.lookup a σ.machine_state.memory
+    rw [ih (i + 1) (Fin.shiftRight idx 1) _ _ a ha]
+    by_cases hpar : Fin.land idx 1 = 0
+    · rw [if_pos hpar]; exact accOut_junk_window ha
+    · rw [if_neg hpar]; exact accOut_junk_window ha
+
+/-- **PREIMAGES ARE THE SAME AT EVERY DEPTH.**  An accessor preimage computed after any number of fold
+levels is the preimage computed at the start — so a builder's cache entry, stated at the fold's start
+state, indexes the same key the descent looks up at depth. -/
+theorem foldRoot_accInterval_eq (path : UInt256) (k : ℕ) (i idx cur : UInt256) (σ : EVMState)
+    (a b : UInt256) :
+    accInterval (foldRoot σ path k i idx cur).2 a b = accInterval σ a b :=
+  accInterval_eq (fun x h1 h2 => foldRoot_junk_window path k i idx cur σ x h1)
+
+/-- Consequently a builder entry from the start state is available, at the same key, at any depth. -/
+theorem foldRoot_builder_entry (path : UInt256) (k : ℕ) (i idx cur : UInt256) (σ : EVMState)
+    {a b v : UInt256} (h : Finmap.lookup (accInterval σ a b) σ.keccak_map = some v) :
+    Finmap.lookup (accInterval (foldRoot σ path k i idx cur).2 a b)
+      (foldRoot σ path k i idx cur).2.keccak_map = some v := by
+  rw [foldRoot_accInterval_eq]
+  exact foldRoot_lookup_mono path k i idx cur σ _ v h
+
 end Clear.FoldFresh
