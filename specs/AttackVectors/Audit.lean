@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 104 of 105 depend only on Lean's standard base
+  RESULT as of this commit — 106 of 107 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
@@ -76,6 +76,7 @@ import specs.MerkleProofSound
 import specs.KeccakFresh
 import specs.KeccakLowSlot
 import specs.KeccakSlotSep
+import specs.KeccakSeqInj
 import specs.ForgeryFresh
 import specs.FoldFresh
 import specs.FoldRightPeel
@@ -148,6 +149,8 @@ import specs.AtomicFlowManager.Layout
 #print axioms Clear.KeccakLowSlot.cachedInWindow_keccakOut
 #print axioms AttackVectors.LeafSetFrame.leafCount_arrWrite_of_config
 #print axioms Clear.KeccakSlotSep.cached_off_ne_off
+#print axioms Clear.KeccakSeqInj.keccakOut_seq_ne
+#print axioms Clear.KeccakSeqInj.clean_keccakOut
 #print axioms AttackVectors.LeafSetFrame.leafSetOf_arrWrite_of_config
 #print axioms Clear.FoldCacheInj.cacheInj_foldRoot
 #print axioms Clear.FoldDescent.fold_descent
