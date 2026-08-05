@@ -1,4 +1,5 @@
 import specs.KeccakFuel
+import specs.KeccakDistinct
 
 /-
   SEQUENTIAL SLOT-INJECTIVITY — DERIVED FOR THE CASE THE CORPUS USES.
@@ -86,5 +87,38 @@ theorem keccakOut_seq_ne {σ : EVMState} {p₁ n₁ p₂ n₂ : UInt256}
         intro hq; rw [hq] at this; exact this rfl)
     | cons hd tl =>
       exact keccakOut_miss_fresh (σ := σ₁) hinv₁ hl hpart hc₁ he
+
+/-! ## THE PAYOFF: NON-ALIASING WITHOUT THE AXIOM
+
+`KeccakInjective.sload_sstore_keccak_of_preimage_ne` is the corpus's headline non-aliasing tool — a write at one
+keccak slot preserves a read at another — and it is exactly where `keccak256_inj` enters. Both derived forms below
+replace it.
+
+The CACHED form is the one to reach for: every caller in this corpus already holds `Finmap.lookup … = some slot`
+for both slots (that is how slots are named at all), so it costs nothing beyond `CacheInj`. The SEQUENTIAL form
+covers the case where the second slot is computed fresh in the first's post-state. -/
+
+/-- **NON-ALIASING FROM CACHED SLOTS.**  A write at one cached keccak slot preserves the read at another, when their
+preimages differ.  Derived from `CacheInj` alone — no idealization. -/
+theorem sload_sstore_of_cached_ne {σ σ_w : EVMState} {I₁ I₂ : List UInt256} {a b v : UInt256}
+    (hinj : CacheInj σ)
+    (hca : Finmap.lookup I₁ σ.keccak_map = some a)
+    (hcb : Finmap.lookup I₂ σ.keccak_map = some b)
+    (hne : I₁ ≠ I₂) :
+    (σ_w.sstore b v).sload a = σ_w.sload a := by
+  have hab : a ≠ b := fun he => hne (hinj I₁ I₂ a hca (he ▸ hcb))
+  exact Clear.KeccakDistinct.sload_sstore_of_ne σ_w hab
+
+/-- **NON-ALIASING FROM SEQUENTIAL CALLS.**  As above, for two slots computed in one execution — the second in the
+first's post-state.  Derived from `keccakOut_seq_ne`. -/
+theorem sload_sstore_of_seq_ne {σ σ_w : EVMState} {p₁ n₁ p₂ n₂ v : UInt256}
+    (hinv : CacheInUsed σ) (hinj : CacheInj σ)
+    (hfuel : Fuel σ 2) (hclean : σ.hash_collision = false)
+    (hne : mkInterval (keccakOut σ p₁ n₁).2.machine_state p₂ n₂
+      ≠ mkInterval σ.machine_state p₁ n₁) :
+    (σ_w.sstore (keccakOut (keccakOut σ p₁ n₁).2 p₂ n₂).1 v).sload (keccakOut σ p₁ n₁).1
+      = σ_w.sload (keccakOut σ p₁ n₁).1 :=
+  Clear.KeccakDistinct.sload_sstore_of_ne σ_w
+    (Ne.symm (keccakOut_seq_ne hinv hinj hfuel hclean hne))
 
 end Clear.KeccakSeqInj
