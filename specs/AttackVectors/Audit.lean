@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 79 of 80 depend only on Lean's standard base
+  RESULT as of this commit — 82 of 83 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
@@ -82,6 +82,7 @@ import specs.FoldFuel
 import specs.FoldCacheInj
 import specs.FoldDescent
 import specs.FoldIndexBridge
+import specs.TreeFoldPins
 import specs.MerkleSpec
 import specs.AttackVectors.LeafDecode3
 import specs.InteropHandler.Layout
@@ -136,6 +137,9 @@ import specs.AtomicFlowManager.Layout
 #print axioms Clear.FoldDescent.no_forged_fold
 #print axioms Clear.FoldIndexBridge.idxAt_val
 #print axioms Clear.FoldIndexBridge.idxAt_parity
+#print axioms Clear.TreeFoldPins.tree_fold_pins_leaf
+#print axioms Clear.TreeFoldPins.fold_accept_pins_leaf
+#print axioms Clear.TreeFoldPins.fold_rejects_wrong_leaf
 #print axioms Clear.ForgeryFresh.accOut_args_forced
 #print axioms Clear.ForgeryFresh.accOut_ne_of_args_ne
 #print axioms Clear.FoldFresh.cacheInUsed_foldRoot
