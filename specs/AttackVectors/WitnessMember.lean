@@ -222,4 +222,52 @@ theorem habs_of_committedAtIn
     ⟨r, hcf⟩ hCi ?_
   exact committed_leafhash_at_pointer hpb hplow hnw htail hcf hch
 
+/-! ## DELIVERED-XOR-RECLAIMED, WITH `habs` DISCHARGED
+
+`committed_member_gap_impossible` cannot be applied here: it demands `habs` for EVERY `CommittedLeafAt` witness,
+and `habs_of_committedAtIn` covers only well-formed ones.  But its proof uses `habs` at exactly two places — the
+delivery witness and the reclaim witness — so applying `IMTAbstract.gap_excludes_member` directly gives the same
+conclusion for two well-formed witnesses, without restating anything the AFM spec owns.
+
+The result: for a tree whose represented leaf set is `GapSound`, a delivery witness and a reclaim witness for the
+same commit value cannot coexist — with the abstraction obligation `habs` PROVED rather than assumed, from one
+cryptographic hypothesis and facts about the run.
+
+`GapSound` itself is supplied by `AttackVectors.CrossContract` from a `ConcreteLeafHistory`, so it is not an
+assumption of the chain either; it is a hypothesis here only because this file does not import that route. -/
+
+/-- **DELIVERED-XOR-RECLAIMED, `habs` DISCHARGED.**  A delivery witness (a well-formed committed leaf whose key is
+the commit value) and a reclaim witness (a well-formed committed adjacency leaf whose window straddles it) cannot
+both exist under one published root.
+
+Unlike `committed_member_gap_impossible`, the abstraction obligation is not assumed: it is discharged by
+`habs_of_committedAtIn`, i.e. by the fold's own acceptance plus keccak cache injectivity. -/
+theorem gap_impossible_of_committedAtIn
+    {SF σtree : EVMState} {p₀ path R z0 : UInt256} {height : ℕ} {L : List UInt256}
+    (hS : IMTAbstract.GapSound
+      (generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf σtree))
+    (hnw : p₀.val + 160 ≤ 2 ^ 256)
+    (hLlen : L.length = (σtree.sload 1).val)
+    (hL : ∀ j : ℕ, j < (σtree.sload 1).val →
+      L.getD j z0 = lh3 SF p₀ (decodeLeaf3 σtree (j : UInt256)))
+    (hinv : CacheInUsed SF) (hinj : CacheInj SF) (hfuel : Fuel SF height)
+    (hne : L.length ≠ 0) (hcap : L.length ≤ 2 ^ height)
+    (hR : R = rootOf (hashOf SF) z0 L height)
+    (hchain : ∀ i : ℕ, ∀ l, l < height →
+      Finmap.lookup (accInterval SF
+          (Clear.FoldDescent.bLeft (treeV (hashOf SF) z0 L (i : UInt256))
+            (treeS (hashOf SF) z0 L (i : UInt256)) (i : UInt256) l)
+          (Clear.FoldDescent.bRight (treeV (hashOf SF) z0 L (i : UInt256))
+            (treeS (hashOf SF) z0 L (i : UInt256)) (i : UInt256) l))
+        SF.keccak_map = some (treeV (hashOf SF) z0 L (i : UInt256) (l + 1)))
+    {value wk wnk nk₁ : UInt256} {i₁ i₂ : ℕ}
+    (hmem : CommittedAtIn SF σtree p₀ path R height i₁ value nk₁)
+    (hgapleaf : CommittedAtIn SF σtree p₀ path R height i₂ wk wnk)
+    (hlow : wk < value)
+    (hwin : wnk = 0 ∨ value < wnk) : False :=
+  IMTAbstract.gap_excludes_member hS
+    (habs_of_committedAtIn hnw hLlen hL hinv hinj hfuel hne hcap hR hchain i₂ wk wnk hgapleaf)
+    (habs_of_committedAtIn hnw hLlen hL hinv hinj hfuel hne hcap hR hchain i₁ value nk₁ hmem)
+    hlow hwin rfl
+
 end AttackVectors.WitnessMember
