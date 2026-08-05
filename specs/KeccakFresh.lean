@@ -115,4 +115,63 @@ theorem cacheInUsed_accOut {σ : EVMState} {key base : UInt256}
     (hinv : CacheInUsed σ) : CacheInUsed (accOut σ key base).2 :=
   cacheInUsed_keccakOut (cacheInUsed_mstore 32 base (cacheInUsed_mstore 0 key hinv))
 
+/-! ## CACHE INJECTIVITY IS PRESERVED
+
+The descent needs cache injectivity at the state where it applies the forgery atom — i.e. at every depth of
+a fold.  Requiring it as a hypothesis at each depth would be ugly, and it turns out to be unnecessary:
+hashing cannot BREAK injectivity, because the value a miss assigns is fresh, so it cannot collide with a
+value already cached.
+
+So injectivity, like the invariant itself, needs stating only at the start. -/
+
+/-- Keccak is injective on the preimages this state has hashed. -/
+def CacheInj (σ : EVMState) : Prop :=
+  ∀ (I J : List UInt256) (r : UInt256),
+    Finmap.lookup I σ.keccak_map = some r → Finmap.lookup J σ.keccak_map = some r → I = J
+
+/-- **PRESERVATION.**  A hash step cannot break cache injectivity: on a hit nothing changes, and on a miss
+the new value is fresh, so it cannot equal any value already cached — the only way a new entry could have
+violated injectivity. -/
+theorem cacheInj_keccakOut {σ : EVMState} {p n : UInt256}
+    (hinv : CacheInUsed σ) (hinj : CacheInj σ) : CacheInj (keccakOut σ p n).2 := by
+  unfold keccakOut EVMState.keccak256
+  cases hl : Finmap.lookup (mkInterval σ.machine_state p n) σ.keccak_map with
+  | some v => simpa [hl] using hinj
+  | none =>
+    cases hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range with
+    | mk used unused =>
+      cases unused with
+      | nil => simp only [hl, hpart]; exact hinj
+      | cons hd tl =>
+        simp only [hl, hpart]
+        have hfresh : hd ∉ σ.used_range :=
+          partition_snd_not_used hpart (List.mem_cons_self _ _)
+        intro I J r hI hJ
+        by_cases hIe : I = mkInterval σ.machine_state p n
+        · by_cases hJe : J = mkInterval σ.machine_state p n
+          · rw [hIe, hJe]
+          · -- `J` is an old entry, so `r` was already cached and hence used; but `r = hd` is fresh
+            exfalso
+            rw [hIe, Finmap.lookup_insert] at hI
+            rw [Finmap.lookup_insert_of_ne _ hJe] at hJ
+            exact hfresh ((Option.some.inj hI) ▸ hinv J r hJ)
+        · by_cases hJe : J = mkInterval σ.machine_state p n
+          · exfalso
+            rw [hJe, Finmap.lookup_insert] at hJ
+            rw [Finmap.lookup_insert_of_ne _ hIe] at hI
+            exact hfresh ((Option.some.inj hJ) ▸ hinv I r hI)
+          · rw [Finmap.lookup_insert_of_ne _ hIe] at hI
+            rw [Finmap.lookup_insert_of_ne _ hJe] at hJ
+            exact hinj I J r hI hJ
+
+/-- `mstore` preserves injectivity — it does not touch the cache. -/
+theorem cacheInj_mstore {σ : EVMState} (a v : UInt256) (hinj : CacheInj σ) :
+    CacheInj (σ.mstore a v) := hinj
+
+/-- Hence an accessor step preserves it. -/
+theorem cacheInj_accOut {σ : EVMState} {key base : UInt256}
+    (hinv : CacheInUsed σ) (hinj : CacheInj σ) : CacheInj (accOut σ key base).2 :=
+  cacheInj_keccakOut (cacheInUsed_mstore 32 base (cacheInUsed_mstore 0 key hinv))
+    (cacheInj_mstore 32 base (cacheInj_mstore 0 key hinj))
+
 end Clear.KeccakFresh
