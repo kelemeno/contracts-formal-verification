@@ -130,4 +130,32 @@ theorem noLow_accOut {σ : EVMState} {key base : UInt256}
     NoLowInRange (accOut σ key base).2 ∧ NoLowCached (accOut σ key base).2 :=
   ⟨noLowInRange_keccakOut hR, noLowCached_keccakOut hR hC⟩
 
+/-! ## DROP-IN SHAPE
+
+The axiom is stated on `keccak256 … = some (r, σ')` rather than on `keccakOut`.  Restating the derived version the
+same way is strictly better than the `keccakOut` form above: a successful call is evidence that the pool was NOT
+exhausted, so the non-exhaustion hypothesis disappears entirely.  What remains is exactly the pool configuration. -/
+
+/-- **DROP-IN FOR `KeccakInjective.keccak256_ne_lowSlot`.**  A successful keccak call never returns a low slot, given
+the pool holds none and the cache holds none.
+
+No non-exhaustion hypothesis is needed here: `h` witnesses that the call succeeded, which already rules out the
+exhausted case. -/
+theorem keccak256_ne_lowSlot_of_config {σ σ' : EVMState} {p n r : UInt256} (c : UInt256)
+    (hR : NoLowInRange σ) (hC : NoLowCached σ)
+    (h : σ.keccak256 p n = some (r, σ')) (hc : c.val < lowSlotBound) : r ≠ c := by
+  -- the successful call IS the `keccakOut` step, so the post-state config transfers
+  have hko : keccakOut σ p n = (r, σ') := by unfold keccakOut; rw [h]
+  have hpost : NoLowCached σ' := by
+    have hn := noLowCached_keccakOut (σ := σ) (p := p) (n := n) hR hC
+    rw [hko] at hn
+    exact hn
+  -- and the call caches its own result in that state
+  have hcached : Finmap.lookup (mkInterval σ.machine_state p n) σ'.keccak_map = some r :=
+    keccak256_caches h
+  have hlow : lowSlotBound ≤ r.val := hpost _ r hcached
+  intro he
+  rw [he] at hlow
+  omega
+
 end Clear.KeccakLowSlot

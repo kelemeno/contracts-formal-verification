@@ -125,4 +125,23 @@ theorem keccakOut_add_ne_slot {σ : EVMState} {p n v : UInt256}
     (keccakOut σ p n).1 + i ≠ v :=
   hsep _ v (keccakOut_val_slot hfuel) hv hne i hi
 
+/-- **DROP-IN FOR `KeccakInjective.keccak256_slot_sep`.**  A successful keccak call's slot, offset by less than an
+array length, never coincides with a different producible slot.
+
+As with the low-slot companion, `h` witnesses that the call succeeded, so no non-exhaustion hypothesis is needed —
+what remains is exactly the pool's separation. -/
+theorem keccak256_slot_sep_of_config {σ σ' : EVMState} {p n r v : UInt256}
+    (hsep : Separated σ) (h : σ.keccak256 p n = some (r, σ'))
+    (hv : Slots σ v) (hne : r ≠ v)
+    (i : UInt256) (hi : i.val < lowSlotBound) : r + i ≠ v := by
+  have hko : keccakOut σ p n = (r, σ') := by unfold keccakOut; rw [h]
+  -- the call's own result is cached in the post-state, hence producible in the pre-state
+  have hcached : Finmap.lookup (mkInterval σ.machine_state p n) σ'.keccak_map = some r :=
+    keccak256_caches h
+  have hrslot : Slots σ r := by
+    refine slots_keccakOut_subset (σ := σ) (p := p) (n := n) ?_
+    rw [hko]
+    exact Or.inl ⟨_, hcached⟩
+  exact hsep r v hrslot hv hne i hi
+
 end Clear.KeccakSlotSep
