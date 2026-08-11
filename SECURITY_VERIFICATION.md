@@ -1518,6 +1518,34 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   standalone guard function).
 - Liveness, cross-contract end-to-end, L2/prover — out of model scope (A8).
 
+### Part D addendum — 2026-08-11: no-double-DELIVERY is proved at the state level, not the guard level
+
+`delivered_status_reads_two` (`no_double_delivery_user.lean`) proves that after `_markFullyExecutedAndRun`'s
+write, the bundle's status slot reads `2 = FullyExecuted`.  Its security reading — "a second delivery of
+the same bundle is REJECTED by its own first write" — needs one more step: that the execute/receive path
+ACCEPTS ONLY `Unreceived`/`Verified`, so a `2` is refused.
+
+**That step is prose, not a theorem.**  The file header asserts it ("the execute/receive paths accept only
+`Unreceived`/`Verified`, read in `fun_getBundleData`"), and `fun_getBundleData_user.lean` — the spec of the
+function that performs the read — is a `sorry` stub (`A_fun_getBundleData := sorry`).  Grep for revert
+theorems in `specs/InteropHandler/` returns only `unauthorized_sender_reverts` and `not_included_reverts`,
+both of which gate the VERIFY path; `exec_allowed_user.lean`'s `auth_self_pass` / `auth_executor_pass` gate
+the CALLER, not the bundle's status.  So no theorem anywhere says a `FullyExecuted` bundle is refused.
+
+What IS proved on this path, and it is not nothing: the status byte reads `2` after the mark
+(`delivered_status_reads_two`), and no other bundle's byte can be moved to fake or clear that value
+(`InteropHandler.Layout.statusOf_frames_other_bundle` / `unverified_stays_unverified`, and
+`AttackVectors.NoCrossBundle` for the cached and unseen cases).
+
+**Contrast with the refund path, which IS complete.**  There the guard is extracted
+(`refund_check_reverts`), so the theft statements compose end to end: `crafted_claim_reverts_after_authorization`
+for a substituted bundle hash, and `AttackVectors.NoCrossLeg.flow_substituted_claim_reverts` for a substituted
+flow.  Both conclude `reverted = true` — an actual rejection, not just a state fact.  Delivery has the state
+half of that shape and is missing the guard half.
+
+Closing it needs the execute-path status check extracted as a block-level theorem, which is a VC-generation
+and block-spec task rather than a reasoning one.
+
 ### Part D addendum — atomic-interop gaps as of 2026-07-23 evening
 
 - ~~**The grand fidelity stitch**~~ — **CLOSED** by #67, `insertGlue_leafSetOf`
