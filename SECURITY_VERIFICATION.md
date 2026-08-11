@@ -1612,11 +1612,12 @@ proved theorems over its blocks, not about a verified specification of the funct
   missing.
 
   The smallest root is `checked_sub_uint256` (one sub-block, an underflow guard of exactly the
-  error-selector shape specced four times above).  I attempted its block spec and reverted it: the
-  generated `concrete_of_code` for that block did not have the if-split shape the other guards have —
-  after `dsimp` the hypothesis read `Ok evm store = s₉`, with no branch — and I did not want to encode
-  a guess about a revert path.  Whether that is a generator artefact or my misreading of the derived
-  form is unresolved, and it is the next thing to look at on this track.  The "large shift" gate turned out to be largely illusory: two of the four
+  error-selector shape specced four times above), and **its block now has a real spec**
+  (`A_if_3587587773060279037`): no-op when `diff ≤ x`, revert otherwise — so the helper returns a
+  genuine difference rather than a wrapped one.  A first attempt was reverted on the belief that the
+  generated `concrete_of_code` lacked an if-split; that was a misreading on my part, not a generator
+  fault.  Probing it directly printed the real form, `if diff ≤ x then unchanged else <revert path>`,
+  and the spec follows it exactly.  `checked_sub_uint256`'s own function bridge is the next step.  The "large shift" gate turned out to be largely illusory: two of the four
   blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
