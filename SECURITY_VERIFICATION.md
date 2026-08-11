@@ -1558,19 +1558,21 @@ its guard is not extracted.  See the Part D addendum of the same date.
 
 ### Part D addendum — 2026-08-11: what "verified" means per LAYER, measured
 
-Counting `sorry` across the 128 function-level specs (`specs/*/*/fun_*_user.lean`): **17 contain one**,
-and they are not spread evenly.
+Counting `sorry` across the 128 function-level specs (`specs/*/*/fun_*_user.lean`), EXCLUDING comments
+and docstrings: **16 contain a real one**, and they are not spread evenly.  (Counting raw text gives 17;
+the extra is `L1Nullifier`, where the only match is prose.  A `sorry` mentioned in a docstring is
+usually an honest scope note — as in `fun_verifyBundle` — so the naive count overstates.)
 
 | contract | fun-specs containing `sorry` |
 |---|---|
 | InteropHandler | **9 of 10** |
 | L2AssetRouter | 4 of 20 |
 | AtomicFlowManager | 3 of 25 (the `EVMCleanup_bool'`-blocked trio) |
-| L1Nullifier | 1 of 29 |
-| L1Bridgehub, L1AssetRouter, L2InteropCommitmentTree, L2InteropHandler | 0 |
+| L1Bridgehub, L1AssetRouter, L1Nullifier, L2InteropCommitmentTree, L2InteropHandler | 0 |
 
 Eight of the InteropHandler nine are literally `def A_fun_… := sorry` — the function's abstract spec is
-unproven.  The ninth, `fun_verifyBundle`, carries its own honest note explaining why it cannot be
+unproven.  At the block layer beneath them, `InteropHandler/Common` is **127 stubbed of 276** (the other
+149 are real specs, not `A := concrete` aliases — this contract has none of those).  The ninth, `fun_verifyBundle`, carries its own honest note explaining why it cannot be
 closed: all 21 sub-block abstractions it compiles through still define `A_block_… := sorry`, so the
 concrete-of-code chain is opaque propositions from which nothing about `s₉` follows.
 
