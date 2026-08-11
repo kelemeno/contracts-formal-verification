@@ -1637,8 +1637,21 @@ proved theorems over its blocks, not about a verified specification of the funct
     `initcall` takes the STATE, not the var-store.  Naming it wrongly makes the `Spec_ok_unfold`
     instantiation fail with a type mismatch that points at `store` rather than at the shape.
 
-  Both attempts were reverted rather than committed with a `sorry`: a real-looking definition in front
-  of an unproven bridge is worse for a reader than an honest stub.  The "large shift" gate turned out to be largely illusory: two of the four
+  A third attempt reduced the whole bridge to TWO residual tactic goals, with the main argument working
+  (`Spec_ok_unfold` on the frame, the guard spec's revert conjunct, and the transport through
+  `setStore`/`insert` all go through):
+
+  * the `isOk` side condition on the frame state `(Ok evm store)☎️⟦["x","y"],[x,y]⟧⟦"diff" ↦ _⟧` —
+    `rfl` and `simp [State.isOk]` both leave it open;
+  * the `Checkpoint` case, where the goal is `¬ (Checkpoint c).evm.reverted = true`.  Since
+    `State.evm` of a non-`Ok` is `default`, this should follow from `(default : EVMState).reverted =
+    false`, but `decide` refuses (the default carries `Finmap`s, so it is not decidable) — it wants
+    `simp [State.evm]` and the `Inhabited` instance instead.
+
+  Every attempt was reverted rather than committed with a `sorry`: a real-looking definition in front of
+  an unproven bridge is worse for a reader than an honest stub.  **Stopped here deliberately** — five
+  attempts across four sittings is past the point where a 15-minute slice is the right shape for this,
+  and the two goals above are specific enough to finish in one uninterrupted pass.  The "large shift" gate turned out to be largely illusory: two of the four
   blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
