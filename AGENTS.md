@@ -221,15 +221,23 @@ And when consuming a block's ABSTRACT spec rather than a hand-written closed for
    covered — the trailing `setEvm`s sit on a state that already carries a binding
    and resist collapsing.
 2. Blocks containing a LARGE shift constant — the error-selector builders, e.g.
-   `shl(224, 3653389487)` in `block_3212380387923472875`, or `shl(225, …)`,
-   `shl(248, …)` elsewhere — cannot currently be specified at all. Elaborating
-   `Fin.shiftLeft c 224` exhausts the `whnf` heartbeat budget while *checking the
-   spec definition*, before any proof runs. Raising `maxHeartbeats` to 2 000 000 does
-   not help, and hiding the constant behind an `irreducible_def` does not either
-   (the definition body still elaborates). This is independent of the state-encoding
-   blowup that affected multi-write blocks. Roughly a handful of blocks are affected;
-   they need either a `Fin`-level shift lemma that avoids evaluation, or the selector
-   supplied as an opaque parameter.
+   `shl(224, 3653389487)` in `block_3212380387923472875`, or `shl(225, …)`.
+
+   **PARTLY DISPROVED 2026-08-11 — do not use this as a reason to skip such a block.**  The note used
+   to say these "cannot be elaborated", with the `whnf` blowup in the SPEC DEFINITION and both
+   `maxHeartbeats` and `irreducible_def` failing.  Three checks against that:
+
+   * `def probeA : UInt256 := Fin.shiftLeft (425816235 : UInt256) 225` elaborates at 400k heartbeats,
+     and `probeA = <precomputed 77-digit literal>` closes by `rfl`.  So STATING the constant is fine,
+     and so is pinning it to a literal.
+   * `fun_verifyBundle_user.not_included_reverts` steps straight THROUGH `shl(225, 425816235)` using
+     the `EVMShl'` simp lemma — it never evaluates the constant, and it is proved.
+   * `generated…Common.if_7459957530221088163_gen` (that same block) BUILDS.
+
+   So whatever the real obstacle is, it is neither the shift in a spec definition nor the shift in a
+   step-through proof.  It may well be specific to the original block that motivated the note.  If you
+   hit a wall on one of these, re-diagnose it rather than assuming this entry — and please replace this
+   text with what you find.
 
 ## solc Compilation Notes
 
