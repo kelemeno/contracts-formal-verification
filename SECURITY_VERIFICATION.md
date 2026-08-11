@@ -1566,12 +1566,15 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   missing entries on first run).  As of 2026-08-11: 123 clean of 127 in `specs/AttackVectors`, and
   301 of 310 across `specs/`, with every non-clean result either a frame route or inside
   `KeccakInjective.lean` itself.
-- **A spec file that does not compile** (found 2026-08-11): `imt_root_atlas_user.lean` fails to
-  build — an unknown identifier `byte_mstore32_pinned` (a name that exists nowhere else in the
-  corpus, so a deleted helper), a whnf timeout, and three `rewrite` failures.  Its **72 theorems are
-  unverified**.  Nothing imports it and nothing in this document cites it, so no claim here rests on
-  it; a banner at the top of the file records the status.  It was found only because
-  `scripts/axiom-sweep.sh` could not sweep its directory.
+- **A spec file that did not compile** (found AND repaired 2026-08-11): `imt_root_atlas_user.lean`
+  had been broken for an unknown period, leaving its **72 theorems unverified**.  It compiles now.
+  Nothing imported it and nothing in this document cited it, so no claim here ever rested on it.
+  All five errors had two causes: one dangling reference to a deleted helper
+  (`byte_mstore32_pinned`, reconstructible from its use site with no new reasoning), and three
+  instances of `atlasH_at_hash_state`'s state argument being left implicit, which made the
+  elaborator search for a state inside a four-deep `mstore` tower instead of proving anything.
+  It was found only because `scripts/axiom-sweep.sh` could not sweep its directory — **no other
+  check in the corpus notices a file that nothing imports**, which is the part worth keeping.
 - **Ledger coverage, and how to read the ratio** (`specs/AttackVectors/Audit.lean`): the ledger's
   numerator is checked by Lean, but its denominator is a hand-maintained claim about which results
   are listed.  `./scripts/axiom-sweep.sh <dir> Audit` checks that denominator by enumerating theorems
@@ -1585,7 +1588,7 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   |---|---|---|
   | `specs/AttackVectors` | 123 / 127 | the 4 non-clean are the frame routes, all in the ledger |
   | `specs` (Clear layer) | 301 / 310 | the 9 non-clean are all inside `KeccakInjective.lean` itself |
-  | `specs/L2InteropCommitmentTree` | 65 / 97 | **~1 in 3 depends on the keccak idealizations** |
+  | `specs/L2InteropCommitmentTree` | 115 / 155 | **~1 in 4 depends on the keccak idealizations** (was 65/97 before `imt_root_atlas_user` was repaired) |
   | `specs/AtomicFlowManager` | 39 / 48 | 9 non-clean, and **every one of them uses only `keccak256_inj`** |
 
   The third row is the honest one for the concrete storage layer: slot separation and low-slot

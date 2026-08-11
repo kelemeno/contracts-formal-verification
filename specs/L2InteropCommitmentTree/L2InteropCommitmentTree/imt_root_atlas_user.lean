@@ -1,38 +1,29 @@
 /-
-  ⚠️  THIS FILE DOES NOT COMPILE — ITS 72 RESULTS ARE UNVERIFIED.  ⚠️
+  REPAIRED 2026-08-11 — this file did not compile between (unknown date) and today, so its 72 results
+  were unverified.  It compiles now.  Recorded because the failure mode is easy to reintroduce:
 
-  Discovered 2026-08-11 by `scripts/axiom-sweep.sh`, which could not sweep this directory because
-  importing this module fails.  `lake build --old specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user`
-  reported 5 errors.  **4 remain** (updated 2026-08-11 after reconstructing the missing helper):
+  1. `byte_mstore32_pinned` was a DANGLING REFERENCE — the name existed nowhere in the corpus, so a
+     deleted helper rather than a mappable rename.  Its statement is forced by the use site (bytes
+     `[32, 62]` lie inside the `mstore 32 b` window, hence a pure function of `b` and the offset) and
+     follows from `KeccakDeterminism.lookup_updateMemory_at` with no new reasoning.  Reconstructed
+     below.
 
-    * ~~unknown identifier `byte_mstore32_pinned`~~ — FIXED: reconstructed below from its use site.
-      The name existed nowhere in the corpus, so it was a deleted helper, not a mappable rename; the
-      statement it had to have is forced by the goal, and it follows from
-      `KeccakDeterminism.lookup_updateMemory_at` with no new reasoning.
-    * line ~1053  whnf timeout at 4,000,000 heartbeats, on the `show` in `stepOdd_hit_atlas` that
-                  states `stepOdd_hit`'s post-state as an explicit `nodeStore` term
-    * lines ~1072+  `rewrite` failures against `nodeStore` in `stepOdd_hit_sload`
+  2/3. Two `whnf` timeouts at 4,000,000 heartbeats and a failed `rw`, all in `stepOdd_hit_atlas` /
+     `stepOdd_hit_sload`, and all THE SAME CAUSE: `atlasH_at_hash_state`'s state argument was left
+     implicit.  The elaborator then had to unify `(?Y.mstore 0 ?y).mstore 32 ?b` against a four-deep
+     mstore tower — it either ground to a halt or solved `?Y := σ`, producing a pattern that could not
+     match.  Supplying `(Y := …) (y := …) (b := cur)` fixes all three.  A `rfl` proving
+     `Y.keccak_map = σ.keccak_map` was a fourth instance: it forced whnf through the same tower, and
+     `KeccakDeterminism.keccak_map_mstore` does it syntactically.
 
-  Both remaining errors are in the same two theorems and have the same shape: a hand-written `show`
-  or `rw` asserting the exact form of a `stepOdd` post-state.  If that form has drifted from what
-  `stepOdd_hit` now produces, defeq has to grind through the whole term — the signature of a state
-  mismatch rather than a missing fact (see the note in `AGENTS.md` gap 0).
+  The lesson is the one in `AGENTS.md` gap 0: a `whnf` timeout in an APPLICATION usually means the
+  elaborator is searching for a STATE, not proving something hard.  Raising heartbeats cannot fix it;
+  naming the state can.  Nothing here needed a new mathematical idea.
 
-  STATUS.  No `.olean` has ever been produced for it, and nothing imports it (the only other mention
-  in the corpus is a prose reference in `specs/KeccakSlotSep.lean`).  `SECURITY_VERIFICATION.md` does
-  not cite it, so no headline claim rests on it.  But the `specs` lean_lib has root `specs`, so it IS
-  nominally in the build target — it is unbuilt only because a full `lake build specs` is impractical
-  and nobody compiled this file individually.
-
-  WHY THE BANNER RATHER THAN A FIX OR A DELETION.  Deleting is not mine to decide, and the errors are
-  substantive rather than cosmetic (a deleted helper plus an elaboration wall).  What matters
-  immediately is that a reader browsing this directory has no other way to tell these 72 theorems are
-  unverified — every other file here compiles.
-
-  This is the third instance of the regression class `SECURITY_VERIFICATION.md`'s hygiene note already
-  records: `lake env lean` does not check import-olean freshness, so a renamed or deleted helper can
-  silently break a file that nothing happens to import.
+  Found only because `scripts/axiom-sweep.sh` could not sweep this directory — no other check in the
+  corpus notices a file that nothing imports.
 -/
+
 
 import Clear.ReasoningPrinciple
 
@@ -1053,11 +1044,17 @@ theorem stepOdd_hit_atlas {σ : EVMState} {A : NodeAtlas} {H : ℕ}
     (hAh : AtlasCachedAtH σ A H cur) :
     AtlasCachedAt (stepOdd σ 2 (l : UInt256) idx cur).2 A H := by
   rw [stepOdd_hit hA hl hpair]
-  show AtlasCachedAt (nodeStore
-      ((((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).mstore 0
-          (σ.sload (A.wl l + (idx - 1)))).mstore 32 cur)
-      2 ((l : UInt256) + 1) (Fin.shiftRight idx 1) r) A H
-  exact atlas_nodeStore _ _ _ _ (atlasH_at_hash_state rfl hAh)
+  -- `atlasH_at_hash_state`'s state argument is given EXPLICITLY. Left implicit, the elaborator has
+  -- to unify `(?Y.mstore 0 ?y).mstore 32 ?b` against the `nodeStore` argument's four-deep mstore
+  -- tower, and that search is what exhausted 4M heartbeats — not the fact being proved.
+  exact atlas_nodeStore _ _ _ _
+    (atlasH_at_hash_state
+      (Y := (σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+      (y := σ.sload (A.wl l + (idx - 1))) (b := cur)
+      -- `rfl` here forced whnf through the mstore tower and was itself the timeout;
+      -- the projection lemma does it syntactically
+      (by rw [Clear.KeccakDeterminism.keccak_map_mstore,
+              Clear.KeccakDeterminism.keccak_map_mstore]) hAh)
 
 /-- Storage projection of the odd hit level: exactly one `sstore` of the
 cached hash at the parent element slot. -/
@@ -1076,7 +1073,14 @@ theorem stepOdd_hit_sload {σ : EVMState} {A : NodeAtlas} {H : ℕ}
       2 ((l : UInt256) + 1) (Fin.shiftRight idx 1) r).sload s
     = (σ.sstore (A.wl (l + 1) + Fin.shiftRight idx 1) r).sload s
   rw [← Nat.cast_add_one]
-  rw [nodeStore_cached_sload (atlasH_at_hash_state rfl hAh) hl1]
+  -- same instantiation fix as in `stepOdd_hit_atlas`: left implicit, `Y` unified to `σ` and the
+  -- resulting pattern `(σ.mstore 0 ?y).mstore 32 cur` could not match the goal's four-deep tower
+  rw [nodeStore_cached_sload
+    (atlasH_at_hash_state
+      (Y := (σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+      (y := σ.sload (A.wl l + (idx - 1))) (b := cur)
+      (by rw [Clear.KeccakDeterminism.keccak_map_mstore,
+              Clear.KeccakDeterminism.keccak_map_mstore]) hAh) hl1]
   simp only [sstore_mstore_comm, sload_mstore]
 
 end
