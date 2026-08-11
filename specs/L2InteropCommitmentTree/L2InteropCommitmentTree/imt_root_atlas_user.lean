@@ -3,13 +3,20 @@
 
   Discovered 2026-08-11 by `scripts/axiom-sweep.sh`, which could not sweep this directory because
   importing this module fails.  `lake build --old specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user`
-  reports 5 errors:
+  reported 5 errors.  **4 remain** (updated 2026-08-11 after reconstructing the missing helper):
 
-    * line ~914  unknown identifier `byte_mstore32_pinned` — a dangling reference; that name exists
-                 NOWHERE else in the corpus, so it is a deleted helper rather than a rename that can
-                 be mapped back
-    * line ~993  whnf timeout at 4,000,000 heartbeats
-    * lines ~1012+  three `rewrite` failures against `nodeStore`
+    * ~~unknown identifier `byte_mstore32_pinned`~~ — FIXED: reconstructed below from its use site.
+      The name existed nowhere in the corpus, so it was a deleted helper, not a mappable rename; the
+      statement it had to have is forced by the goal, and it follows from
+      `KeccakDeterminism.lookup_updateMemory_at` with no new reasoning.
+    * line ~1053  whnf timeout at 4,000,000 heartbeats, on the `show` in `stepOdd_hit_atlas` that
+                  states `stepOdd_hit`'s post-state as an explicit `nodeStore` term
+    * lines ~1072+  `rewrite` failures against `nodeStore` in `stepOdd_hit_sload`
+
+  Both remaining errors are in the same two theorems and have the same shape: a hand-written `show`
+  or `rw` asserting the exact form of a `stepOdd` post-state.  If that form has drifted from what
+  `stepOdd_hit` now produces, defeq has to grind through the whole term — the signature of a state
+  mismatch rather than a missing fact (see the note in `AGENTS.md` gap 0).
 
   STATUS.  No `.olean` has ever been produced for it, and nothing imports it (the only other mention
   in the corpus is a prose reference in `specs/KeccakSlotSep.lean`).  `SECURITY_VERIFICATION.md` does
@@ -930,6 +937,37 @@ def CachedPair (σ : EVMState) (a b r : UInt256) : Prop :=
 junk regime (junk `[32, 62]` = bytes of `b`), over `σ`'s cache. -/
 def AtlasCachedAtH (σ : EVMState) (A : NodeAtlas) (H : ℕ) (b : UInt256) : Prop :=
   AtlasCachedAt ((σ.mstore 0 0).mstore 32 b) A H
+
+/-- **RECONSTRUCTED 2026-08-11.**  `atlasH_at_hash_state` below called `byte_mstore32_pinned`, a
+helper that no longer exists anywhere in the corpus — the dangling reference that stopped this file
+compiling.  Its required statement is fixed by the use site: bytes `[32, 62]` lie inside the window
+written by `mstore 32 b`, so they are a pure function of `b` and the offset, independent of the
+underlying state and of whatever was stored at word 0.
+
+That is exactly `KeccakDeterminism.lookup_updateMemory_at`'s content at the outer write, so the
+reconstruction needs no new reasoning — only the index bookkeeping to present `i` as `(i - 32) + 32`. -/
+theorem byte_mstore32_pinned {σ₁ σ₂ : EVMState} {y₁ y₂ b i : UInt256}
+    (h32 : 32 ≤ i.val) (h62 : i.val ≤ 62) :
+    Finmap.lookup i ((σ₁.mstore 0 y₁).mstore 32 b).machine_state.memory
+      = Finmap.lookup i ((σ₂.mstore 0 y₂).mstore 32 b).machine_state.memory := by
+  have hk : i.val - 32 < 32 := by omega
+  have h32v : ((32 : UInt256)).val = 32 := by decide
+  have hkv : ((((i.val - 32 : ℕ)) : UInt256)).val = i.val - 32 :=
+    Fin.val_cast_of_lt (by have := i.isLt; omega)
+  have hi : i = (((i.val - 32 : ℕ)) : UInt256) + 32 := by
+    apply Fin.ext
+    show i.val = ((((i.val - 32 : ℕ)) : UInt256).val + ((32 : UInt256)).val) % UInt256.size
+    rw [hkv, h32v, Nat.mod_eq_of_lt (by have := i.isLt; omega)]
+    omega
+  have hms₁ : ((σ₁.mstore 0 y₁).mstore 32 b).machine_state
+      = (σ₁.machine_state.updateMemory 0 y₁).updateMemory 32 b := rfl
+  have hms₂ : ((σ₂.mstore 0 y₂).mstore 32 b).machine_state
+      = (σ₂.machine_state.updateMemory 0 y₂).updateMemory 32 b := rfl
+  rw [hi, hms₁, hms₂,
+      Clear.KeccakDeterminism.lookup_updateMemory_at _ 32 b _ hk
+        Clear.KeccakDeterminism.window_32_nodup,
+      Clear.KeccakDeterminism.lookup_updateMemory_at _ 32 b _ hk
+        Clear.KeccakDeterminism.window_32_nodup]
 
 /-- The `b`-regime pack applies at ANY concrete post-hash state that
 stores `b` at word 32 and carries `σ`'s cache. -/
