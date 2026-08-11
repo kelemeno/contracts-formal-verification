@@ -1,6 +1,7 @@
 import specs.InteropHandler.InteropHandler.fun_verifyBundle_user
 import specs.KeccakDeterminism
 import specs.InteropHandler.InteropHandler.exec_allowed_user
+import specs.AttackVectors.NoCrossBundle
 
 /-
   READABLE VOCABULARY for the InteropHandler memory layout.
@@ -172,6 +173,54 @@ theorem slot_block_derives_bundleStatusSlot
           (((store.insert "dataSlot" (bundleStatusSlot evm bh)).insert
               "cleaned_1" 0).insert "cleaned_1" 0) :=
   generated.InteropHandler.InteropHandler.verify_slot_block hbh
+
+/-! ## Cross-bundle isolation, in this vocabulary
+
+`AttackVectors.NoCrossBundle` proves the slot-separation facts over the raw accessor.  Since
+`bundleStatusSlot` IS `accOut`'s value component, they restate here in the vocabulary the rest of this
+file uses — which is the point of the file: the security claim should read in contract terms.
+
+What it adds to `verify_write_marks_verified`: that theorem says what the write does at ONE bundle's
+slot.  These say the same write does NOTHING at every other bundle's slot, so a verification cannot be
+forged sideways by marking a different bundle. -/
+
+/-- A cached bundle's status slot is the cached value. -/
+theorem bundleStatusSlot_of_cached {σ : EVMState} {bh r : UInt256}
+    (hc : Finmap.lookup (Clear.KeccakDeterminism.accInterval σ bh 1) σ.keccak_map = some r) :
+    bundleStatusSlot σ bh = r := by
+  unfold bundleStatusSlot mappingSlot
+  rw [Clear.KeccakDeterminism.accOut_of_cached hc]
+
+/-- **MARKING ONE BUNDLE DOES NOT CHANGE ANOTHER'S STATUS** — the readable form.
+
+`verify_write_marks_verified` says the status write sets ONE bundle's byte to `Verified`; this says it
+leaves every other bundle's byte exactly as it was.  Together: a bundle is `Verified` only if its own
+write ran, never as a side effect of another bundle's verification. -/
+theorem statusOf_frames_other_bundle {σ σ_w : EVMState}
+    (hinj : Clear.KeccakFresh.CacheInj σ)
+    {bh₁ bh₂ r₁ r₂ v : UInt256}
+    (hc₁ : Finmap.lookup (Clear.KeccakDeterminism.accInterval σ bh₁ 1) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (Clear.KeccakDeterminism.accInterval σ bh₂ 1) σ.keccak_map = some r₂)
+    (hne : bh₁ ≠ bh₂) :
+    statusOf (σ_w.sstore (bundleStatusSlot σ bh₁) v) (bundleStatusSlot σ bh₂)
+      = statusOf σ_w (bundleStatusSlot σ bh₂) := by
+  unfold statusOf
+  rw [bundleStatusSlot_of_cached hc₁, bundleStatusSlot_of_cached hc₂,
+      AttackVectors.NoCrossBundle.status_write_frames_other_bundle hinj hc₁ hc₂ hne]
+
+/-- **AN UNVERIFIED BUNDLE STAYS UNVERIFIED.**  Contrapositive shape: if a bundle's status was not
+`Verified` before another bundle's write, it is not `Verified` after.  This is the form an attack
+argument consumes — marking bundle A cannot make bundle B pass the verified gate. -/
+theorem unverified_stays_unverified {σ σ_w : EVMState}
+    (hinj : Clear.KeccakFresh.CacheInj σ)
+    {bh₁ bh₂ r₁ r₂ v : UInt256}
+    (hc₁ : Finmap.lookup (Clear.KeccakDeterminism.accInterval σ bh₁ 1) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (Clear.KeccakDeterminism.accInterval σ bh₂ 1) σ.keccak_map = some r₂)
+    (hne : bh₁ ≠ bh₂)
+    (hunv : statusOf σ_w (bundleStatusSlot σ bh₂) ≠ Verified) :
+    statusOf (σ_w.sstore (bundleStatusSlot σ bh₁) v) (bundleStatusSlot σ bh₂) ≠ Verified := by
+  rw [statusOf_frames_other_bundle hinj hc₁ hc₂ hne]
+  exact hunv
 
 /-! ## The composite: what `_verifyBundle`'s status path actually does -/
 
