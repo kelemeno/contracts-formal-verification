@@ -1534,9 +1534,38 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
 - **Loop abstractions carry `True`-`AFor`** everywhere except `fun_executeCalls` (free
   inductive) — per-loop effect content lives in the concrete closed forms (#31, #55, #65),
   not the abstraction pipelines.
-- **Trusted base**: the keccak idealizations (`keccak256_inj`/`slot_sep`/`ne_lowSlot`/
-  `add_ne_lowSlot`), A3/A2a/A8 model caveats, and the junk-window discipline (cached-branch
+- **Trusted base**: A3/A2a/A8 model caveats, and the junk-window discipline (cached-branch
   hypotheses throughout the storage layer).  All uses traceable via `#print axioms`.
+
+  **UPDATED 2026-08-06 — the four keccak idealizations now all have DERIVED counterparts.**
+  In Clear's model a keccak result is not a hash: it is drawn from `keccak_range`, the pool of
+  fresh slots.  So these are properties of the POOL, provable from how it is configured, and the
+  invariants survive because the set of slots a state can produce only ever shrinks.
+
+  | idealization | derived counterpart | reduces to |
+  |---|---|---|
+  | `keccak256_inj` | `KeccakSeqInj.keccakOut_seq_ne` | single-thread reasoning |
+  | `keccak256_ne_lowSlot` | `KeccakLowSlot.keccak256_ne_lowSlot_of_config` | pool has no low slot |
+  | `keccak256_slot_sep` | `KeccakSlotSep.keccak256_slot_sep_of_config`, `cached_off_ne_off` | pool pairwise separated |
+  | `keccak256_add_ne_lowSlot` | `KeccakLowSlot.keccak256_add_ne_lowSlot_of_config` | two-sided pool window |
+
+  This RELOCATES the assumption rather than removing it: a reader must still grant the pool
+  configuration.  Two things stay genuinely irreducible, and deriving the rest is what made them
+  visible: (i) CROSS-THREAD injectivity — two independent fresh picks in disjoint state threads
+  really could coincide, which is why `keccak256_inj` is stated without a global hash function in
+  the first place; (ii) the derived route cannot speak about a FRESH result at all, since it is not
+  in the cache, so `cached_off_ne_off` takes cache HITS where the axiom takes bare successful calls.
+
+  Axiom-free variants exist for all three frame routes (`leafSetOf_{arr,vti,lowSlot}Write_of_config`).
+  The ORIGINALS are deliberately left in place and are still the ledger's non-clean entries — these are
+  parallel routes, not replacements, so no existing caller changed.  Switching the no-theft chain over
+  is a decision about the corpus's trusted base, not a proof task.
+
+  Coverage of the ledger itself is checkable: `./scripts/axiom-sweep.sh specs/AttackVectors Audit`
+  enumerates theorems from source and flags any non-clean result the ledger omits (it found two
+  missing entries on first run).  As of 2026-08-11: 123 clean of 127 in `specs/AttackVectors`, and
+  301 of 310 across `specs/`, with every non-clean result either a frame route or inside
+  `KeccakInjective.lean` itself.
 - **Verification hygiene** (added after today's audits): `lake env lean` does not check
   import-olean freshness — corpus-level claims require fresh-compile audits; two silent
   regressions (renamed helpers, a renumbered enum) were found and repaired this way (#64,
