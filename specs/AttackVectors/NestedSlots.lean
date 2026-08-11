@@ -81,4 +81,72 @@ theorem finalize_frames_other_batch {σ σ_w : EVMState} (hinj : CacheInj σ)
     (σ_w.sstore r₁ v).sload r₂ = σ_w.sload r₂ :=
   finalize_frames_other_withdrawal hinj hp hp hq₁ hq₂ hr₁ hr₂ (Or.inr (Or.inl hn))
 
+/-! ## THE GENERAL n-LEVEL FORM
+
+Bundles (one level), legs (two) and withdrawals (three) all took the same argument, unchanged at each
+depth.  That is the signal to state it once.  `nestedSlot` folds the accessor over a list of keys,
+threading each intermediate as the next base — Solidity's `m[k₁][k₂]…[kₙ]`.
+
+The three concrete results above are kept rather than replaced: they are the shapes callers actually
+have, and rederiving them through the general form would add a list-manipulation step at every use for
+no gain in strength. -/
+
+/-- The slot of a nested mapping at `keys` over `base`, threading each intermediate as the next base. -/
+def nestedSlot (σ : EVMState) (base : UInt256) : List UInt256 → UInt256
+  | [] => base
+  | k :: ks => nestedSlot σ (accOut σ k base).1 ks
+
+/-- Every accessor step along the way has been hashed. -/
+def NestedCached (σ : EVMState) (base : UInt256) : List UInt256 → Prop
+  | [] => True
+  | k :: ks =>
+      (∃ r, Finmap.lookup (accInterval σ k base) σ.keccak_map = some r)
+        ∧ NestedCached σ (accOut σ k base).1 ks
+
+/-- **n-LEVEL SEPARATION.**  Two nested lookups of the same depth landing on the same slot have the
+same keys AND the same base — so any difference in any coordinate separates them.
+
+The base is concluded equal rather than assumed, which is what makes the induction go through: peeling
+one level turns a statement about keys into a statement about the intermediates, and those are bases. -/
+theorem nestedSlot_inj {σ : EVMState} (hinj : CacheInj σ) :
+    ∀ (ks₁ ks₂ : List UInt256) (b₁ b₂ : UInt256),
+      ks₁.length = ks₂.length →
+      NestedCached σ b₁ ks₁ → NestedCached σ b₂ ks₂ →
+      nestedSlot σ b₁ ks₁ = nestedSlot σ b₂ ks₂ →
+      ks₁ = ks₂ ∧ b₁ = b₂ := by
+  intro ks₁
+  induction ks₁ with
+  | nil =>
+    intro ks₂ b₁ b₂ hlen _ _ heq
+    cases ks₂ with
+    | nil => exact ⟨rfl, heq⟩
+    | cons _ _ => simp at hlen
+  | cons k₁ rest ih =>
+    intro ks₂ b₁ b₂ hlen hc₁ hc₂ heq
+    cases ks₂ with
+    | nil => simp at hlen
+    | cons k₂ rest₂ =>
+      obtain ⟨⟨r₁, hr₁⟩, hrest₁⟩ := hc₁
+      obtain ⟨⟨r₂, hr₂⟩, hrest₂⟩ := hc₂
+      have hlen' : rest.length = rest₂.length := by simpa using hlen
+      obtain ⟨hks, hb⟩ := ih rest₂ _ _ hlen' hrest₁ hrest₂ heq
+      -- the intermediates agree, so the first steps' preimages do
+      have hv₁ : (accOut σ k₁ b₁).1 = r₁ := by rw [accOut_of_cached hr₁]
+      have hv₂ : (accOut σ k₂ b₂).1 = r₂ := by rw [accOut_of_cached hr₂]
+      rw [hv₁, hv₂] at hb
+      obtain ⟨hk, hbb⟩ := accInterval_inj (hinj _ _ r₁ hr₁ (hb ▸ hr₂))
+      exact ⟨by rw [hk, hks], hbb⟩
+
+/-- **THE FRAME, n-LEVEL.**  A write at one nested slot is invisible at another of the same depth
+whose key list differs. -/
+theorem nested_write_frames {σ σ_w : EVMState} (hinj : CacheInj σ)
+    {b : UInt256} {ks₁ ks₂ : List UInt256} {v : UInt256}
+    (hlen : ks₁.length = ks₂.length)
+    (hc₁ : NestedCached σ b ks₁) (hc₂ : NestedCached σ b ks₂)
+    (hne : ks₁ ≠ ks₂) :
+    (σ_w.sstore (nestedSlot σ b ks₁) v).sload (nestedSlot σ b ks₂)
+      = σ_w.sload (nestedSlot σ b ks₂) :=
+  Clear.KeccakDistinct.sload_sstore_of_ne σ_w
+    (fun he => hne (nestedSlot_inj hinj ks₁ ks₂ b b hlen hc₁ hc₂ he.symm).1)
+
 end AttackVectors.NestedSlots
