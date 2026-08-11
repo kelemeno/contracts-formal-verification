@@ -1617,7 +1617,17 @@ proved theorems over its blocks, not about a verified specification of the funct
   genuine difference rather than a wrapped one.  A first attempt was reverted on the belief that the
   generated `concrete_of_code` lacked an if-split; that was a misreading on my part, not a generator
   fault.  Probing it directly printed the real form, `if diff ≤ x then unchanged else <revert path>`,
-  and the spec follows it exactly.  `checked_sub_uint256`'s own function bridge is the next step.  The "large shift" gate turned out to be largely illusory: two of the four
+  and the spec follows it exactly.  `checked_sub_uint256`'s own function bridge is the next step, and its shape is now known.  Probing the
+  function-level relation prints
+
+      ∃ ss, Spec A_if_3587587773060279037 (frame⟦"diff" ↦ x - y⟧) ss ∧ 🧟ss🏪⟦s₀⟧⟦diff ↦ ss["diff"]⟧ = s₉
+
+  — the call frame, the guard block via its ABSTRACT spec (now real), then the revive.  So the bridge is
+  derivable, and the useful statement is the revert implication alone (`¬(x - y ≤ x) → s₉.evm.reverted`)
+  rather than a closed form: the returning branch's shape involves the frame revive and store
+  restoration, which no caller needs.  The remaining step is transporting `reverted` through
+  `🧟 … 🏪⟦…⟧⟦… ↦ …⟧`.  Drafted and NOT committed — the draft still carried a `sorry` in the bridge, and
+  a stub with a real-looking definition in front of it is worse than an honest stub.  The "large shift" gate turned out to be largely illusory: two of the four
   blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
