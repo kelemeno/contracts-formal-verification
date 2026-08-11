@@ -83,6 +83,50 @@ theorem status_survives_other_writes {σ : EVMState} (hinj : CacheInj σ)
     rw [List.foldl_cons, ih _ (fun q hq => hall q (List.mem_cons_of_mem _ hq))]
     exact status_write_frames_other_bundle hinj hcp hc hne
 
+/-! ## DIFFERENT MAPPINGS, NOT JUST DIFFERENT KEYS
+
+The results above separate two entries of the SAME mapping.  The other question is whether entries of
+DIFFERENT mappings can collide — a mapping is identified by its declaration slot, which is the accessor's
+BASE, so this asks whether `m₁[k]` and `m₂[k']` can land together.
+
+It falls out of the same lemma: `accInterval_inj` returns BOTH components of the preimage, so a
+difference in the base separates exactly as a difference in the key does.  Worth stating because the
+security question is different in kind — not "can an attacker reach another bundle" but "can a write to
+one mapping corrupt an unrelated part of storage". -/
+
+/-- **DIFFERENT MAPPINGS DO NOT COLLIDE.**  Entries of two mappings declared at different slots land at
+different storage slots, whatever their keys. -/
+theorem slot_ne_of_base_ne {σ : EVMState} (hinj : CacheInj σ)
+    {k₁ k₂ base₁ base₂ r₁ r₂ : UInt256}
+    (hc₁ : Finmap.lookup (accInterval σ k₁ base₁) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (accInterval σ k₂ base₂) σ.keccak_map = some r₂)
+    (hb : base₁ ≠ base₂) : r₁ ≠ r₂ := by
+  intro he
+  exact hb (accInterval_inj (hinj _ _ r₁ hc₁ (he ▸ hc₂))).2
+
+/-- **THE COMBINED FORM.**  Two mapping entries separate when EITHER coordinate differs — the key or the
+mapping they belong to.  This is the one-level analogue of `NoCrossLeg.leg_slot_ne`. -/
+theorem slot_ne_of_ne {σ : EVMState} (hinj : CacheInj σ)
+    {k₁ k₂ base₁ base₂ r₁ r₂ : UInt256}
+    (hc₁ : Finmap.lookup (accInterval σ k₁ base₁) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (accInterval σ k₂ base₂) σ.keccak_map = some r₂)
+    (hne : k₁ ≠ k₂ ∨ base₁ ≠ base₂) : r₁ ≠ r₂ := by
+  intro he
+  obtain ⟨hk, hb⟩ := accInterval_inj (hinj _ _ r₁ hc₁ (he ▸ hc₂))
+  rcases hne with h | h
+  · exact h hk
+  · exact h hb
+
+/-- **A WRITE TO ONE MAPPING CANNOT CORRUPT ANOTHER.**  The frame form: storing into an entry of one
+mapping leaves every entry of a different mapping exactly as it was. -/
+theorem write_frames_other_mapping {σ σ_w : EVMState} (hinj : CacheInj σ)
+    {k₁ k₂ base₁ base₂ r₁ r₂ v : UInt256}
+    (hc₁ : Finmap.lookup (accInterval σ k₁ base₁) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (accInterval σ k₂ base₂) σ.keccak_map = some r₂)
+    (hb : base₁ ≠ base₂) :
+    (σ_w.sstore r₁ v).sload r₂ = σ_w.sload r₂ :=
+  Clear.KeccakDistinct.sload_sstore_of_ne σ_w (Ne.symm (slot_ne_of_base_ne hinj hc₁ hc₂ hb))
+
 /-! ## THE OTHER HALF: A BUNDLE WHOSE SLOT WAS NEVER COMPUTED
 
 The results above need both slots CACHED, so they cover bundles a run has already touched.  The
