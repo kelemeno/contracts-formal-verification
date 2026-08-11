@@ -25,6 +25,7 @@ import specs.AtomicFlowManager.Layout
 namespace AttackVectors.NoCrossLeg
 
 open Clear Clear.KeccakDeterminism Clear.KeccakFresh Clear.CachedHashInj
+open Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas
 
 /-- **NESTED ACCESSOR SEPARATION.**  Two legs whose `(flowId, bundleHash)` pairs differ in EITHER
 coordinate land on different storage slots, provided every accessor step involved has been hashed.
@@ -186,5 +187,51 @@ theorem legState_survives_refund_loop {σ : EVMState} (hinj : CacheInj σ)
     obtain ⟨hne, hip, hop⟩ := hall p (List.mem_cons_self _ _)
     rw [List.foldl_cons, ih _ (fun q hq => hall q (List.mem_cons_of_mem _ hq))]
     exact legState_frames_other_leg hinj hip hi hop ho hne
+
+/-! ## THE THEFT RESULT FOR THAT CASE
+
+`AtomicFlowManager`'s `crafted_claim_reverts_after_authorization` (A6′) is the strong statement: an
+attacker cannot ride an honest authorization with substituted bundle bytes, because the crafted claim
+resolves to a different slot where the authorization write is invisible.
+
+It too requires `k₂ ≠ k₁` — different BUNDLE HASHES.  So it leaves open the attack where the bundle
+hash is kept and the FLOW is substituted: an authorization granted for `(f₁, b)` being ridden by a
+claim for `(f₂, b)`.  Since a bundle hash commits to bundle contents and not to a flow, an attacker
+who can register the same bundle under a second flow would be attempting exactly this.
+
+The same argument closes it, on `leg_slot_ne_of_flow_ne` instead of the one-level separation — and
+without the keccak idealization, since that separation is derived. -/
+
+/-- **NO THEFT BY SUBSTITUTING THE FLOW.**  An authorization written at one flow's leg slot cannot be
+ridden by a `claimRefund` for the SAME bundle hash under a different flow: that leg's slot differs, the
+authorization write is invisible there, the leg stays `Unset`, and the check reverts.
+
+Companion to `crafted_claim_reverts_after_authorization`, covering the coordinate it does not. -/
+theorem flow_substituted_claim_reverts {σ : EVMState} (hinj : CacheInj σ)
+    {f₁ f₂ b base i₁ i₂ r₁ r₂ : UInt256}
+    {evm : EVMState} {w : UInt256} {store : VarStore}
+    {fuel : ℕ} {s_mid s₉ : State}
+    (hi₁ : Finmap.lookup (accInterval σ f₁ base) σ.keccak_map = some i₁)
+    (hi₂ : Finmap.lookup (accInterval σ f₂ base) σ.keccak_map = some i₂)
+    (ho₁ : Finmap.lookup (accInterval σ b i₁) σ.keccak_map = some r₁)
+    (ho₂ : Finmap.lookup (accInterval σ b i₂) σ.keccak_map = some r₂)
+    (hf : f₂ ≠ f₁)
+    -- the substituted-flow leg was Unset before the honest authorization
+    (hunset : Fin.land (evm.sload r₂) 255 = 0)
+    -- the crafted CHECK runs on the post-authorization storage (write at r₁)
+    (hslot : (Ok (evm.sstore r₁ w) store)["split_expr_21"]!! = r₂)
+    (hcheck : exec (fuel+1)
+      AtomicFlowManager.Common.block_5412558363375237105
+      (Ok (evm.sstore r₁ w) store) = s_mid)
+    (hif : exec (fuel+1)
+      AtomicFlowManager.Common.if_880639588767859599 s_mid = s₉) :
+    s₉.evm.reverted = true := by
+  have hr : r₂ ≠ r₁ := leg_slot_ne_of_flow_ne hinj hi₂ hi₁ ho₂ ho₁ hf
+  have hsl : (evm.sstore r₁ w).sload r₂ = evm.sload r₂ :=
+    Clear.KeccakDistinct.sload_sstore_of_ne evm hr
+  exact generated.AtomicFlowManager.AtomicFlowManager.refund_check_reverts hslot
+    (by rw [hsl, hunset]; decide)
+    (by rw [hsl, hunset]; decide)
+    hcheck hif
 
 end AttackVectors.NoCrossLeg
