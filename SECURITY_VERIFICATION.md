@@ -1575,6 +1575,22 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   elaborator search for a state inside a four-deep `mstore` tower instead of proving anything.
   It was found only because `scripts/axiom-sweep.sh` could not sweep its directory — **no other
   check in the corpus notices a file that nothing imports**, which is the part worth keeping.
+
+  That gap is now covered directly by `./scripts/unbuilt-check.sh`, which lists every spec file with
+  no `.olean` (cheap — it only stats files, no Lean runs).  As of 2026-08-11: **70 of 2714**, and
+  sampling them puts every one in a known class rather than a new surprise:
+
+  | count | location | class |
+  |---|---|---|
+  | 36 + 7 | `L2AssetRouter` | blocked upstream — raw revert-strings in quotations (`GENERATOR_BUGS.md`) |
+  | 12 | `L2InteropHandler` | same generator class |
+  | 3 + 7 | `AtomicFlowManager` | blocked upstream — `EVMCleanup_bool'`, the documented gate on `fun_verifyInclusion` / `fun_verifyTimeoutAbsence` / `fun_authorizeRefund` |
+  | 5 | `specs/KDParallel` | untracked scratch, not part of the corpus |
+
+  The distinction that matters when reading that list: a spec blocked by a `generated/` bug is
+  expected and recorded, whereas a HAND-WRITTEN spec that stopped compiling is silent breakage.
+  Tell them apart by building the module and checking whether the first error is in `generated/` or
+  in `specs/`.  `imt_root_atlas_user` was the only instance of the second kind, and it is fixed.
 - **Ledger coverage, and how to read the ratio** (`specs/AttackVectors/Audit.lean`): the ledger's
   numerator is checked by Lean, but its denominator is a hand-maintained claim about which results
   are listed.  `./scripts/axiom-sweep.sh <dir> Audit` checks that denominator by enumerating theorems
