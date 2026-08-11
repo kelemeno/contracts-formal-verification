@@ -37,7 +37,10 @@ for f in sorted(glob.glob(os.path.join(d, '*.lean'))):
     for line in open(f):
         m = re.match(r'^namespace\s+(\S+)', line)
         if m: ns = m.group(1)
-        m = re.match(r'^theorem\s+([A-Za-z_][A-Za-z0-9_\'!?]*)', line)
+        # `lemma` too — it is a theorem by another name, and skipping it silently
+        # undercounted every sweep before 2026-08-12. `private` ones are excluded:
+        # #print axioms cannot reach them from outside their module.
+        m = re.match(r'^(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_\'!?]*)', line)
         if m and ns: names.append(f'{ns}.{m.group(1)}')
 body = '\n'.join(f'import {m}' for m in sorted(mods))
 body += '\n' + '\n'.join(f'#print axioms {n}' for n in names)
@@ -71,6 +74,9 @@ for l in t.split('\n'):
         else: clean += 1
     elif 'does not depend on any axioms' in l:
         n += 1; clean += 1
+if n == 0 and not open(sys.argv[1]).read().strip():
+    print('SWEEP FOUND NOTHING: no theorem or lemma declarations parsed in this directory.')
+    sys.exit(0)
 if n == 0:
     print('SWEEP FAILED: no theorem printed its axioms.')
     print('  A module in this directory almost certainly failed to import — one broken file')

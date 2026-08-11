@@ -1771,10 +1771,20 @@ and block-spec task rather than a reasoning one.
 
   | directory | clean / total | note |
   |---|---|---|
-  | `specs/AttackVectors` | 123 / 127 | the 4 non-clean are the frame routes, all in the ledger |
-  | `specs` (Clear layer) | 301 / 310 | the 9 non-clean are all inside `KeccakInjective.lean` itself |
-  | `specs/L2InteropCommitmentTree` | 115 / 155 | **~1 in 4 depends on the keccak idealizations** (was 65/97 before `imt_root_atlas_user` was repaired) |
-  | `specs/AtomicFlowManager` | 39 / 48 | 9 non-clean, and **every one of them uses only `keccak256_inj`** |
+  | `specs/AttackVectors` | 148 / 152 | the 4 non-clean are the frame routes, all in the ledger |
+  | `specs` (Clear layer) | 307 / 316 | the 9 non-clean are all inside `KeccakInjective.lean` itself |
+  | `specs/L2InteropCommitmentTree` | 274 / 337 | **~1 in 5 depends on the keccak idealizations** |
+  | `specs/AtomicFlowManager` | 201 / 222 | 21 non-clean, dominated by `keccak256_inj` |
+  | `specs/L1Bridgehub` | 52 / 53 | one: `fun_registerNewZKChain_value_survives_fun_add` |
+  | `specs/L1Nullifier` | 8 / 8 | |
+  | `specs/L2InteropHandler` | 27 / 27 | |
+  | `specs/DiamondProxy` | 8 / 8 | |
+  | `specs/L1AssetRouter`, `specs/L2AssetRouter` | 1 / 1, 7 / 7 | mostly unbuilt, see `unbuilt-check.sh` |
+
+  **These numbers replace earlier ones and are larger in both columns.**  Until 2026-08-12 the sweep
+  matched only `^theorem` and silently skipped every `lemma`, so all previously published counts
+  undercounted — `specs/AttackVectors` was reported as 123/127 and is really 148/152.  The tool now
+  matches both (excluding `private`, which `#print axioms` cannot reach from outside its module).
 
   The third row is the honest one for the concrete storage layer: slot separation and low-slot
   avoidance are needed at nearly every step that reasons about which storage slot a write touches, so
