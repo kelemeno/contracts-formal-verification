@@ -1615,7 +1615,29 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   useful to a reviewer, than one restricted to a single execution.
 
   So the axiom is load-bearing here for a principled reason, and migrating these would WEAKEN them
-  rather than clean them up.  The honest summary of the whole derivation effort: it removes the
+  rather than clean them up.
+
+  **The `L2InteropCommitmentTree` layer is the opposite case, and that is the actionable finding.**
+  Triaging its 32 non-clean results the same way: 13 of the 14 core ones are stated over a SINGLE
+  state, and the one exception (`leafBase_sep`, `{σ₁ σ₂ σ₁' σ₂'}`) has no callers anywhere in the
+  corpus — it is standalone.  The insert chain itself is single-thread throughout: `glueSeq_leafSetOf'`
+  binds three states (`evm`, `H1`, `H3`), but those are the entry state and the two `hashLeaf` bumps
+  of ONE execution, not independent runs.
+
+  So the derived route applies in principle all the way up to `insertGlue_leafSetOf` — the grand
+  fidelity stitch could be made axiom-free.  The work is bounded but not small: roughly thirty
+  intermediate lemmas each need an `_of_config` variant threading the pool hypotheses
+  (`RangeInWindow` / `CachedInWindow` / `Separated` / `CacheInj`), in the state-matching style of
+  `leafSetOf_{arr,vti,lowSlot}Write_of_config`, and then the chain rethreaded.  Nobody should start
+  that without deciding it is wanted: it trades an appeal to keccak's output distribution for a
+  configuration hypothesis on the fresh-slot pool, and both routes are defensible.
+
+  **A caveat on the triage method**, since it is easy to misuse: counting state binders is a
+  HEURISTIC, not the criterion.  What matters is whether the states are RELATED BY EXECUTION.  The
+  `AtomicFlowManager` results take two `keccak256 … = some` hypotheses with no relation between
+  `σ₁` and `σ₂` — genuinely disjoint threads.  `glueSeq_leafSetOf'` takes three binders that are
+  stages of one run.  Binder count alone would have classified the second as harder than the first,
+  which is backwards.  The honest summary of the whole derivation effort: it removes the
   idealization where the corpus reasons within one execution (the frame routes, the forgery track),
   and leaves it exactly where the corpus deliberately reasons across executions.
 
