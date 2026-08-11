@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 110 of 119 depend only on Lean's standard base
+  RESULT as of this commit — 112 of 121 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
@@ -89,6 +89,7 @@ import specs.TreeFoldPins
 import specs.AttackVectors.FoldMembership
 import specs.AttackVectors.WitnessMember
 import specs.AttackVectors.NoDoubleSpend
+import specs.AttackVectors.NoCrossBundle
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_weld_user
 import specs.MerkleSpec
 import specs.AttackVectors.LeafDecode3
@@ -176,6 +177,8 @@ import specs.AtomicFlowManager.Layout
 #print axioms AttackVectors.WitnessMember.gap_impossible_of_committedAtIn
 #print axioms AttackVectors.NoDoubleSpend.no_delivery_and_reclaim
 #print axioms AttackVectors.NoDoubleSpend.no_delivery_and_reclaim_from_genesis
+#print axioms AttackVectors.NoCrossBundle.status_write_frames_other_bundle
+#print axioms AttackVectors.NoCrossBundle.status_survives_other_writes
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_leafSetOf
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf_evolution_step
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_evolution
