@@ -1584,7 +1584,23 @@ the status read — a genuine spec, not an alias), and the `Layout` restatements
 `A_fun_…` bridges are the part that is missing, and closing them requires the sub-block layer first.
 
 The distinction matters when reading Part B: a claim about `verifyBundle` is a claim about specific
-proved theorems over its blocks, not about a verified specification of the function.  Related: the
+proved theorems over its blocks, not about a verified specification of the function.
+
+  **Why `fun_verifyBundle`'s bridge is blocked is now known precisely, and it is not effort.**  Of its
+  21 sub-blocks, 11 already have real specs.  Every one of the remaining 10 hits a documented blocker:
+
+  | count | blocker | blocks |
+  |---|---|---|
+  | 4 | **large shift constant** (`shl 225` / `shl 248`) — the whnf wall in the SPEC DEFINITION, gap 2 above; `maxHeartbeats` and `irreducible_def` both fail | `if_7459957530221088163`, `if_4527419366897270229`, `block_8261716617869206867`, `block_5575682281217382298` |
+  | 4 | **user function call** — needs the callee's spec first (`abi_encode_*`, `memory_array_*`) | `block_795419607175387125`, `block_1831590622027002072`, `block_6981637902326639646`, `if_4387370399091499927` |
+  | 1 | **`mcopy`** — only an A3-admitted module | `block_3486721318462544172` |
+  | 1 | **`returndatacopy` / `returndatasize`** | `if_4897189129566826754` |
+
+  So closing this bridge is gated on a Lean-level fix for large shift constants and on the ABI-encoder
+  spec chain, in that order — grinding block specs by hand cannot reach it.  Note three of the four
+  large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
+  directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
+  compositional statement, not new facts.  Related: the
 Common-block specs are overwhelmingly `A := concrete` aliases, so `grep -L sorry` overstates them in the
 opposite direction — use `#print axioms` and `./scripts/axiom-sweep.sh`.
 
