@@ -78,6 +78,43 @@ theorem legState_frames_other_leg {σ σ_w : EVMState} (hinj : CacheInj σ)
   unfold AtomicFlowManager.Layout.legStateOf
   rw [refund_write_frames_other_leg hinj hi₁ hi₂ ho₁ ho₂ hne]
 
+/-! ## THE CASE THE ONE-LEVEL RESULT MISSES
+
+`AtomicFlowManager`'s `accessor_slots_differ_of_key_ne` (A6′) already separates leg slots, and its
+docstring describes it as being about `_state[flowId][bundleHash]`.  But it is a ONE-LEVEL statement
+and it requires `k₁ ≠ k₂` — different bundle hashes.  It therefore says nothing when the SAME bundle
+appears in two different flows, which is a realistic configuration: a bundle hash is a commitment to
+bundle contents, and nothing stops two flows from committing to the same contents.
+
+`leg_slot_ne` covers it, because it separates on either coordinate.  Spelling the case out since it is
+the one a reader is likely to assume is already handled. -/
+
+/-- **THE SAME BUNDLE IN TWO DIFFERENT FLOWS.**  Two legs sharing a bundle hash but belonging to
+different flows still land on different slots — so refunding one does not touch the other.
+
+Not covered by `accessor_slots_differ_of_key_ne`, which needs the bundle hashes to differ. -/
+theorem leg_slot_ne_of_flow_ne {σ : EVMState} (hinj : CacheInj σ)
+    {f₁ f₂ b base i₁ i₂ r₁ r₂ : UInt256}
+    (hi₁ : Finmap.lookup (accInterval σ f₁ base) σ.keccak_map = some i₁)
+    (hi₂ : Finmap.lookup (accInterval σ f₂ base) σ.keccak_map = some i₂)
+    (ho₁ : Finmap.lookup (accInterval σ b i₁) σ.keccak_map = some r₁)
+    (ho₂ : Finmap.lookup (accInterval σ b i₂) σ.keccak_map = some r₂)
+    (hf : f₁ ≠ f₂) : r₁ ≠ r₂ :=
+  leg_slot_ne hinj hi₁ hi₂ ho₁ ho₂ (Or.inl hf)
+
+/-- The frame form of the same case: one flow's refund write is invisible to the other flow's leg for
+the same bundle. -/
+theorem legState_frames_same_bundle_other_flow {σ σ_w : EVMState} (hinj : CacheInj σ)
+    {f₁ f₂ b base i₁ i₂ r₁ r₂ v : UInt256}
+    (hi₁ : Finmap.lookup (accInterval σ f₁ base) σ.keccak_map = some i₁)
+    (hi₂ : Finmap.lookup (accInterval σ f₂ base) σ.keccak_map = some i₂)
+    (ho₁ : Finmap.lookup (accInterval σ b i₁) σ.keccak_map = some r₁)
+    (ho₂ : Finmap.lookup (accInterval σ b i₂) σ.keccak_map = some r₂)
+    (hf : f₁ ≠ f₂) :
+    AtomicFlowManager.Layout.legStateOf (σ_w.sstore r₁ v) r₂
+      = AtomicFlowManager.Layout.legStateOf σ_w r₂ :=
+  legState_frames_other_leg hinj hi₁ hi₂ ho₁ ho₂ (Or.inl hf)
+
 /-! ## THE UNSEEN LEG
 
 `NoCrossBundle.fresh_slot_ne_cached` was stated over an ARBITRARY base rather than a fixed one, and
