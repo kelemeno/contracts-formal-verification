@@ -1487,6 +1487,44 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   a documented junk-window cache pack (model artifact), or `NextClosed` (free along any
   history from sound genesis).  Axiom base: trusted keccak only.
 
+## Part B addendum — 2026-08-11: cross-key storage isolation
+
+Every result in Part B about a status, state or flag is about ONE mapping entry: the bundle whose
+status is written, the leg whose refund state is set, the withdrawal whose flag is finalized.  None
+of them says anything about a DIFFERENT entry.  That leaves a family of attacks unaddressed — not
+forging a value at its own slot, but reaching it sideways from another key.
+
+This addendum records the results closing that, all axiom-free (they use the DERIVED keccak facts of
+the Part D trusted-base note, not the idealizations).
+
+| what | where | depth |
+|---|---|---|
+| bundle delivery status | `AttackVectors/NoCrossBundle.lean` | 1 (`bundleStatus[bh]`) |
+| leg refund state | `AttackVectors/NoCrossLeg.lean` | 2 (`_state[flowId][bundleHash]`) |
+| withdrawal finalized flag | `AttackVectors/NestedSlots.lean` | 3 (`[chainId][batch][index]`) |
+| any depth | `NestedSlots.nestedSlot_inj` | n |
+
+Each family covers both the CACHED case (keys the run has already hashed — via cache injectivity)
+and the UNSEEN case (a key whose slot has never been computed — via freshness, a different argument
+with the same conclusion), and both single writes and whole SEQUENCES of them, which is the form a
+refund or delivery loop needs.
+
+**Three of these compose into rejection statements, not just state facts:**
+
+* `NoCrossLeg.flow_substituted_claim_reverts` — an authorization for `(flowId₁, bundleHash)` cannot
+  be ridden by a claim for `(flowId₂, bundleHash)`.  This is the mirror of A6′'s
+  `crafted_claim_reverts_after_authorization`, which requires the BUNDLE HASHES to differ and so
+  leaves the flow coordinate open.  A bundle hash commits to contents, not to a flow.
+* `NoReplayCross.replay_still_reverts_after_other_finalization` — a finalized withdrawal's replay
+  guard still fires after an attacker finalizes whatever else they can reach.
+  `replay_after_set_reverts` shows no replay with nothing else touching storage; this shows the
+  protection is not aliasable.
+* `InteropHandler.Layout.unverified_stays_unverified` — marking one bundle cannot make another pass
+  the verified gate.
+
+**And one does not**, which is the honest asymmetry: bundle DELIVERY has only the state half, because
+its guard is not extracted.  See the Part D addendum of the same date.
+
 ## Part C — What a reviewer should do
 
 1. **Read Part A** and decide if the assumptions are acceptable for your threat model (especially
