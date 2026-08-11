@@ -83,4 +83,46 @@ theorem status_survives_other_writes {σ : EVMState} (hinj : CacheInj σ)
     rw [List.foldl_cons, ih _ (fun q hq => hall q (List.mem_cons_of_mem _ hq))]
     exact status_write_frames_other_bundle hinj hcp hc hne
 
+/-! ## THE OTHER HALF: A BUNDLE WHOSE SLOT WAS NEVER COMPUTED
+
+The results above need both slots CACHED, so they cover bundles a run has already touched.  The
+remaining case is a bundle whose status slot has never been computed — and there the separating
+argument is not injectivity at all but FRESHNESS: the slot is drawn from the unused pool, and
+`KeccakFresh.CacheInUsed` says every cached value has been marked used, so the fresh draw differs
+from all of them.
+
+Stating it completes the picture: whether or not the second bundle has been seen before, a write at
+the first bundle's slot is invisible at the second's. -/
+
+/-- **A NEVER-COMPUTED BUNDLE'S SLOT IS FRESH.**  If the second bundle's accessor preimage is not in
+the cache, computing it yields a slot distinct from any cached slot — in particular from the first
+bundle's.
+
+The non-exhaustion hypothesis is necessary and not bookkeeping: an exhausted pool makes the model
+return `0` and flag a collision, and `0` could well be a cached slot. -/
+theorem fresh_slot_ne_cached {σ : EVMState} (hinv : CacheInUsed σ)
+    {k₁ k₂ base r₁ : UInt256} {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc₁ : Finmap.lookup (accInterval σ k₁ base) σ.keccak_map = some r₁)
+    (hmiss : Finmap.lookup (accInterval σ k₂ base) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    (accOut σ k₂ base).1 ≠ r₁ := by
+  refine Clear.KeccakFresh.keccakOut_miss_fresh
+    (σ := (σ.mstore 0 k₂).mstore 32 base)
+    (Clear.KeccakFresh.cacheInUsed_mstore 32 base
+      (Clear.KeccakFresh.cacheInUsed_mstore 0 k₂ hinv))
+    hmiss hpart hc₁
+
+/-- **NO INTERFERENCE WITH AN UNSEEN BUNDLE.**  A write at one bundle's status slot is invisible at
+the slot a never-computed bundle draws.
+
+With `status_write_frames_other_bundle` this covers both cases, so no bundle's status — recorded or
+not yet computed — can be moved by another bundle's marking. -/
+theorem status_write_frames_fresh_bundle {σ σ_w : EVMState} (hinv : CacheInUsed σ)
+    {k₁ k₂ base r₁ v : UInt256} {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc₁ : Finmap.lookup (accInterval σ k₁ base) σ.keccak_map = some r₁)
+    (hmiss : Finmap.lookup (accInterval σ k₂ base) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    (σ_w.sstore r₁ v).sload (accOut σ k₂ base).1 = σ_w.sload (accOut σ k₂ base).1 :=
+  Clear.KeccakDistinct.sload_sstore_of_ne σ_w (fresh_slot_ne_cached hinv hc₁ hmiss hpart)
+
 end AttackVectors.NoCrossBundle
