@@ -1571,8 +1571,12 @@ usually an honest scope note — as in `fun_verifyBundle` — so the naive count
 | L1Bridgehub, L1AssetRouter, L1Nullifier, L2InteropCommitmentTree, L2InteropHandler | 0 |
 
 Eight of the InteropHandler nine are literally `def A_fun_… := sorry` — the function's abstract spec is
-unproven.  At the block layer beneath them, `InteropHandler/Common` is **127 stubbed of 276** (the other
-149 are real specs, not `A := concrete` aliases — this contract has none of those).  The ninth, `fun_verifyBundle`, carries its own honest note explaining why it cannot be
+unproven.  At the block layer beneath them, `InteropHandler/Common` is **126 stubbed of 276**, and the
+other 150 are genuine — this contract has no `A := concrete` aliases at all.  That is unusual, and the
+contrast is the useful part: `AtomicFlowManager/Common` is **351 aliases** against 12 genuine specs and 7
+stubs.  The two contracts fail the "is it specified" question in OPPOSITE ways — InteropHandler leaves
+blocks honestly `sorry`, AtomicFlowManager fills them with tautologies that `grep -L sorry` scores as
+done.  Neither count means anything without knowing which pattern you are looking at.  The ninth, `fun_verifyBundle`, carries its own honest note explaining why it cannot be
 closed: all 21 sub-block abstractions it compiles through still define `A_block_… := sorry`, so the
 concrete-of-code chain is opaque propositions from which nothing about `s₉` follows.
 
