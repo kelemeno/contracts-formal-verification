@@ -1520,13 +1520,13 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
 
 ### Part D addendum — atomic-interop gaps as of 2026-07-23 evening
 
-- **The grand fidelity stitch** — #65's concrete insert closed form and #62's abstract
-  `imtInsert` are one composition apart: remaining are the walk/pad sload-at-leaf frames
-  (all separations and cache/junk transports exist — `updateWalk_junk` shows the walk
-  preserves bytes ≥ 64 entirely), the new-leaf decode agreement (in progress), and the
-  end-to-end assembly.  Until then, "the deployed insert IS an `Evolution` step" holds at
-  the storage-write level (#62 capstone) but not yet as a single theorem from
-  `insertGlue_prefix`.
+- ~~**The grand fidelity stitch**~~ — **CLOSED** by #67, `insertGlue_leafSetOf`
+  (`imt_weld_user.lean`): `leafSetOf (concrete final evm) = imtInsert (leafSetOf evm)
+  (decodeLeaf evm IX) V`, i.e. exactly the single theorem this bullet said was missing.
+  `sorry`-free; depends on all four keccak idealizations.  *(Bullet corrected 2026-08-11 — it
+  described the state as of 2026-07-23 and the weld post-dates it.  Both this and the
+  trusted-base bullet above were found stale by the same audit; a reviewer-facing gap list that
+  overstates the gaps is a smaller problem than one that understates them, but it is still wrong.)*
 - **VC-generator bugs** (GENERATOR_BUGS.md): four classes gate 22 templates —
   `EVMCleanup_bool'` (gates `fun_verifyInclusion`/`fun_verifyTimeoutAbsence` pipelines;
   their CONCRETE coverage exists in #22–#36), raw revert-strings in quotations, a lone-callee
@@ -1566,6 +1566,18 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   missing entries on first run).  As of 2026-08-11: 123 clean of 127 in `specs/AttackVectors`, and
   301 of 310 across `specs/`, with every non-clean result either a frame route or inside
   `KeccakInjective.lean` itself.
+- **A spec file that does not compile** (found 2026-08-11): `imt_root_atlas_user.lean` fails to
+  build — an unknown identifier `byte_mstore32_pinned` (a name that exists nowhere else in the
+  corpus, so a deleted helper), a whnf timeout, and three `rewrite` failures.  Its **72 theorems are
+  unverified**.  Nothing imports it and nothing in this document cites it, so no claim here rests on
+  it; a banner at the top of the file records the status.  It was found only because
+  `scripts/axiom-sweep.sh` could not sweep its directory.
+- **Ledger coverage** (`specs/AttackVectors/Audit.lean`): the ledger's numerator is checked by Lean,
+  but its denominator is a hand-maintained claim about which results are listed.
+  `./scripts/axiom-sweep.sh <dir> Audit` checks that denominator by enumerating theorems from source.
+  It has found two omissions so far (two frame routes, `29b42ff`) and one whole uncovered directory
+  (`specs/L2InteropCommitmentTree`, 154 theorems, whose `insertGlue_leafSetOf` and
+  `leafSetOf_evolution_step` are now listed).
 - **Verification hygiene** (added after today's audits): `lake env lean` does not check
   import-olean freshness — corpus-level claims require fresh-compile audits; two silent
   regressions (renamed helpers, a renumbered enum) were found and repaired this way (#64,
