@@ -1556,6 +1556,36 @@ its guard is not extracted.  See the Part D addendum of the same date.
   standalone guard function).
 - Liveness, cross-contract end-to-end, L2/prover — out of model scope (A8).
 
+### Part D addendum — 2026-08-11: what "verified" means per LAYER, measured
+
+Counting `sorry` across the 128 function-level specs (`specs/*/*/fun_*_user.lean`): **17 contain one**,
+and they are not spread evenly.
+
+| contract | fun-specs containing `sorry` |
+|---|---|
+| InteropHandler | **9 of 10** |
+| L2AssetRouter | 4 of 20 |
+| AtomicFlowManager | 3 of 25 (the `EVMCleanup_bool'`-blocked trio) |
+| L1Nullifier | 1 of 29 |
+| L1Bridgehub, L1AssetRouter, L2InteropCommitmentTree, L2InteropHandler | 0 |
+
+Eight of the InteropHandler nine are literally `def A_fun_… := sorry` — the function's abstract spec is
+unproven.  The ninth, `fun_verifyBundle`, carries its own honest note explaining why it cannot be
+closed: all 21 sub-block abstractions it compiles through still define `A_block_… := sorry`, so the
+concrete-of-code chain is opaque propositions from which nothing about `s₉` follows.
+
+**This does not mean nothing is proved about InteropHandler.**  It means the verified content sits at a
+different layer than the function specs: hand-written theorems stated DIRECTLY over the generated block
+ASTs (`unauthorized_sender_reverts`, `not_included_reverts`, `verify_write_marks_verified`,
+`delivered_status_reads_two`), real block-level specs where they exist (`A_block_981281138320897691`,
+the status read — a genuine spec, not an alias), and the `Layout` restatements.  The function-level
+`A_fun_…` bridges are the part that is missing, and closing them requires the sub-block layer first.
+
+The distinction matters when reading Part B: a claim about `verifyBundle` is a claim about specific
+proved theorems over its blocks, not about a verified specification of the function.  Related: the
+Common-block specs are overwhelmingly `A := concrete` aliases, so `grep -L sorry` overstates them in the
+opposite direction — use `#print axioms` and `./scripts/axiom-sweep.sh`.
+
 ### Part D addendum — 2026-08-11: no-double-DELIVERY is proved at the state level, not the guard level
 
 `delivered_status_reads_two` (`no_double_delivery_user.lean`) proves that after `_markFullyExecutedAndRun`'s
