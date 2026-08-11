@@ -16,9 +16,15 @@ OUT=/tmp/axsweep-$$
 python3 - "$DIR" "$OUT" <<'PY'
 import re, sys, glob, os
 d, out = sys.argv[1], sys.argv[2]
-names, mods = [], set()
+names, mods, skipped = [], set(), []
 for f in sorted(glob.glob(os.path.join(d, '*.lean'))):
     if os.path.basename(f) == 'Audit.lean':
+        continue
+    # Skip modules with no .olean: one unbuilt file aborts the whole import and would
+    # otherwise take the entire sweep down with it. Report them rather than hiding them.
+    olean = os.path.join('.lake/build/lib', f[:-5] + '.olean')
+    if not os.path.exists(olean):
+        skipped.append(f)
         continue
     mods.add(f[:-5].replace('/', '.'))
     ns = None
@@ -31,6 +37,8 @@ body = '\n'.join(f'import {m}' for m in sorted(mods))
 body += '\n' + '\n'.join(f'#print axioms {n}' for n in names)
 open(out + '.lean', 'w').write(body)
 print(f'{len(names)} theorems in {len(mods)} modules', file=sys.stderr)
+for f in skipped:
+    print(f'  SKIPPED (no .olean — never built or does not compile): {f}', file=sys.stderr)
 PY
 cp "$OUT.lean" specs/AxSweepTmp.lean
 ~/.elan/bin/lake env ~/.elan/toolchains/leanprover--lean4---v4.9.1/bin/lean specs/AxSweepTmp.lean > "$OUT.txt" 2>&1

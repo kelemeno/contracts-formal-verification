@@ -1572,12 +1572,31 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   unverified**.  Nothing imports it and nothing in this document cites it, so no claim here rests on
   it; a banner at the top of the file records the status.  It was found only because
   `scripts/axiom-sweep.sh` could not sweep its directory.
-- **Ledger coverage** (`specs/AttackVectors/Audit.lean`): the ledger's numerator is checked by Lean,
-  but its denominator is a hand-maintained claim about which results are listed.
-  `./scripts/axiom-sweep.sh <dir> Audit` checks that denominator by enumerating theorems from source.
-  It has found two omissions so far (two frame routes, `29b42ff`) and one whole uncovered directory
-  (`specs/L2InteropCommitmentTree`, 154 theorems, whose `insertGlue_leafSetOf` and
-  `leafSetOf_evolution_step` are now listed).
+- **Ledger coverage, and how to read the ratio** (`specs/AttackVectors/Audit.lean`): the ledger's
+  numerator is checked by Lean, but its denominator is a hand-maintained claim about which results
+  are listed.  `./scripts/axiom-sweep.sh <dir> Audit` checks that denominator by enumerating theorems
+  from source.
+
+  **The ledger's ratio is NOT representative of the corpus, and should not be read as one.**  It
+  samples headline results, and those skew to the abstract and attack-vector layers, which are
+  naturally axiom-free.  Sweeping whole directories gives the real distribution:
+
+  | directory | clean / total | note |
+  |---|---|---|
+  | `specs/AttackVectors` | 123 / 127 | the 4 non-clean are the frame routes, all in the ledger |
+  | `specs` (Clear layer) | 301 / 310 | the 9 non-clean are all inside `KeccakInjective.lean` itself |
+  | `specs/L2InteropCommitmentTree` | 65 / 97 | **~1 in 3 depends on the keccak idealizations** |
+
+  The third row is the honest one for the concrete storage layer: slot separation and low-slot
+  avoidance are needed at nearly every step that reasons about which storage slot a write touches, so
+  the intermediate lemmas (`leafSlot_inj`, `decodeLeaf_*`, `*_sload_one`, the `glueSeq`/`insertGlue`
+  family) carry the axioms and so does everything built on them.  Listing every one of those in the
+  ledger would be noise; the capstones are listed (`insertGlue_leafSetOf`, `insertGlue_evolution`,
+  `insertGlue_evolution_step`, `leafSetOf_evolution_step`, `leafSetOf_imtInsert`,
+  `root_pins_written_leaf`), and the sweep is how to see the rest.
+
+  Two modules had never been built at all when the sweep first ran: `mcopy.lean` (fine — it compiles,
+  nobody had compiled it) and `imt_root_atlas_user.lean` (broken, see above).
 - **Verification hygiene** (added after today's audits): `lake env lean` does not check
   import-olean freshness — corpus-level claims require fresh-compile audits; two silent
   regressions (renamed helpers, a renumbered enum) were found and repaired this way (#64,
