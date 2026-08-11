@@ -1626,8 +1626,19 @@ proved theorems over its blocks, not about a verified specification of the funct
   derivable, and the useful statement is the revert implication alone (`¬(x - y ≤ x) → s₉.evm.reverted`)
   rather than a closed form: the returning branch's shape involves the frame revive and store
   restoration, which no caller needs.  The remaining step is transporting `reverted` through
-  `🧟 … 🏪⟦…⟧⟦… ↦ …⟧`.  Drafted and NOT committed — the draft still carried a `sorry` in the bridge, and
-  a stub with a real-looking definition in front of it is worse than an honest stub.  The "large shift" gate turned out to be largely illusory: two of the four
+  `🧟 … 🏪⟦…⟧⟦… ↦ …⟧`, and a second attempt narrowed it to two concrete obstacles:
+
+  * **`(🧟 s).evm = s.evm` is FALSE in general.**  `reviveJump` is the identity except on a
+    `Checkpoint`, where `revive` rebuilds an `Ok` from the jump's saved `(evm, store)` — so the EVM of
+    a revived checkpoint is the SAVED one, not the checkpoint's.  The transport therefore needs a case
+    split on the block's post-state, with the `Checkpoint` case argued separately (or excluded, since a
+    straight-line guard block cannot produce one).
+  * **The frame state is `(Ok evm store)☎️⟦["x","y"],[x,y]⟧`, not `Ok evm (initcall … store)`** —
+    `initcall` takes the STATE, not the var-store.  Naming it wrongly makes the `Spec_ok_unfold`
+    instantiation fail with a type mismatch that points at `store` rather than at the shape.
+
+  Both attempts were reverted rather than committed with a `sorry`: a real-looking definition in front
+  of an unproven bridge is worse for a reader than an honest stub.  The "large shift" gate turned out to be largely illusory: two of the four
   blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
