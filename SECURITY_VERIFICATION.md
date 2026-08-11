@@ -1601,7 +1601,22 @@ proved theorems over its blocks, not about a verified specification of the funct
   | 1 | **`returndatacopy` / `returndatasize`** | `if_4897189129566826754` |
 
   So closing this bridge is gated mainly on the ABI-encoder spec chain (4 blocks), plus `mcopy` and
-  `returndatacopy` (1 each).  The "large shift" gate turned out to be largely illusory: two of the four
+  `returndatacopy` (1 each).
+
+  **And that chain bottoms out lower than expected.**  The blocks calling helpers are gated on those
+  helpers' specs, and in `InteropHandler` every one of them is a stub:
+  `array_allocation_size_bytes`, `checked_sub_uint256`, all five `finalize_allocation` variants, all
+  five `abi_encode_bytes*` variants, `memory_array_index_access_*` — `sorry`, every one.  So the
+  ordering is: helper function specs → the blocks that call them → the function bridges.  Starting at
+  the block layer, as the raw stub count invites, works on the middle of a chain whose bottom is
+  missing.
+
+  The smallest root is `checked_sub_uint256` (one sub-block, an underflow guard of exactly the
+  error-selector shape specced four times above).  I attempted its block spec and reverted it: the
+  generated `concrete_of_code` for that block did not have the if-split shape the other guards have —
+  after `dsimp` the hypothesis read `Ok evm store = s₉`, with no branch — and I did not want to encode
+  a guess about a revert path.  Whether that is a generator artefact or my misreading of the derived
+  form is unresolved, and it is the next thing to look at on this track.  The "large shift" gate turned out to be largely illusory: two of the four
   blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
