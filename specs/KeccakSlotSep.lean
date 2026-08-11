@@ -205,4 +205,48 @@ theorem cached_off_ne_off {σ : EVMState} {I₁ I₂ : List UInt256} {r₁ r₂ 
         _ = r₂ + k₂ := heq
     exact hsep r₁ r₂ hslot₁ hslot₂ hrne d hdlt hcancel
 
+/-! ## DIFFERENT PREIMAGE SHAPES
+
+A Solidity ARRAY element sits at `keccak(base) + i` — a 32-byte preimage, offset by the index.  A
+MAPPING entry sits at `keccak(key ‖ base)` — a 64-byte preimage.  Whether those two families can
+collide is the remaining storage-shape question, and it is what makes reasoning about an array write
+without mentioning mappings sound.
+
+They cannot, and the reason needs no cryptography: preimages of different LENGTHS are different lists,
+which `KeccakInjective.mkInterval_ne_of_len_ne` establishes by `List.length` alone (that lemma is
+axiom-free despite its home — it depends only on `propext` and `Quot.sound`).  Feed that inequality to
+`cached_off_ne_off` and the offsets are handled too. -/
+
+/-- **PREIMAGES OF DIFFERENT LENGTHS GIVE SEPARATED SLOTS.**  Two cached hashes whose preimage windows
+have different byte-lengths stay distinct under any two array-sized offsets.
+
+The 32-vs-64 instance is array-element vs mapping-entry: no array write can reach a mapping entry, and
+no mapping write can reach an array element. -/
+theorem cached_off_ne_off_of_len_ne {σ : EVMState} {ms₁ ms₂ : MachineState}
+    (hsep : Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    {p₁ n₁ p₂ n₂ r₁ r₂ k₁ k₂ : UInt256}
+    (hc₁ : Finmap.lookup (mkInterval ms₁ p₁ n₁) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (mkInterval ms₂ p₂ n₂) σ.keccak_map = some r₂)
+    (hlen : n₁.val ≠ n₂.val)
+    (hk₁ : k₁.val < lowSlotBound) (hk₂ : k₂.val < lowSlotBound) :
+    r₁ + k₁ ≠ r₂ + k₂ :=
+  cached_off_ne_off hsep hinj hc₁ hc₂
+    (Clear.KeccakInjective.mkInterval_ne_of_len_ne hlen) hk₁ hk₂
+
+/-- **AN ARRAY WRITE CANNOT REACH A MAPPING ENTRY.**  The frame form at the 32-vs-64 instance: storing
+into an array element leaves every mapping entry exactly as it was. -/
+theorem arr_write_frames_mapping {σ σ_w : EVMState} {ms₁ ms₂ : MachineState}
+    (hsep : Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    {p₁ p₂ r₁ r₂ i v : UInt256}
+    (hc₁ : Finmap.lookup (mkInterval ms₁ p₁ 32) σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup (mkInterval ms₂ p₂ 64) σ.keccak_map = some r₂)
+    (hi : i.val < lowSlotBound) :
+    (σ_w.sstore (r₁ + i) v).sload r₂ = σ_w.sload r₂ := by
+  refine Clear.KeccakDistinct.sload_sstore_of_ne σ_w ?_
+  intro he
+  refine cached_off_ne_off_of_len_ne hsep hinj hc₁ hc₂ (by decide) hi
+    (show ((0 : UInt256)).val < lowSlotBound by decide) ?_
+  rw [add_zero]
+  exact he.symm
+
 end Clear.KeccakSlotSep
