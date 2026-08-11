@@ -1596,12 +1596,28 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   `insertGlue_evolution_step`, `leafSetOf_evolution_step`, `leafSetOf_imtInsert`,
   `root_pins_written_leaf`), and the sweep is how to see the rest.
 
-  The `AtomicFlowManager` row is the interesting one for future work: its nine non-clean results —
-  including `foldRoot_binding`, `same_position_member_gap_impossible`, `hashLeafOut_inj`, `accOut_inj`
-  and `crafted_claim_reverts_after_authorization` — depend on `keccak256_inj` ALONE, and that is the
-  one idealization with a single-thread derived counterpart (`KeccakSeqInj.keccakOut_seq_ne`, plus
-  `sload_sstore_of_cached_ne` for the non-aliasing uses).  Whether they migrate depends on whether
-  each use compares two calls within one execution, which is the derived form's limit.
+  The `AtomicFlowManager` row's nine non-clean results depend on `keccak256_inj` ALONE, which is the
+  one idealization with a single-thread derived counterpart (`KeccakSeqInj.keccakOut_seq_ne`).  That
+  looked like a migration opportunity.  **It is not — checked 2026-08-11, and the check settles it:
+  every one of the nine quantifies over TWO INDEPENDENT STATES.**
+
+      accOut_inj, commitValueOut_inj, hashLeafOut_inj,
+      accessor_slots_differ_of_key_ne, crafted_claim_reverts_after_authorization   {σ₁ σ₂ : EVMState}
+      same_position_member_gap_impossible                       {σ₁ σ₂} + {σf₁ σf₂}
+      flowid_pins_legcount                                      {σ₁ σ₂ σ₁' σ₂'}
+      foldRoot_binding                                          {σ₁ σ₂}
+      flowid_pins_deadline_sl                                   {E₁ E₂ σ₁' σ₂'}
+
+  Two unrelated states is exactly the case the derived route cannot reach and `keccak256_inj` exists
+  for — `KeccakInjective`'s own header says it is stated without positing a global hash function
+  because independent fresh picks in disjoint threads could coincide.  These theorems USE that
+  generality deliberately: a binding claim about two separately-computed slots is stronger, and more
+  useful to a reviewer, than one restricted to a single execution.
+
+  So the axiom is load-bearing here for a principled reason, and migrating these would WEAKEN them
+  rather than clean them up.  The honest summary of the whole derivation effort: it removes the
+  idealization where the corpus reasons within one execution (the frame routes, the forgery track),
+  and leaves it exactly where the corpus deliberately reasons across executions.
 
   Note also `specs/*/…/Common/` (the per-block specs, ~1700 files) is deliberately NOT swept: those
   are overwhelmingly `A := concrete` aliases, so they would report clean while proving nothing and
