@@ -2,6 +2,7 @@ import specs.InteropHandler.InteropHandler.fun_verifyBundle_user
 import specs.KeccakDeterminism
 import specs.InteropHandler.InteropHandler.exec_allowed_user
 import specs.AttackVectors.NoCrossBundle
+import generated.InteropHandler.InteropHandler.Common.block_981281138320897691
 
 /-
   READABLE VOCABULARY for the InteropHandler memory layout.
@@ -173,6 +174,39 @@ theorem slot_block_derives_bundleStatusSlot
           (((store.insert "dataSlot" (bundleStatusSlot evm bh)).insert
               "cleaned_1" 0).insert "cleaned_1" 0) :=
   generated.InteropHandler.InteropHandler.verify_slot_block hbh
+
+/-! ## The READ side, in this vocabulary
+
+`c623030` recorded that no-double-delivery is proved at the state level but not the guard level, and that the
+execute path's status read was described in prose.  Half of that is fixable here: the read itself IS specified
+(`A_block_981281138320897691`, a real spec rather than an alias), so it can be stated in this file's vocabulary.
+
+What that buys: `var_currentStatus` — the value the execute/receive path branches on — is exactly `statusOf` at
+`bundleStatusSlot`, which is the slot `verify_write_marks_verified` writes and the slot the cross-bundle frames
+protect.  So all three now speak about the same location, as theorems rather than by inspection.
+
+What it does NOT buy: the refusal.  Nothing here says a `FullyExecuted` status makes the path revert — that guard
+is inlined in the dispatcher and is not extracted.  See the Part D addendum. -/
+
+/-- **THE STATUS READ IS `statusOf` AT `bundleStatusSlot`.**  Running the status-read block binds
+`var_currentStatus` to the low byte of the word at `bundleStatus[bh]`.
+
+The `sload` happens on `accOut`'s post-state, which is where the block leaves the EVM; storage is untouched by the
+two scratch writes and the hash, so this is the same word `verify_write_marks_verified` writes. -/
+theorem status_read_binds_statusOf
+    {evm : EVMState} {store : VarStore} {fuel : ℕ} {bh : Literal} {s₉ : State}
+    (hbh : (Ok evm store)["var_bundleHash"]!! = bh)
+    (hnf : ¬ ❓ s₉)
+    (hexec : exec (fuel+1) InteropHandler.Common.block_981281138320897691 (Ok evm store) = s₉) :
+    s₉["var_currentStatus"]!!
+      = statusOf (accOut evm bh 1).2 (bundleStatusSlot evm bh) := by
+  have habs := Spec_ok_unfold (by trivial) hnf
+    (InteropHandler.Common.block_981281138320897691_abs_of_code s₉ hexec)
+  unfold InteropHandler.Common.A_block_981281138320897691 at habs
+  rw [habs evm store rfl]
+  rw [lookup_insert' (by aesop)]
+  unfold statusOf bundleStatusSlot mappingSlot STATUS_MASK
+  rw [hbh]
 
 /-! ## Cross-bundle isolation, in this vocabulary
 
