@@ -1595,13 +1595,14 @@ proved theorems over its blocks, not about a verified specification of the funct
 
   | count | blocker | blocks |
   |---|---|---|
-  | 4 | **large shift constant** (`shl 225` / `shl 248`) — the whnf wall in the SPEC DEFINITION, gap 2 above; `maxHeartbeats` and `irreducible_def` both fail | `if_7459957530221088163`, `if_4527419366897270229`, `block_8261716617869206867`, `block_5575682281217382298` |
+  | ~~4~~ 2 | ~~**large shift constant**~~ — **THIS ROW WAS WRONG.**  `if_7459957530221088163` and `if_4527419366897270229` both spec cleanly (2026-08-11); the shift is carried symbolically by `EVMShl'` and never evaluated.  Only `block_8261716617869206867` and `block_5575682281217382298` remain untried, and the gap-2 note they were classified under is itself now partly disproved — see `AGENTS.md`. | `block_8261716617869206867`, `block_5575682281217382298` |
   | 4 | **user function call** — needs the callee's spec first (`abi_encode_*`, `memory_array_*`) | `block_795419607175387125`, `block_1831590622027002072`, `block_6981637902326639646`, `if_4387370399091499927` |
   | 1 | **`mcopy`** — only an A3-admitted module | `block_3486721318462544172` |
   | 1 | **`returndatacopy` / `returndatasize`** | `if_4897189129566826754` |
 
-  So closing this bridge is gated on a Lean-level fix for large shift constants and on the ABI-encoder
-  spec chain, in that order — grinding block specs by hand cannot reach it.  Note three of the four
+  So closing this bridge is gated mainly on the ABI-encoder spec chain (4 blocks), plus `mcopy` and
+  `returndatacopy` (1 each).  The "large shift" gate turned out to be largely illusory: two of the four
+  blocks filed under it have since been specced by hand.  Note three of the four
   large-shift blocks are error-selector `revert` paths, whose SECURITY content is already proved
   directly (`not_included_reverts`, `unauthorized_sender_reverts`); the bridge would add the
   compositional statement, not new facts.  Related: the
