@@ -1586,6 +1586,7 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   | `specs/AttackVectors` | 123 / 127 | the 4 non-clean are the frame routes, all in the ledger |
   | `specs` (Clear layer) | 301 / 310 | the 9 non-clean are all inside `KeccakInjective.lean` itself |
   | `specs/L2InteropCommitmentTree` | 65 / 97 | **~1 in 3 depends on the keccak idealizations** |
+  | `specs/AtomicFlowManager` | 39 / 48 | 9 non-clean, and **every one of them uses only `keccak256_inj`** |
 
   The third row is the honest one for the concrete storage layer: slot separation and low-slot
   avoidance are needed at nearly every step that reasons about which storage slot a write touches, so
@@ -1594,6 +1595,17 @@ compile, 614 VCs), `specs/L2AssetRouter/` (624 VCs).
   ledger would be noise; the capstones are listed (`insertGlue_leafSetOf`, `insertGlue_evolution`,
   `insertGlue_evolution_step`, `leafSetOf_evolution_step`, `leafSetOf_imtInsert`,
   `root_pins_written_leaf`), and the sweep is how to see the rest.
+
+  The `AtomicFlowManager` row is the interesting one for future work: its nine non-clean results —
+  including `foldRoot_binding`, `same_position_member_gap_impossible`, `hashLeafOut_inj`, `accOut_inj`
+  and `crafted_claim_reverts_after_authorization` — depend on `keccak256_inj` ALONE, and that is the
+  one idealization with a single-thread derived counterpart (`KeccakSeqInj.keccakOut_seq_ne`, plus
+  `sload_sstore_of_cached_ne` for the non-aliasing uses).  Whether they migrate depends on whether
+  each use compares two calls within one execution, which is the derived form's limit.
+
+  Note also `specs/*/…/Common/` (the per-block specs, ~1700 files) is deliberately NOT swept: those
+  are overwhelmingly `A := concrete` aliases, so they would report clean while proving nothing and
+  would swamp the ratio.  Measuring them needs the `#print axioms`-vs-alias distinction, not this tool.
 
   Two modules had never been built at all when the sweep first ran: `mcopy.lean` (fine — it compiles,
   nobody had compiled it) and `imt_root_atlas_user.lean` (broken, see above).

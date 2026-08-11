@@ -16,9 +16,15 @@ OUT=/tmp/axsweep-$$
 python3 - "$DIR" "$OUT" <<'PY'
 import re, sys, glob, os
 d, out = sys.argv[1], sys.argv[2]
-names, mods, skipped = [], set(), []
+names, mods, skipped, skipped_dup = [], set(), [], []
 for f in sorted(glob.glob(os.path.join(d, '*.lean'))):
     if os.path.basename(f) == 'Audit.lean':
+        continue
+    # `mcopy.lean` is hand-written under specs/ and COPIED INTO generated/ after each regen
+    # (see its own header), so the same constant is provided by two modules and importing both
+    # collides. It is not a corpus defect; it just cannot be swept alongside its own copy.
+    if os.path.basename(f) == 'mcopy.lean':
+        skipped_dup.append(f)
         continue
     # Skip modules with no .olean: one unbuilt file aborts the whole import and would
     # otherwise take the entire sweep down with it. Report them rather than hiding them.
@@ -39,6 +45,8 @@ open(out + '.lean', 'w').write(body)
 print(f'{len(names)} theorems in {len(mods)} modules', file=sys.stderr)
 for f in skipped:
     print(f'  SKIPPED (no .olean — never built or does not compile): {f}', file=sys.stderr)
+for f in skipped_dup:
+    print(f'  SKIPPED (copied into generated/; would collide with its own copy): {f}', file=sys.stderr)
 PY
 cp "$OUT.lean" specs/AxSweepTmp.lean
 ~/.elan/bin/lake env ~/.elan/toolchains/leanprover--lean4---v4.9.1/bin/lean specs/AxSweepTmp.lean > "$OUT.txt" 2>&1
