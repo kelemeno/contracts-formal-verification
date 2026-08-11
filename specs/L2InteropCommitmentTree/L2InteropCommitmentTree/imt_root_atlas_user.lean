@@ -1,3 +1,32 @@
+/-
+  ⚠️  THIS FILE DOES NOT COMPILE — ITS 72 RESULTS ARE UNVERIFIED.  ⚠️
+
+  Discovered 2026-08-11 by `scripts/axiom-sweep.sh`, which could not sweep this directory because
+  importing this module fails.  `lake build --old specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user`
+  reports 5 errors:
+
+    * line ~914  unknown identifier `byte_mstore32_pinned` — a dangling reference; that name exists
+                 NOWHERE else in the corpus, so it is a deleted helper rather than a rename that can
+                 be mapped back
+    * line ~993  whnf timeout at 4,000,000 heartbeats
+    * lines ~1012+  three `rewrite` failures against `nodeStore`
+
+  STATUS.  No `.olean` has ever been produced for it, and nothing imports it (the only other mention
+  in the corpus is a prose reference in `specs/KeccakSlotSep.lean`).  `SECURITY_VERIFICATION.md` does
+  not cite it, so no headline claim rests on it.  But the `specs` lean_lib has root `specs`, so it IS
+  nominally in the build target — it is unbuilt only because a full `lake build specs` is impractical
+  and nobody compiled this file individually.
+
+  WHY THE BANNER RATHER THAN A FIX OR A DELETION.  Deleting is not mine to decide, and the errors are
+  substantive rather than cosmetic (a deleted helper plus an elaboration wall).  What matters
+  immediately is that a reader browsing this directory has no other way to tell these 72 theorems are
+  unverified — every other file here compiles.
+
+  This is the third instance of the regression class `SECURITY_VERIFICATION.md`'s hygiene note already
+  records: `lake env lean` does not check import-olean freshness, so a renamed or deleted helper can
+  silently break a file that nothing happens to import.
+-/
+
 import Clear.ReasoningPrinciple
 
 import specs.KeccakDeterminism

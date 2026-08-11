@@ -55,6 +55,14 @@ for l in t.split('\n'):
         else: clean += 1
     elif 'does not depend on any axioms' in l:
         n += 1; clean += 1
+if n == 0:
+    print('SWEEP FAILED: no theorem printed its axioms.')
+    print('  A module in this directory almost certainly failed to import — one broken file')
+    print('  aborts the whole run, and a silent "0 clean of 0" reads like "nothing to check".')
+    print('  First lines of the Lean output:')
+    for line in open(sys.argv[1]).read().split('\n')[:6]:
+        if line.strip(): print('   ', line)
+    sys.exit(0)
 print(f'{clean} clean of {n}')
 for nm, ex in bad:
     short = nm.split('.')[-1]
