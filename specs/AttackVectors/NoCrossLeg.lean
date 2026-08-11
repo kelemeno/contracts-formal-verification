@@ -114,4 +114,40 @@ theorem legState_frames_fresh_leg {σ σ_w : EVMState} (hinv : CacheInUsed σ)
   rw [Clear.KeccakDistinct.sload_sstore_of_ne σ_w
     (fresh_leg_slot_ne_cached hinv hc₁ hmiss hpart)]
 
+/-! ## THE LOOP FORM
+
+A multi-leg flow refunds several legs in sequence, so the frame a real run needs is not "one other
+leg's write is harmless" but "the whole loop leaves this leg alone".  Folding the pairwise frame over
+a list of writes gives that.
+
+The hypothesis is per-write and local: each write in the list is at a leg differing from ours in one
+coordinate, with its accessor steps hashed.  Nothing is assumed about the ORDER of the writes or about
+how many there are. -/
+
+/-- **A LEG'S STATE SURVIVES A WHOLE REFUND LOOP.**  Given a list of writes, each at some other leg's
+slot, the leg at `(f, b)` reads exactly what it read before the loop ran.
+
+Each entry carries its own `(flowId, bundleHash, intermediate, slot, value)` and the evidence that its
+accessor steps were hashed, so this composes directly with a loop that refunds legs one at a time. -/
+theorem legState_survives_refund_loop {σ : EVMState} (hinj : CacheInj σ)
+    {f b base i r : UInt256}
+    (hi : Finmap.lookup (accInterval σ f base) σ.keccak_map = some i)
+    (ho : Finmap.lookup (accInterval σ b i) σ.keccak_map = some r) :
+    ∀ (ws : List (UInt256 × UInt256 × UInt256 × UInt256 × UInt256)) (σ_w : EVMState),
+      (∀ p ∈ ws,
+        (p.1 ≠ f ∨ p.2.1 ≠ b) ∧
+        Finmap.lookup (accInterval σ p.1 base) σ.keccak_map = some p.2.2.1 ∧
+        Finmap.lookup (accInterval σ p.2.1 p.2.2.1) σ.keccak_map = some p.2.2.2.1) →
+      AtomicFlowManager.Layout.legStateOf
+          (ws.foldl (fun s p => s.sstore p.2.2.2.1 p.2.2.2.2) σ_w) r
+        = AtomicFlowManager.Layout.legStateOf σ_w r := by
+  intro ws
+  induction ws with
+  | nil => intro σ_w _; rfl
+  | cons p rest ih =>
+    intro σ_w hall
+    obtain ⟨hne, hip, hop⟩ := hall p (List.mem_cons_self _ _)
+    rw [List.foldl_cons, ih _ (fun q hq => hall q (List.mem_cons_of_mem _ hq))]
+    exact legState_frames_other_leg hinj hip hi hop ho hne
+
 end AttackVectors.NoCrossLeg
