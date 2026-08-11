@@ -186,6 +186,23 @@ state):
   Varying several things per attempt makes every error uninformative — that is what
   turned tractable goals into multi-session stalls.
 
+**Composing with a generated block — the two things that cost builds every time.**
+
+1. **Generated blocks do NOT live under the `generated.*` prefix their file path suggests.**
+   `generated/L1Nullifier/L1Nullifier/Common/block_4604436955705083701_gen.lean` declares
+   `namespace L1Nullifier.Common`, so the block is `L1Nullifier.Common.block_…`, NOT
+   `generated.L1Nullifier.L1Nullifier.block_…`. Same for every contract. Check the file's own
+   `namespace` line before writing the reference — I have gotten this wrong on consecutive days.
+2. **A spec file outside the contract tree needs the interpreter namespaces opened**:
+   `open EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas`, or `Ok`, `exec`
+   and `Literal` are unknown identifiers.
+
+And when consuming a block's ABSTRACT spec rather than a hand-written closed form:
+`block_…_abs_of_code` takes `s₉` EXPLICITLY and returns `Spec A_block s₀ s₉`, not the predicate;
+`Spec` on an `Ok` state unfolds only under a not-out-of-fuel hypothesis (`Spec_ok_unfold`, needing
+`¬ ❓ s₉`); and reading a variable back out of the resulting store wants
+`lookup_insert' (by aesop)`, not `lookup_insert`.
+
 **Known gaps.**
 
 0. **ℕ-vs-`UInt256` index round trip — an unbudgetable elaboration blowup.** Passing
