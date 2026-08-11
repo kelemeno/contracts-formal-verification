@@ -78,4 +78,40 @@ theorem legState_frames_other_leg {σ σ_w : EVMState} (hinj : CacheInj σ)
   unfold AtomicFlowManager.Layout.legStateOf
   rw [refund_write_frames_other_leg hinj hi₁ hi₂ ho₁ ho₂ hne]
 
+/-! ## THE UNSEEN LEG
+
+`NoCrossBundle.fresh_slot_ne_cached` was stated over an ARBITRARY base rather than a fixed one, and
+that pays off here: the nested case's outer accessor has an intermediate as its base, so the unseen-leg
+result is that lemma instantiated, not a new argument.  The mechanism is again freshness — the slot is
+drawn from the unused pool, and every cached slot has been marked used. -/
+
+/-- **A NEVER-COMPUTED LEG'S SLOT IS FRESH.**  If the second leg's OUTER accessor preimage is not
+cached, its slot differs from the first leg's — whatever the intermediates were. -/
+theorem fresh_leg_slot_ne_cached {σ : EVMState} (hinv : CacheInUsed σ)
+    {b₂ i₂ r₁ : UInt256} {I₁ : List UInt256}
+    {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc₁ : Finmap.lookup I₁ σ.keccak_map = some r₁)
+    (hmiss : Finmap.lookup (accInterval σ b₂ i₂) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    (accOut σ b₂ i₂).1 ≠ r₁ :=
+  Clear.KeccakFresh.keccakOut_miss_fresh
+    (σ := (σ.mstore 0 b₂).mstore 32 i₂)
+    (Clear.KeccakFresh.cacheInUsed_mstore 32 i₂
+      (Clear.KeccakFresh.cacheInUsed_mstore 0 b₂ hinv))
+    hmiss hpart hc₁
+
+/-- **NO INTERFERENCE WITH AN UNSEEN LEG.**  A refund write at one leg's slot is invisible at the slot
+an unseen leg draws, so its state byte reads whatever it read before. -/
+theorem legState_frames_fresh_leg {σ σ_w : EVMState} (hinv : CacheInUsed σ)
+    {b₂ i₂ r₁ v : UInt256} {I₁ : List UInt256}
+    {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc₁ : Finmap.lookup I₁ σ.keccak_map = some r₁)
+    (hmiss : Finmap.lookup (accInterval σ b₂ i₂) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    AtomicFlowManager.Layout.legStateOf (σ_w.sstore r₁ v) (accOut σ b₂ i₂).1
+      = AtomicFlowManager.Layout.legStateOf σ_w (accOut σ b₂ i₂).1 := by
+  unfold AtomicFlowManager.Layout.legStateOf
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne σ_w
+    (fresh_leg_slot_ne_cached hinv hc₁ hmiss hpart)]
+
 end AttackVectors.NoCrossLeg
