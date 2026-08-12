@@ -291,6 +291,17 @@ lemmas close with `trivial`. That is the loop-level form of the tautological blo
 tracked here, and it is the second reason (after `A := concrete` aliases) that **neither a sorry
 count nor a green build is a progress metric in this repo**.
 
+**The frontier is now the HELPER layer, not the loops.** As of 2026-08-12, after converting the
+straight-line loops, ALL remaining TRUE-FOR loops call helper functions in their bodies
+(`abi_decode_*`, `calldata_array_index_access_*`, `memory_array_index_access_*`,
+`finalize_allocation_*`, `validator_revert_*`), and those helper specs are themselves aliases. A loop
+whose body composes through an alias can get `ABody` but NOT `ABreak` — nothing forces the
+intermediate states to be `Ok` — so converting it would leave it PARTIAL, which contaminates every
+dependent with `sorryAx` where the vacuous version was clean. **Close the helpers first, bottom-up.**
+A worked instance of the ordering: `AtomicFlowManager`'s proof-copy loops need
+`memory_array_index_access_struct_InteropCall_dyn`, which needs `if_2600721580863995212` — the guard
+is now a closed form (a dichotomy on the bounds flag), the accessor is next, the loops follow.
+
 To give one content, use `scripts/loop-spec-skeleton.sh <loop_id> <cursor> <bound> <increment>`. It
 emits the SEVEN obligations that depend only on a counted loop's shape — `ACond`, `APost`, `AFor`,
 `AZero`, `AOk`, `AContinue`, `ALeave` — leaving only `ABody` (and `ABreak`, which reads off it).
