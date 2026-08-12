@@ -235,7 +235,26 @@ theorem value_released_at_most_once :
 /-- The gap the whole-bundle route leaves at the call level, stated so the reliance on bundle status is
 explicit: `Unprocessed → Executed` and a re-entry attempt are not distinguished by anything in the
 per-call machine when `_executeAllCalls` is true, since that path writes the status without reading it.
-`routes_exclusive` is what closes it. -/
+`routes_exclusive` is what closes it.
+
+CONFIRMED AGAINST THE COMPILED YUL rather than inferred from the Solidity.  The whole-bundle route's
+status write is `for_4476381376322263891` in `InteropHandler`, whose body is:
+
+    mstore(0, var_bundleHash); mstore(32, 2); let dataSlot_1 := keccak256(0, 64)   -- callStatus base
+    mstore(0, var_i); mstore(32, dataSlot_1); let slot := keccak256(0, 64)         -- leaf slot
+    let split_expr_5 := sload(slot)
+    let split_expr_7 := and(split_expr_5, not(255))
+    let split_expr_8 := or(split_expr_7, 1)
+    sstore(slot, split_expr_8)
+
+The `sload` feeds only the MASK — `and(·, not(255))` preserves the high bytes — and the low byte is
+then `or`-ed to `1`, which is `CallStatus.Executed`.  There is no comparison and no branch: the write
+happens whatever the previous status was.  So the claim above is not a reading of intent, it is what
+the code does, and `routes_exclusive` is genuinely the only thing preventing a second payment.
+
+All three blocks of that loop body now have proven specs
+(`block_2862394693737849679`, `block_5612315614323394231`, `block_8179420195348823280`); the loop's own
+closed form is the remaining piece. -/
 theorem wholeBundle_route_does_not_check_callStatus :
     CallReach .Unprocessed .Executed ∧ ¬ CallStep .Executed .Executed :=
   ⟨.tail (.refl _) .execute, callExecuted_terminal⟩
