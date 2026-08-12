@@ -261,6 +261,59 @@ discharged, because no hypothesis there mentions a chain id.
    hit a wall on one of these, re-diagnose it rather than assuming this entry — and please replace this
    text with what you find.
 
+## Source-Level Checks: proving what the comments assert
+
+The most productive vein in `specs/AttackVectors/` is not new abstract machinery. It is reading the
+Solidity, finding a claim its comments ASSERT, and proving or refuting it. The reason it pays is
+structural: comments state GLOBAL properties drawn from LOCAL checks, and the gap between them is
+where the content lives.
+
+Worked examples, each a file:
+
+| comment's claim | what proving it produced |
+|---|---|
+| a neighbour-only sortedness loop gives "unique per leg set" | true via transitivity — and the cheaper "adjacent legs differ" guard does NOT lift (`[1,2,1]`) — `FlowCanonical` |
+| the `sourceChainId` check is "defense-in-depth" here, load-bearing there | structural: the SAME assumption that makes inclusion self-binding makes absence chain-blind — `ProofPolarity` |
+| "timeout recovery is best-effort" | the threshold is `>= 1`, and one reverting target blocks the OTHER calls — `RecoveryLimits` |
+| "a non-last leaf has a populated right subtree on some level" | true, and the level is COMPUTABLE (trailing ones) — `LastBatchInRoot` |
+
+### Sound by ENUMERATION, not by guard
+
+The recurring shape, and the thing to look for. Several guards are safe only because of a
+whole-program fact no compiler checks:
+
+- `append` has exactly one call site (so every commit value is built with `block.chainid`)
+- `_dispatchBundle` has exactly one call site (so `_validateAtomicBundle` covers every atomic commit)
+- atomic bundles never reach L1 (so `verifyBundle` cannot brick `executeAtomicBundle`)
+- every self-call site is preceded by its permission check (so `msg.sender == address(this)` relays
+  authority rather than widening it)
+
+These are the fragile links: an edit breaks them silently while the Lean corpus keeps building, so the
+proofs stay green after their premises are gone. **`scripts/check-source-invariants.sh` tests all
+eight**, each annotated with the Lean result that depends on it and what breaks. Run it after any
+change to the interop contracts. Add a check whenever a new proof rests on an enumeration.
+
+### Audit your own modelling too
+
+A definition can quietly assume the interesting part. `TimeoutSoundness` originally DEFINED
+`begin(n+1) = end(n)` — the very equation the begin branch's soundness rests on, and one nothing on
+chain checks. The theorem was not wrong, but a reader counting hypotheses would have counted two
+instead of three. Promoting it to a hypothesis plus a countermodel (`begin_branch_needs_beginIsPrevEnd`)
+is what made the trust base honest. Look for this whenever a model is convenient.
+
+### Shell text-matching here fails SILENTLY and PASSES
+
+Three instances in one session, all of which produced confident wrong output:
+
+- a grep over `#print axioms` reported 118 "not clean" when the real number was 10 — the axiom list
+  prints in an UNSPECIFIED ORDER and WRAPS. Use `scripts/audit-count.sh`, which parses the axiom set.
+- a heredoc left empty made `python3` read empty stdin, exit 0, and print `EDIT OK` having changed
+  nothing. Verify the file, not the exit code.
+- a PCRE lookahead under `grep -E` never evaluated and "passed" via a `||` fallback.
+
+Prefer a parser to a regex, and **self-test any checker in the FAILING direction** before trusting it
+(`CONTRACTS_DIR=<copy>` exists on the invariant script for exactly this).
+
 ## solc Compilation Notes
 
 - era-contracts requires solc 0.8.28
