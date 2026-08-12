@@ -11,8 +11,13 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 138 of 148 depend only on Lean's standard base
-  (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
+  RESULT as of this commit — 161 of 171 depend only on Lean's standard base
+  (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
+  `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
+  literal list: `#print axioms` emits them in an unspecified order and wraps long
+  lines, and both have caused miscounts here.  The 10 non-clean results are exactly
+  the documented keccak idealizations — three storage-frame routes and the deep
+  concrete insert chain.  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
   invariant-preserving upgrade — the form a migrated deployment needs, since such a
@@ -38,6 +43,14 @@
       CLEAN   authorized_passes                           InteropHandler gate
       CLEAN   verify_path_marks_bundle_verified           InteropHandler effect
       CLEAN   refunded_leg_cannot_refund_again            AFM no-double-refund
+      CLEAN   timeout_implies_never_finalized             both timeout branches
+      CLEAN   abiEncode_inj                               no collision below keccak
+      CLEAN   packedPair_not_inj                          sharpness (encoding)
+      CLEAN   no_duplicate_leg                            neighbour scan lifts
+      CLEAN   neighbour_distinct_insufficient             sharpness (ordering)
+      CLEAN   polarity_summary                            inclusion vs absence
+      CLEAN   inclusion_binding_requires_honesty          sharpness (polarity)
+      CLEAN   local_honest_insertion                      HonestInsertion located
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -101,6 +114,10 @@ import specs.MerkleSpec
 import specs.AttackVectors.LeafDecode3
 import specs.InteropHandler.Layout
 import specs.AtomicFlowManager.Layout
+import specs.AttackVectors.BundleHashEncoding
+import specs.AttackVectors.FlowCanonical
+import specs.AttackVectors.ProofPolarity
+import specs.AttackVectors.LocalHonesty
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -250,3 +267,36 @@ import specs.AtomicFlowManager.Layout
 #print axioms InteropHandler.Layout.status_read_binds_statusOf
 #print axioms InteropHandler.Layout.unverified_stays_unverified
 #print axioms AtomicFlowManager.Layout.refunded_leg_cannot_refund_again
+
+-- Timeout protocol: the END branch (the BEGIN branch is listed above)
+#print axioms AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized
+#print axioms AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized'
+#print axioms AttackVectors.TimeoutSoundness.finalized_blocks_end_timeout
+#print axioms AttackVectors.TimeoutSoundness.timeout_implies_never_finalized
+
+-- Encoding: no collision below keccak in the bundle-hash derivation
+#print axioms AttackVectors.BundleHashEncoding.fromBytesBE_toBytesBE
+#print axioms AttackVectors.BundleHashEncoding.abiDecode_abiEncode
+#print axioms AttackVectors.BundleHashEncoding.abiEncode_inj
+#print axioms AttackVectors.BundleHashEncoding.packed_inj
+#print axioms AttackVectors.BundleHashEncoding.packedPair_not_inj
+
+-- Flow canonicality: the neighbour scan lifts to global claims
+#print axioms AttackVectors.FlowCanonical.ascending_iff_pairwise
+#print axioms AttackVectors.FlowCanonical.no_duplicate_leg
+#print axioms AttackVectors.FlowCanonical.ascending_unique
+#print axioms AttackVectors.FlowCanonical.valid_pairing_functional
+#print axioms AttackVectors.FlowCanonical.valid_unique_per_leg_set
+#print axioms AttackVectors.FlowCanonical.neighbour_distinct_insufficient
+
+-- Proof polarity: inclusion self-binds, absence cannot
+#print axioms AttackVectors.ProofPolarity.inclusion_self_binds
+#print axioms AttackVectors.ProofPolarity.absence_at_every_wrong_chain
+#print axioms AttackVectors.ProofPolarity.finalized_leg_still_absent_elsewhere
+#print axioms AttackVectors.ProofPolarity.refund_blocked_when_chain_pinned
+#print axioms AttackVectors.ProofPolarity.inclusion_binding_requires_honesty
+#print axioms AttackVectors.ProofPolarity.polarity_summary
+
+-- Where HonestInsertion lives: enforced locally, "same code" globally
+#print axioms AttackVectors.LocalHonesty.local_honest_insertion
+#print axioms AttackVectors.LocalHonesty.honestInsertion_of_guards_everywhere
