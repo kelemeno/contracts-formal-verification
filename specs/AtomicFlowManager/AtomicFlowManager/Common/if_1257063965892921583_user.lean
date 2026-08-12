@@ -42,6 +42,19 @@ lemma if_1257063965892921583_abs_of_concrete {s₀ s₉ : State} :
   · refine ⟨fun _ => ?_, fun hz => absurd hz hg⟩
     simp only [hg, if_false, ite_false] at hc
     exact hc.symm
+/-- **OUTPUT IS `Ok`.**  Either the state is untouched, or it is the revert chain — and a
+revert sets a flag on an `Ok` state rather than jumping. -/
+lemma if_1257063965892921583_isOk {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_if_1257063965892921583 s₀ s₉) : isOk s₉ := by
+  obtain ⟨hne, hz⟩ := h
+  by_cases hg : s₀["split_expr_5"]!! = 0
+  · rw [hz hg]; simp only [isOk_setEvm]; exact isOk_multifill hok
+  · rw [hne hg]; exact hok
+
+lemma if_1257063965892921583_not_break {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_if_1257063965892921583 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (if_1257063965892921583_isOk hok h)
+
 end
 
 end AtomicFlowManager.Common

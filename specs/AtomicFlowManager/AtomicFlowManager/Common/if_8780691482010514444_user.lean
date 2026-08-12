@@ -43,6 +43,40 @@ lemma if_8780691482010514444_abs_of_concrete {s₀ s₉ : State} :
   apply spec_eq
   intro _hne hc
   exact hc
+/-- **OUTPUT IS `Ok`.**  The branch picks between the inner chain's output and the untouched
+state; the chain runs the accessor then the mismatch guard, both of which preserve `Ok`. -/
+lemma if_8780691482010514444_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_8780691482010514444 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s, hacc, ss, hguard, hsel⟩ := h
+  by_cases hg : s₀["split_expr_2"]!! = 0
+  · rw [if_pos hg] at hsel
+    subst hsel
+    -- out-of-fuel propagates back from the selected output through the guard
+    have hs_nf : ¬ ❓ s := by
+      intro hoo
+      apply hnf
+      rcases s with _ | _ | _
+      · simp [State.isOutOfFuel] at hoo
+      · simpa [Spec, isOutOfFuel_insert'] using hguard
+      · simp [State.isOutOfFuel] at hoo
+    have hpok : isOk (s₀⟦"split_expr_3" ↦ EVMState.mload s₀.evm (s₀["_2"]!!)⟧) := by
+      simpa [isOk_insert] using hok
+    have hsok : isOk s :=
+      memory_array_index_access_struct_InteropCall_dyn_isOk hpok hs_nf
+        (Spec_ok_unfold (P := A_memory_array_index_access_struct_InteropCall_dyn _ _ _)
+          hpok hs_nf hacc)
+    have hrok : isOk (s⟦"_3" ↦ EVMState.mload s.evm (s["split_expr_4"]!!)⟧⟦"split_expr_5" ↦
+        (decide ((s⟦"_3" ↦ EVMState.mload s.evm (s["split_expr_4"]!!)⟧)["_3"]!! =
+          (s⟦"_3" ↦ EVMState.mload s.evm (s["split_expr_4"]!!)⟧)["var_zeroSubtreeHash"]!!)).toUInt256⟧) := by
+      simpa [isOk_insert] using hsok
+    exact if_1257063965892921583_isOk hrok
+      (Spec_ok_unfold (P := A_if_1257063965892921583) hrok hnf hguard)
+  · rw [if_neg hg] at hsel; subst hsel; exact hok
+
+lemma if_8780691482010514444_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_8780691482010514444 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (if_8780691482010514444_isOk hok hnf h)
+
 end
 
 end AtomicFlowManager.Common
