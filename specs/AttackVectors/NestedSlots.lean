@@ -149,4 +149,42 @@ theorem nested_write_frames {σ σ_w : EVMState} (hinj : CacheInj σ)
   Clear.KeccakDistinct.sload_sstore_of_ne σ_w
     (fun he => hne (nestedSlot_inj hinj ks₁ ks₂ b b hlen hc₁ hc₂ he.symm).1)
 
+/-! ## THE UNSEEN KEY AT ARBITRARY DEPTH
+
+The n-level separation above needs every step cached.  The remaining case — a nested lookup whose LAST
+step has never been hashed — is again freshness rather than injectivity, and it needs no new argument:
+`KeccakFresh.keccakOut_miss_fresh` takes an ARBITRARY cached interval, so the cached slot it is compared
+against need not belong to the same mapping — which matters here, since a nested entry can collide with
+anything.  `NoCrossLeg.fresh_leg_slot_ne_cached` is the same shape one level down.
+
+(`NoCrossBundle.fresh_slot_ne_cached` does NOT generalize here: it fixes both keys to a common base.) -/
+
+/-- **A NEVER-COMPUTED NESTED SLOT IS FRESH.**  If the last accessor step of a nested lookup is not in
+the cache, its slot differs from every cached slot — at any depth. -/
+theorem fresh_nestedSlot_ne_cached {σ : EVMState} (hinv : CacheInUsed σ)
+    {b k r : UInt256} {ks : List UInt256} {I : List UInt256}
+    {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc : Finmap.lookup I σ.keccak_map = some r)
+    (hmiss : Finmap.lookup (accInterval σ k (nestedSlot σ b ks)) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    (accOut σ k (nestedSlot σ b ks)).1 ≠ r :=
+  Clear.KeccakFresh.keccakOut_miss_fresh
+    (σ := (σ.mstore 0 k).mstore 32 (nestedSlot σ b ks))
+    (Clear.KeccakFresh.cacheInUsed_mstore 32 (nestedSlot σ b ks)
+      (Clear.KeccakFresh.cacheInUsed_mstore 0 k hinv))
+    hmiss hpart hc
+
+/-- **NO INTERFERENCE WITH AN UNSEEN NESTED ENTRY.**  A write at any cached slot is invisible at the
+slot a never-computed nested entry draws. -/
+theorem nested_write_frames_fresh {σ σ_w : EVMState} (hinv : CacheInUsed σ)
+    {b k r v : UInt256} {ks : List UInt256} {I : List UInt256}
+    {used : List UInt256} {hd : UInt256} {tl : List UInt256}
+    (hc : Finmap.lookup I σ.keccak_map = some r)
+    (hmiss : Finmap.lookup (accInterval σ k (nestedSlot σ b ks)) σ.keccak_map = none)
+    (hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range = (used, hd :: tl)) :
+    (σ_w.sstore r v).sload (accOut σ k (nestedSlot σ b ks)).1
+      = σ_w.sload (accOut σ k (nestedSlot σ b ks)).1 :=
+  Clear.KeccakDistinct.sload_sstore_of_ne σ_w (fresh_nestedSlot_ne_cached hinv hc hmiss hpart)
+
+
 end AttackVectors.NestedSlots
