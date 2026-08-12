@@ -361,6 +361,31 @@ Prefer a parser to a regex, and **self-test any checker in the FAILING direction
 
 ## VC Generator Notes
 
+### `mcopy` is NOT MODELLED — a hole in the trusted base, not a missing proof
+
+Yul's `mcopy(dst, src, len)` builtin has no primop in Clear (`grep Mcopy Clear/PrimOps.lean`
+finds nothing), and the VC generator emits it as a function with an EMPTY BODY:
+
+    def mcopy : FunctionDefinition := <f  function mcopy(dst, src, len) -> { }  >
+    def A_mcopy (dst src len : Literal) (s₀ s₉ : State) : Prop := True
+
+Verified identical in L1AssetRouter, InteropHandler, AtomicFlowManager and
+L2InteropCommitmentTree. So `A_mcopy := True` is a FAITHFUL spec of the emitted stub — the
+problem is that the stub is not a faithful model of the Yul. **Memory copies are invisible to
+this corpus.**
+
+Consequence worth stating plainly: anything proven about a function that copies memory says
+nothing about the copied bytes. `abi_encode_bytes` is the case that matters here — its payload
+copy (`mcopy(pos+32, value+32, length)`) is unmodelled, so a proof about it constrains the
+length header and the padding but NOT the contents. `AttackVectors/BundleHashEncoding.lean` is
+unaffected because it models the ABI shape abstractly at the byte level rather than going
+through the generated encoder — but any attempt to CONNECT the two would land on this hole.
+
+It also blocks work: four TRUE-FOR loops bottom out here (see `scripts/loop-content-audit.sh`),
+because nothing composing through `A_mcopy := True` can be given an `isOk`/`not_break` lemma.
+Fixing it means adding an `Mcopy` primop to Clear and regenerating, which is upstream work.
+
+
 - Run from `Clear/vc/`: `/Users/kalmanlajko/.local/bin/stack run vc <yul-file>`
 - Output goes to `Clear/Generated/<ContractName>/` (uppercase — Clear's convention)
 - `scripts/generate-vc.sh` copies to `generated/` and renames `Generated.` → `generated.` in imports
