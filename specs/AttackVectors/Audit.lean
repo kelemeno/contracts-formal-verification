@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 192 of 202 depend only on Lean's standard base
+  RESULT as of this commit — 194 of 204 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -63,6 +63,7 @@
       CLEAN   unchecked_selfCall_widens_authority         sharpness (self-call gate)
       CLEAN   value_released_at_most_once                 base token paid once per call
       CLEAN   distinct_sends_distinct_hashes              bundle hashes unique per send
+      CLEAN   released_le_collected                       no inflation (dest <= source)
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -358,3 +359,5 @@ import specs.AttackVectors.SelfCallAuthority
 #print axioms AttackVectors.BundleStatusMachine.wholeBundle_route_does_not_check_callStatus
 #print axioms AttackVectors.BundleHashEncoding.packed_fixed_inj
 #print axioms AttackVectors.BundleHashEncoding.distinct_sends_distinct_hashes
+#print axioms AttackVectors.BundleStatusMachine.released_le_collected
+#print axioms AttackVectors.BundleStatusMachine.released_eq_collected_of_all_executed

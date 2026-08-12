@@ -240,4 +240,72 @@ theorem wholeBundle_route_does_not_check_callStatus :
     CallReach .Unprocessed .Executed ∧ ¬ CallStep .Executed .Executed :=
   ⟨.tail (.refl _) .execute, callExecuted_terminal⟩
 
+/-! ## No inflation: the destination never releases more than the source collected
+
+The two sides handle the SAME field.  At send, `InteropCenter` accumulates
+
+    totalBurnedCallsValue += _callStarters[i].callAttributes.interopCallValue;
+
+over every call, and `_handleValueCollection` requires those tokens to have been received.  The call
+that lands in the bundle carries that same number (`InteropCenter.sol:738`,
+`value: _callStarter.callAttributes.interopCallValue`), and at the destination `_executeCalls` releases
+exactly `interopCall.value` — but only for calls it executes.
+
+So the source collects over ALL calls and the destination releases over the EXECUTED ones.  Two things
+make that a conservation statement rather than an accounting coincidence:
+
+* each executed call contributes at most once (`callExecuted_terminal` plus `routes_exclusive`, i.e.
+  `value_released_at_most_once` above) — without it a call could be summed twice;
+* executed calls are a subset of all calls, which is the bound below.
+
+The gap is real and intended: a CANCELLED call's value was collected at the source and is never
+released at the destination.  That is the unbundler's choice, and this file does not claim the
+difference is recoverable — only that it never goes the other way. -/
+
+/-- Per-call value paired with the call's final status. -/
+abbrev Ledger := List (ℕ × CallStatus)
+
+/-- What the destination releases: the value of calls that ended `Executed`. -/
+def releasedSum : Ledger → ℕ
+  | [] => 0
+  | (v, s) :: rest => (if s = CallStatus.Executed then v else 0) + releasedSum rest
+
+/-- What the source collected: the value of every call in the bundle. -/
+def collectedSum : Ledger → ℕ
+  | [] => 0
+  | (v, _) :: rest => v + collectedSum rest
+
+/-- **NO INFLATION.**  Whatever the per-call outcomes, the destination releases no more than the source
+collected for that bundle. -/
+theorem released_le_collected (l : Ledger) : releasedSum l ≤ collectedSum l := by
+  induction l with
+  | nil => simp [releasedSum, collectedSum]
+  | cons hd tl ih =>
+    obtain ⟨v, st⟩ := hd
+    by_cases h : st = CallStatus.Executed <;>
+      simp [releasedSum, collectedSum, h] <;> omega
+
+/-- **AND THE BOUND IS TIGHT.**  A bundle whose calls all execute releases exactly what was collected,
+so the inequality is not slack hiding a systematic shortfall. -/
+theorem released_eq_collected_of_all_executed :
+    ∀ l : Ledger, (∀ p ∈ l, p.2 = CallStatus.Executed) → releasedSum l = collectedSum l := by
+  intro l
+  induction l with
+  | nil => intro _; rfl
+  | cons hd tl ih =>
+    intro h
+    obtain ⟨v, st⟩ := hd
+    have hhd : st = CallStatus.Executed := h (v, st) (List.mem_cons_self _ _)
+    have htl : ∀ p ∈ tl, p.2 = CallStatus.Executed := fun p hp => h p (List.mem_cons_of_mem _ hp)
+    simp [releasedSum, collectedSum, hhd, ih htl]
+
+/-- The shortfall named: value collected for calls that did not execute.  Recorded so the gap is
+visible rather than implied by the inequality. -/
+theorem shortfall_is_unexecuted (v : ℕ) (tl : Ledger) :
+    collectedSum ((v, CallStatus.Cancelled) :: tl) - releasedSum ((v, CallStatus.Cancelled) :: tl)
+      = v + (collectedSum tl - releasedSum tl) := by
+  have h := released_le_collected tl
+  simp [releasedSum, collectedSum]
+  omega
+
 end AttackVectors.BundleStatusMachine
