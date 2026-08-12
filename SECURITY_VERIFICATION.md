@@ -1596,6 +1596,29 @@ admits exactly one bad case, the boundary `v = W.nextKey`, and
 `weak_window_without_dedup_breaks_keyInj` shows dedup is what rejects it.  So guard (iv) is not
 belt-and-braces: it is load-bearing precisely because the loop's exit test is `≥`.
 
+**`authorizeRefund` carries a guard the abstract model presumes rather than represents.**  The
+exclusivity capstones reason about ONE key set — delivery evidence and a reclaim witness judged against
+the same tree.  Multi-chain is outside that: a leg's commit value lives only in its own source chain's
+tree, so it is trivially absent from any other chain's.  Nothing in the abstract layer rules out
+pairing a delivery on chain A with an absence proof taken against chain B.
+
+The deployed gate does, as its first step, and its own comment names the consequence:
+
+    uint256 missingLegChainId = _flow.legSourceChainIds[_missingLegIndex];
+    if (_absence.sourceChainId != missingLegChainId) revert ProofSourceChainMismatch(…);
+    // Without this … an on-time, finalized leg could be force-refunded against an
+    // unrelated chain (double-mint).
+
+So the single-tree reading of `delivered_and_reclaimed_impossible` is sound for the deployed system
+BECAUSE of this check — it is what makes "the same tree" the only available comparison.  Recorded here
+because it is invisible from the Lean side: no hypothesis in the abstract layer mentions a chain id,
+and a reader could reasonably assume the multi-chain case was modelled and discharged rather than
+excluded by a source-level guard.
+
+Steps 2 and 3 line up with the modelled parts: `verifyTimeoutAbsence(…, _flow.deadline, …)` is the
+deadline-pinned reclaim witness, and the loop marking only `Committed` legs is the transition already
+tabulated below.
+
 **The leg state machine is a guarded monotone progression, with exactly three writers.**  The refund
 results (`refunded_leg_cannot_refund_again`, and the cross-leg frames of
 `AttackVectors/NoCrossLeg.lean`) reason about `_state[flowId][bundleHash]` transitions; the source
