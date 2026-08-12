@@ -46,6 +46,32 @@ echo "  TRUE-FOR  $truefor   AFor := True -- green, axiom-clean, and contentless
 echo "  PARTIAL   $partial   some obligations proven, body transcription remaining"
 echo "  (ALIAS    $alias_n   APost/ABody aliased to the concrete spec)"
 
+# Cross-check REAL loops: every variable a spec looks up must actually occur in the
+# loop's Yul. A lookup of a name that is not there elaborates FINE and compares against
+# garbage, so it would classify as REAL while meaning nothing -- the same failure the
+# TRUE-FOR count is meant to catch, in a form the count cannot see.
+bad_var=0
+for f in "${real_files[@]:-}"; do
+  [ -n "$f" ] || continue
+  b=$(basename "$f" _user.lean)
+  g="$(dirname "$f" | sed 's|specs/|generated/|')/${b}_gen.lean"
+  [ -f "$g" ] || continue
+  yul=$(sed -n "/^def ${b} :=/,/^>/p" "$g")
+  [ -n "$yul" ] || continue
+  for v in $(grep -oE '\["[A-Za-z_][A-Za-z0-9_]*"\]' "$f" | tr -d '["]' | sort -u); do
+    if ! printf '%s' "$yul" | grep -qw -- "$v"; then
+      echo "  !! $b looks up \"$v\", which does not occur in its Yul"
+      bad_var=$((bad_var + 1))
+    fi
+  done
+done
+if [ "$bad_var" -gt 0 ]; then
+  echo "  $bad_var suspicious lookup(s) -- a spec may be comparing against a nonexistent variable"
+else
+  echo "  variable cross-check: all REAL specs reference only variables present in their Yul"
+fi
+echo
+
 if [ "$LIST" = "--list" ]; then
   echo; echo "REAL:";     printf '  %s\n' "${real_files[@]:-}"
   echo; echo "PARTIAL:";  printf '  %s\n' "${partial_files[@]:-}"
