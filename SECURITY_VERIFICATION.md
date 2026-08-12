@@ -1709,6 +1709,39 @@ So `t i ≤ D` for delivery and `D < t (j+1)` for reclaim are BOTH enforced, on 
 source comment on the deadline check — "`t` only rises, so a commit can't be back-dated to look in-time
 after the fact" — is the monotonicity assumption again, stated at the point of use.
 
+### Part B addendum — 2026-08-12: proof polarity, and what "defense-in-depth" is resting on
+
+`AtomicFlowManager` applies ONE syntactic check on both proof paths — the proof's `sourceChainId` must
+equal the leg's declared `legSourceChainIds[i]` — and deliberately labels the two uses differently:
+"defense-in-depth here (membership already self-binds via the chain-specific `commitValue`)" on
+`requireFlowFinalized`, and load-bearing on `authorizeRefund`, whose comment spells out the double-mint
+that follows without it.
+
+Both comments are correct, and `specs/AttackVectors/ProofPolarity.lean` proves the asymmetry is
+STRUCTURAL rather than particular to this codebase (axiom-free — not even `propext`):
+
+| result | content |
+|---|---|
+| `inclusion_self_binds` | a membership witness determines the chain, so the check adds nothing there |
+| `absence_at_every_wrong_chain` | an absence witness exists at EVERY foreign chain, for free |
+| `finalized_leg_still_absent_elsewhere` | a live, finalized leg still admits one — the double-mint |
+| `polarity_summary` | one hypothesis, opposite consequences |
+
+The sharp point: the SAME assumption that makes inclusion self-binding is exactly what makes absence
+chain-blind.  A leg's value living only in its own chain's tree is what lets a membership proof carry
+its chain — and equally what makes the leg missing from every other tree.  So no amount of care in
+`commitValue` could have removed the refund-path check; the binding is not missing there, it is
+unavailable in principle to a negative property.
+
+**What this adds to the source comment.**  `inclusion_self_binds` requires `HonestInsertion` — every
+chain's tree holds only its OWN legs' commit values.  That is a statement about every chain in the leg
+set, not just the one running the code, and no contract can enforce it: a foreign chain's IMT is its
+own.  `inclusion_binding_requires_honesty` exhibits the countermodel.  So "defense-in-depth" is
+accurate under honest insertion and only then; against a misbehaving chain in the leg set the check is
+load-bearing on BOTH paths.  Not a defect — the check is present and correct — but the two paths rest
+on different amounts of trust, which the comment does not say, and an auditor weighing whether the
+check could ever be dropped for gas should know the inclusion side is not the free one it looks like.
+
 **Both branches are now theorems** (`specs/AttackVectors/TimeoutSoundness.lean`, axiom-free — `propext`
 and `Quot.sound` only).  The header argument above had no Lean counterpart; it does now.
 
