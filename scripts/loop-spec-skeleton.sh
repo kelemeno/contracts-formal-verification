@@ -164,13 +164,20 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- search-and-replaces. The isOk lemmas chain: ¬ ❓ s₉ propagates BACKWARDS through the body
 -- (isOutOfFuel_insert'"'"'/setStore'"'"'/reviveJump'"'"'/multifill'"'"'), so the caller supplies it once.
 --
--- A BODY CONTAINING keccak256 IS HARDER AGAIN. Its ABody carries an Option match (the
--- collision fallback) whose pretty-printed form does not disambiguate how `multifill`
--- associates with the match result, so transcribing from the error message stops working.
--- Read the generated `_gen.lean` concrete definition directly instead of the mismatch, or
--- reuse the accOut/keccakOut helpers the block specs use (see
--- specs/InteropHandler/.../block_1292814770935828014_user.lean). Outstanding for
--- for_5976315420052011104, whose helpers are otherwise all closed.
+-- A BODY CONTAINING keccak256: SOLVED, and not the way you would guess. Its ABody carries an
+-- Option match (the collision fallback) whose pretty-printed form does NOT disambiguate how
+-- `multifill` associates with the match result, so transcribing from the error message fails.
+-- Hand-writing the match fails too, and so does the accOut/keccakOut helper -- both differ
+-- structurally from what the generator emits.
+-- What works is mirroring the generated proof's own primitive. The gen file does
+-- `rw [EVMKeccak256']`, and that lemma says the call IS a pair, so write:
+--
+--     multifill ["<var>"] (primCall b .Keccak256 [0, 64]).2 (primCall b .Keccak256 [0, 64]).1 = s₉
+--
+-- with `b` the state after the two scratch mstores, and close with a bare `exact hc` -- do NOT
+-- `rw [EVMKeccak256']` yourself, the unfolded goal has the match already expanded. Verified on
+-- for_5976315420052011104. GENERAL RULE: when the error message is ambiguous, mirror the
+-- PRIMITIVE the generated proof rewrites with, not the term the pretty-printer shows.
 --
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
