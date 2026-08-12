@@ -198,7 +198,10 @@ So `RightEmpty`'s "at every level where the node is a left child, the right sibl
 is empty" is the `iszero(and(shr(var_i, mask), 1))` guard plus the equality check, and the zero
 cascade this file's header describes is the loop's final three lines.
 
-Its spec is still `AFor := True` as of 2026-08-12.  Its helper calls are all closed
+That loop's spec is now CLOSED (2026-08-12): genuine `ACond`/`APost`/`ABody`/`AFor`, no
+sorries, `abs_of_code` axiom-clean.  So the index-level argument in this file and the deployed
+check are now both machine-checked, though nothing yet connects them formally — `RightEmpty`
+and the loop's `AFor` are stated in different vocabularies.  Its helper calls are all closed
 (`memory_array_index_access_struct_InteropCall_dyn` and the panics), so the blocker is only
 the transcription: `ABody` has to carry a keccak `Option` match — the collision fallback —
 on top of two nested guards.  Closing it would connect `last_of_rightEmpty` to the deployed
