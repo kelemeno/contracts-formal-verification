@@ -277,6 +277,33 @@ Worked examples, each a file:
 | "timeout recovery is best-effort" | the threshold is `>= 1`, and one reverting target blocks the OTHER calls — `RecoveryLimits` |
 | "a non-last leaf has a populated right subtree on some level" | true, and the level is COMPUTABLE (trailing ones) — `LastBatchInRoot` |
 
+### Loop specs: 37 of 45 prove nothing
+
+`scripts/loop-content-audit.sh` classifies every for-loop spec. As of 2026-08-12:
+
+    REAL      6   genuine closed form, no sorries
+    TRUE-FOR  37  AFor := True -- green, axiom-clean, and contentless
+    PARTIAL   2   some obligations proven, body transcription remaining
+
+A loop spec can be `sorry`-free, axiom-clean, and green while saying nothing, by setting
+`AFor := True` and aliasing `APost`/`ABody` to the concrete spec — after which all five closure
+lemmas close with `trivial`. That is the loop-level form of the tautological block specs already
+tracked here, and it is the second reason (after `A := concrete` aliases) that **neither a sorry
+count nor a green build is a progress metric in this repo**.
+
+To give one content, use `scripts/loop-spec-skeleton.sh <loop_id> <cursor> <bound> <increment>`. It
+emits the SEVEN obligations that depend only on a counted loop's shape — `ACond`, `APost`, `AFor`,
+`AZero`, `AOk`, `AContinue`, `ALeave` — leaving only `ABody` (and `ABreak`, which reads off it).
+
+The choice that makes those seven mechanical: **`AFor` must be a property of `s₉` alone** ("on
+normal exit the cursor has reached the bound"). That is what lets the closure lemmas thread it
+through the recursion unchanged, and it is sound whenever the bound variable is untouched by body
+and post. A loop that mutates its own bound breaks the pattern, silently.
+
+Two things learned the hard way, both in the script's header: a body that can REVERT does not
+disturb the seven (a revert sets a flag on an `Ok` state — a revert is not a break); and simp needs
+`State.insert` and `State.setEvm` to see the constructor clash that closes `ABreak`.
+
 ### Sound by ENUMERATION, not by guard
 
 The recurring shape, and the thing to look for. Several guards are safe only because of a
