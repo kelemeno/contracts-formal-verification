@@ -381,6 +381,18 @@ length header and the padding but NOT the contents. `AttackVectors/BundleHashEnc
 unaffected because it models the ABI shape abstractly at the byte level rather than going
 through the generated encoder — but any attempt to CONNECT the two would land on this hole.
 
+**Does it undermine anything already claimed? Checked: no.** The headline results that touch
+`_verifyBundle` (`InteropHandler/Layout.lean`) are about the STATUS PATH — they compose the
+mapping-slot derivation block with the status-write block and conclude `bundleStatus[bh] =
+Verified`. Neither block calls `mcopy`, and no headline result mentions the message data,
+`BUNDLE_IDENTIFIER`, or the `bytes.concat` substitution. No `Audit.lean` entry routes through
+an `mcopy`-using function spec.
+
+What the hole DOES bound is what can be claimed next: `_verifyBundle`'s data-substitution step
+(`_proof.message.data = bytes.concat(BUNDLE_IDENTIFIER, _bundle)`) is unmodelled, so "the
+verified message really carried this bundle" is NOT provable through this path today, and a
+future result asserting it would be resting on the empty stub.
+
 It also blocks work: four TRUE-FOR loops bottom out here (see `scripts/loop-content-audit.sh`),
 because nothing composing through `A_mcopy := True` can be given an `isOk`/`not_break` lemma.
 Fixing it means adding an `Mcopy` primop to Clear and regenerating, which is upstream work.
