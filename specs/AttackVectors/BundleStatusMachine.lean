@@ -193,4 +193,51 @@ the unbundled route, and the per-call guard says nothing about a bundle being bo
 unbundled.  Together they give "each call is delivered at most once", which is the property the
 destination side of no-theft needs. -/
 
+/-! ## Base-token value is released at most once per call
+
+The destination side's value statement.  `_executeCalls` releases a call's base-token `value` through a
+chain with one call site at each link:
+
+    BaseTokenHolder.give            onlyInteropHandler; releases from a pre-funded holder, not a mint,
+                                    and notifies L2_ASSET_TRACKER before transferring
+      <- L2InteropHandler:118       the SOLE caller of give, inside _handleCallValue
+      <- InteropHandlerBase:279     the SOLE caller of _handleCallValue, inside _executeCalls
+
+and `_executeCalls` pays call `i` exactly when that call is being executed:
+
+    if (!_executeAllCalls) { if (_providedCallStatus[i] != Executed) continue; }   // unbundled route
+    _handleCallValue(interopCall.value, _sourceChainId);
+
+Both routes record the payment in the SAME place — `callStatus[bundleHash][i] = Executed`
+(`InteropHandlerBase:131` and `L2InteropHandler:89` for the whole bundle, `:208` per call).  So "paid"
+and "the call's status is `Executed`" are the same event, and at-most-once payment is at-most-once
+entry into `Executed`.
+
+That needs BOTH machines, and this is the composition rather than a new argument:
+
+* WITHIN the unbundled route, `callExecuted_terminal` — a call cannot re-enter `Executed`, however many
+  `unbundleBundle` transactions are sent.
+* ACROSS routes, `routes_exclusive` — an unbundled bundle cannot then be executed whole (which would
+  pay every call again, since the whole-bundle route writes `Executed` unconditionally rather than
+  checking it first).
+
+Neither alone suffices, and the second is the one that is easy to miss: the whole-bundle route does NOT
+guard on the per-call status, so nothing at the call level would stop it re-paying. It is the BUNDLE
+status that does. -/
+
+/-- **PAID AT MOST ONCE.**  The two facts that jointly bound base-token release per call: no second
+entry into `Executed` within a route, and no taking both routes. -/
+theorem value_released_at_most_once :
+    (∀ t : CallStatus, ¬ CallStep .Executed t) ∧
+      (¬ Reach .FullyExecuted .Unbundled ∧ ¬ Reach .Unbundled .FullyExecuted) :=
+  ⟨fun _ => callExecuted_terminal, routes_exclusive⟩
+
+/-- The gap the whole-bundle route leaves at the call level, stated so the reliance on bundle status is
+explicit: `Unprocessed → Executed` and a re-entry attempt are not distinguished by anything in the
+per-call machine when `_executeAllCalls` is true, since that path writes the status without reading it.
+`routes_exclusive` is what closes it. -/
+theorem wholeBundle_route_does_not_check_callStatus :
+    CallReach .Unprocessed .Executed ∧ ¬ CallStep .Executed .Executed :=
+  ⟨.tail (.refl _) .execute, callExecuted_terminal⟩
+
 end AttackVectors.BundleStatusMachine

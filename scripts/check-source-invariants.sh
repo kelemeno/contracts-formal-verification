@@ -110,6 +110,21 @@ check "receiveMessage: 3 dispatch branches" "$DISPATCH_BRANCHES" "3" \
   "SelfCallAuthority (the inert-disjunct note)" \
   "a new branch makes a dormant address(this) disjunct reachable; confirm the matching _handle* permission check landed in the same change"
 
+# 9. The value-release chain: one call site per link, so base-token release happens
+#    only inside _executeCalls, for a call being executed.
+GIVE_CALLS=$(count_matches '.give(' "$SRC/interop" "$SRC/l2-system")
+check "give(): single call site" "$GIVE_CALLS" "1" \
+  "BundleStatusMachine.value_released_at_most_once" \
+  "another caller could release base-token value outside _executeCalls, where neither the bundle status nor the per-call status bounds it"
+
+# Count CALL SITES, not occurrences: there is one virtual declaration and two
+# overrides (L2 releases value, L1 rejects it), which are not call sites.
+HCV_CALLS=$(grep -rn --include="*.sol" -F '_handleCallValue(' "$SRC/interop" \
+  | grep -v -E 'function _handleCallValue' | wc -l | tr -d ' ')
+check "_handleCallValue: single call site" "$HCV_CALLS" "1" \
+  "BundleStatusMachine.value_released_at_most_once" \
+  "a second call site would pay a call outside the at-most-once path"
+
 echo
 if [ "$FAIL" -eq 0 ]; then
   echo "all invariants hold"
