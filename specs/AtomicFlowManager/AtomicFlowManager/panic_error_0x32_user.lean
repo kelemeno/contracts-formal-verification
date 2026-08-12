@@ -45,10 +45,8 @@ re-walks the same Ok / OutOfFuel / Checkpoint analysis through this function.
 Proved by tracking `isOk` along the chain rather than reducing it to a constructor —
 `initcall`, `multifill`, `setEvm` and `setStore` each preserve it, and `not_isOk_of_isBreak`
 finishes. -/
-lemma panic_error_0x32_not_break {s₀ s₉ : State} (hok : isOk s₀)
-    (h : A_panic_error_0x32 s₀ s₉) : ¬ isBreak s₉ := by
-  intro hb
-  refine not_isOk_of_isBreak hb ?_
+lemma panic_error_0x32_isOk {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x32 s₀ s₉) : isOk s₉ := by
   unfold A_panic_error_0x32 at h
   subst h
   have hm : isOk (multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] (s₀☎️⟦[],[]⟧)) :=
@@ -56,6 +54,10 @@ lemma panic_error_0x32_not_break {s₀ s₉ : State} (hok : isOk s₀)
   apply isOk_setStore_of_isOk
   rw [revive_of_ok (by simpa using hm)]
   simpa using hm
+
+lemma panic_error_0x32_not_break {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x32 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (panic_error_0x32_isOk hok h)
 
 end
 
