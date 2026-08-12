@@ -35,21 +35,27 @@ lemma panic_error_0x32_abs_of_concrete {s₀ s₉ : State}  :
   intro _hne hc
   exact hc
 
-/-! ### The `never_checkpoint` lemma this file should carry, and why it is not here yet
+/-- **THE OUTPUT IS NEVER A BREAK.**  A revert yields an `Ok` state carrying the reverted
+flag, not a control-flow jump, so nothing downstream has to consider a `break` coming out of
+a panic.
 
-`ABreak` obligations downstream need one reusable fact per helper:
+This is the reusable form the loop `ABreak` obligations need: without it every caller
+re-walks the same Ok / OutOfFuel / Checkpoint analysis through this function.
 
-    lemma <fn>_not_break : A_<fn> s₀ s₉ → ¬ isBreak s₉
-
-For this function it is clearly TRUE — a revert yields an `Ok` state carrying the reverted
-flag, never a control-flow jump. Proving it is another matter: the closed form is a chain of
-`setEvm` applications over `multifill`/`initcall`, and `simp` will not reduce that chain to a
-constructor, so the goal stays a nest of `match`es even after casing on `s₀`. It needs
-reduction lemmas for `setEvm`-over-`multifill` that this corpus does not appear to have.
-
-Recorded rather than left as a `sorry`: the closed form above is the reusable part, and it is
-what makes such a lemma provable at all once the reduction exists. -/
-
+Proved by tracking `isOk` along the chain rather than reducing it to a constructor —
+`initcall`, `multifill`, `setEvm` and `setStore` each preserve it, and `not_isOk_of_isBreak`
+finishes. -/
+lemma panic_error_0x32_not_break {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x32 s₀ s₉) : ¬ isBreak s₉ := by
+  intro hb
+  refine not_isOk_of_isBreak hb ?_
+  unfold A_panic_error_0x32 at h
+  subst h
+  have hm : isOk (multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] (s₀☎️⟦[],[]⟧)) :=
+    isOk_multifill (isOk_initcall_of_isOk hok)
+  apply isOk_setStore_of_isOk
+  rw [revive_of_ok (by simpa using hm)]
+  simpa using hm
 
 end
 
