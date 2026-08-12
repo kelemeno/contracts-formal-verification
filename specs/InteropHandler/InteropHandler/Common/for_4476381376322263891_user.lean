@@ -22,7 +22,24 @@ def ACond_for_4476381376322263891 (s₀ : State) : Literal :=
 def APost_for_4476381376322263891 (s₀ s₉ : State) : Prop :=
   ∀ evm store, s₀ = Ok evm store →
     s₉ = (Ok evm store)⟦"var_i" ↦ ((Ok evm store)["var_i"]!! + 1)⟧
-def ABody_for_4476381376322263891 (s₀ s₉ : State) : Prop := sorry
+/-- Loop body: the three blocks in sequence, each at its own CLOSED FORM rather than
+at the opaque concrete spec —
+
+  1. `block_2862394693737849679`  the nested-slot derivation's first half:
+     `keccak(bundleHash ‖ 2)` bound to `dataSlot_1`, scratch re-primed with `(var_i, dataSlot_1)`
+  2. `block_5612315614323394231`  `slot := keccak(0,64)` (the leaf slot), `sload(slot)`, `not(255)`
+  3. `block_8179420195348823280`  `sstore(slot, or(and(sload, not 255), 1))`
+
+so the body writes `CallStatus.Executed = 1` into the low byte of
+`callStatus[var_bundleHash][var_i]`, preserving the slot's high bytes.
+
+This is the COMPOSITION, not yet the net effect: it names the three steps in abstract
+terms, which is what the `AFor` induction consumes.  Deriving the single storage-write
+statement from these three closed forms is the next step. -/
+def ABody_for_4476381376322263891 (s₀ s₉ : State) : Prop :=
+  ∃ s₁, Spec A_block_2862394693737849679 s₀ s₁ ∧
+    ∃ s₂, Spec A_block_5612315614323394231 s₁ s₂ ∧
+      ∃ s₃, Spec A_block_8179420195348823280 s₂ s₃ ∧ s₃ = s₉
 def AFor_for_4476381376322263891 (s₀ s₉ : State) : Prop := sorry
 
 lemma for_4476381376322263891_cond_abs_of_code {s₀ fuel} : eval fuel for_4476381376322263891_cond (s₀) = (s₀, ACond_for_4476381376322263891 (s₀)) := by
@@ -46,7 +63,11 @@ lemma for_4476381376322263891_concrete_of_post_abs {s₀ s₉ : State} :
 lemma for_4476381376322263891_concrete_of_body_abs {s₀ s₉ : State} :
   Spec for_4476381376322263891_body_concrete_of_code s₀ s₉ →
   Spec ABody_for_4476381376322263891 s₀ s₉ := by
-  sorry
+  unfold for_4476381376322263891_body_concrete_of_code ABody_for_4476381376322263891
+  rcases s₀ with ⟨evm, store⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro _hne hc
+  exact hc
 
 lemma AZero_for_4476381376322263891 : ∀ s₀, isOk s₀ → ACond_for_4476381376322263891 (👌 s₀) = 0 → AFor_for_4476381376322263891 s₀ s₀ := sorry
 lemma AOk_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → APost_for_4476381376322263891 s₂ s₄ → Spec AFor_for_4476381376322263891 s₄ s₅ → AFor_for_4476381376322263891 s₀ s₅
