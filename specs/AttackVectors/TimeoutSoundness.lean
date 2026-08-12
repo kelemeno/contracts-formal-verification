@@ -142,6 +142,51 @@ theorem finalized_blocks_end_timeout {H : BatchHistory}
   by_contra habsent
   exact end_absence_implies_never_finalized hao hintime hroot hlast habsent B' hB' hmem
 
+/-! ## THE TWO ROOTS ARE NOT INTERCHANGEABLE — and only one swap is dangerous
+
+The branch is a prover input (`_absence.provesAgainstBeginRoot`), but it selects the LEAF INDEX that
+`_authenticateRoot` verifies against — `IMT_BEGIN_ROOT_LEAF_INDEX = 2` versus
+`IMT_END_ROOT_LEAF_INDEX = 3`, passed as `_leafProofMask` into `proveL2LeafInclusionShared`.  So a
+root's ROLE is authenticated by its Merkle position, not merely its value, and a begin root cannot be
+presented where an end root is required.
+
+That guard is worth more in one direction than the other, which the constants alone do not show. -/
+
+/-- `begin(n) ⊆ end(n)`: the batch's own insertions are what separate them. -/
+theorem beginSet_subset_endSet {H : BatchHistory} (hao : AppendOnly H) (n : ℕ) :
+    beginSet H n ⊆ H.endSet n := by
+  cases n with
+  | zero => simp [beginSet]
+  | succ k => exact endSet_mono hao (Nat.le_succ k)
+
+/-- **THE HARMLESS SWAP.**  Offering an END root on the BEGIN branch proves something STRONGER, since
+`begin(L) ⊆ end(L)`.  Had the contract accepted it, soundness would survive — so the leaf-index binding
+is not load-bearing in this direction. -/
+theorem begin_branch_with_end_root_sound {H : BatchHistory}
+    (hao : AppendOnly H) (hto : TimeOrdered H) {L D : ℕ} {v : UInt256}
+    (hlate : D < H.time L) (habsent : v ∉ H.endSet L) :
+    ∀ B : ℕ, H.time B ≤ D → v ∉ H.endSet B :=
+  begin_absence_implies_never_finalized hao hto hlate
+    (fun hmem => habsent (beginSet_subset_endSet hao L hmem))
+
+/-- **THE DANGEROUS SWAP.**  Offering a BEGIN root on the END branch is UNSOUND: a value inserted
+DURING an in-time batch is absent from that batch's begin root while being finalized on time.  Accepting
+it would let `authorizeRefund` mark a live leg `Revertable` — a refund of a leg that did commit before
+the deadline.
+
+This is what the `_leafProofMask` binding actually buys: without it the end branch would admit exactly
+this witness.  The end branch's own `l1BatchTimestamp <= _deadline` check does NOT catch it — the batch
+here IS in time; it is the ROOT that is wrong. -/
+theorem end_branch_with_begin_root_unsound :
+    ∃ (H : BatchHistory) (D : ℕ) (v : UInt256) (B : ℕ),
+      AppendOnly H ∧ H.time B ≤ D ∧ v ∉ beginSet H B ∧ v ∈ H.endSet B := by
+  refine ⟨⟨fun n => if n = 0 then ∅ else {0}, fun _ => 0⟩, 0, 0, 1, ?_, ?_, ?_, ?_⟩
+  · intro n
+    cases n <;> simp
+  · simp
+  · simp [beginSet]
+  · simp
+
 /-! ### Two structural observations the proofs make visible
 
 **1. `TimeOrdered` is not used in the END branch.**  The begin branch needs it exactly once, to place

@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 167 of 177 depend only on Lean's standard base
+  RESULT as of this commit — 169 of 179 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -53,6 +53,7 @@
       CLEAN   local_honest_insertion                      HonestInsertion located
       CLEAN   stranding_is_terminal                       recovery LIMIT
       CLEAN   revert_anywhere_blocks                      recovery LIMIT
+      CLEAN   end_branch_with_begin_root_unsound          sharpness (root role)
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -311,3 +312,7 @@ import specs.AttackVectors.RecoveryLimits
 #print axioms AttackVectors.RecoveryLimits.one_revert_blocks_all
 #print axioms AttackVectors.RecoveryLimits.revert_anywhere_blocks
 #print axioms AttackVectors.RecoveryLimits.retry_does_not_help
+
+-- Timeout protocol: the begin/end roots are not interchangeable
+#print axioms AttackVectors.TimeoutSoundness.begin_branch_with_end_root_sound
+#print axioms AttackVectors.TimeoutSoundness.end_branch_with_begin_root_unsound
