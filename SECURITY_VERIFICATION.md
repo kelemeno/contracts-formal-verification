@@ -1698,6 +1698,31 @@ So `t i ≤ D` for delivery and `D < t (j+1)` for reclaim are BOTH enforced, on 
 source comment on the deadline check — "`t` only rises, so a commit can't be back-dated to look in-time
 after the fact" — is the monotonicity assumption again, stated at the point of use.
 
+**Both branches are now theorems** (`specs/AttackVectors/TimeoutSoundness.lean`, axiom-free — `propext`
+and `Quot.sound` only).  The header argument above had no Lean counterpart; it does now.
+
+| result | content |
+|---|---|
+| `begin_absence_implies_never_finalized` | absence at a late batch's BEGIN ⇒ absence from every in-time batch's END |
+| `end_absence_implies_never_finalized` | absence at the last-in-root batch ⇒ the same |
+| `timeout_implies_never_finalized` | either branch ⇒ the leg can never finalize |
+
+`_verifyLastBatchInRoot` enters as the hypothesis `hlast` — *everything after `B` settles no earlier
+than the root's creation time* — which is what "last batch in this root" buys, expressed without
+modelling the aggregation tree.  Two things the proofs surfaced that the header comment does not say:
+
+1. **`Monotone t` is used only by the begin branch, and exactly once**, to place the late batch after
+   the in-time one.  The end branch does not need it at all: `hlast` does that work directly, so it
+   stays sound even for a history whose settlement times are not monotone in the batch index.  This
+   sharpens the "where `Monotone t` really lives" paragraph above — it lives in *one* of the two
+   branches.
+2. **The end branch's `t_B ≤ deadline` check is redundant for soundness.**  Absence at a *later* batch
+   is a strictly stronger claim than absence at an in-time one, because END sets only grow; so the
+   conclusion holds without that hypothesis (`end_absence_implies_never_finalized'` drops it).  The
+   check is a well-formedness guard, not a soundness requirement — removing it would not admit a forged
+   timeout proof.  **Not a recommendation to remove it**; it is cheap and it keeps the two branches'
+   preconditions disjoint, which is worth more than the gas.
+
 **And `_verifyLastBatchInRoot` has no abstract counterpart at all.**  Nothing in `IMTAbstract` or
 `Timestamps` corresponds to "this is the chain's last batch in the root"; it is a structural check on
 the aggregation path.  The end branch's soundness depends on it — without it, an in-time batch that is
