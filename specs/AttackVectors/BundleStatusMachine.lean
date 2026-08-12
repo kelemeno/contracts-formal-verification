@@ -340,4 +340,52 @@ theorem atomic_ledger_trivial (l : Ledger) (h : ∀ p ∈ l, p.1 = 0) :
     · by_cases hst : st = CallStatus.Executed <;> simp [releasedSum, hst, htl.1]
     · simp [collectedSum, htl.2]
 
+/-! ## The atomic sub-machine — a stronger guarantee, not a weaker one
+
+Applying the same scope question to `routes_exclusive`: is it non-trivial for ATOMIC bundles?  It is
+not, and the reason turns out to strengthen the atomic case rather than weaken it.
+
+An atomic bundle cannot reach `Verified`: that edge is `verifyBundle`, which requires an L1 message
+inclusion proof, and atomic bundles are never published to L1.  `unbundleBundle` requires
+`Verified || Unbundled`.  So `Unbundled` is unreachable for an atomic bundle — it has exactly ONE
+route, and `routes_exclusive` is satisfied vacuously for it.
+
+That means the two machines divide by path:
+
+* ATOMIC bundles — one route, so delivery-once follows from bundle-status terminality ALONE
+  (`reach_from_fullyExecuted`).  The per-call machine is not needed: `executeAtomicBundle` writes every
+  call `Executed` in one transaction, and there is no second transaction to worry about.
+* PUBLIC bundles — two routes, so delivery-once genuinely needs BOTH machines, as recorded above.
+
+So the earlier composition is not wrong for atomic bundles, it is more than they require.  Worth
+knowing which half is load-bearing where. -/
+
+/-- The transitions available to an ATOMIC bundle: `verify` is unreachable (no L1 proof exists), and
+with it every edge that needs `Verified`. -/
+inductive AtomicStep : Status → Status → Prop
+  | executeAtomic : AtomicStep .Unreceived .FullyExecuted
+
+inductive AtomicReach : Status → Status → Prop
+  | refl (s : Status) : AtomicReach s s
+  | tail {a b c : Status} : AtomicReach a b → AtomicStep b c → AtomicReach a c
+
+/-- **AN ATOMIC BUNDLE HAS ONE ROUTE.**  From fresh, the only reachable states are fresh and
+delivered. -/
+theorem atomic_reach_two_states {t : Status} (h : AtomicReach .Unreceived t) :
+    t = .Unreceived ∨ t = .FullyExecuted := by
+  induction h with
+  | refl => exact Or.inl rfl
+  | tail _ hstep _ => cases hstep; exact Or.inr rfl
+
+/-- **SO IT IS NEVER UNBUNDLED**, and `routes_exclusive` holds vacuously for it — the per-call route
+does not exist on this path. -/
+theorem atomic_never_unbundled : ¬ AtomicReach .Unreceived .Unbundled := by
+  intro h
+  rcases atomic_reach_two_states h with h1 | h1 <;> exact absurd h1 (by decide)
+
+/-- And delivery-once for an atomic bundle needs only the BUNDLE machine: `FullyExecuted` is terminal
+here too, since `AtomicStep` has no edge out of it. -/
+theorem atomic_delivery_terminal {t : Status} : ¬ AtomicStep .FullyExecuted t := by
+  rintro ⟨⟩
+
 end AttackVectors.BundleStatusMachine
