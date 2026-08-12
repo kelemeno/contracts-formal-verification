@@ -88,6 +88,12 @@ echo
 #
 # As of 2026-08-12, with 9 helpers closed: NO remaining TRUE-FOR loop has all its helpers
 # closed. Four are one away, all blocked on the same helper -- abi_encode_bytes (L1Bridgehub,
+# L2AssetRouter, and two in L1AssetRouter). Chased that chain: abi_encode_bytes is three
+# BLOCKS, two of which are now closed; the third goes through A_mcopy -- and A_mcopy is
+# literally `def A_mcopy ... := True`. So the four loops bottom out on a contentless FUNCTION
+# spec, not an alias. `grep -rn "^def A_[A-Za-z0-9_]* .*:= True$" specs/` finds 9 such specs
+# in all (5 mcopy copies + 4 ifs), so this pattern is confined to loops and mcopy rather than
+# endemic -- but mcopy is the one that blocks real work.
 # L2AssetRouter, and two in L1AssetRouter). That is the highest-leverage next closure.
 
 echo "To give a TRUE-FOR loop content, use scripts/loop-spec-skeleton.sh: it emits the"
