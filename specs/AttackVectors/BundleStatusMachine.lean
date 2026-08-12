@@ -308,4 +308,36 @@ theorem shortfall_is_unexecuted (v : ℕ) (tl : Ledger) :
   simp [releasedSum, collectedSum]
   omega
 
+/-! ### Scope: where the no-inflation result is non-trivial
+
+`_validateAtomicBundle` rejects any call carrying native value:
+
+    if (_bundle.calls[i].value != 0) revert AtomicBundleCallCarriesValue(i, _bundle.calls[i].value);
+
+and `calls[i].value` is exactly the `interopCallValue` summed into `totalBurnedCallsValue`
+(`InteropCenter.sol:738`).  So for an ATOMIC bundle every entry of the ledger is zero and both sums
+vanish — the inequality holds trivially and says nothing.
+
+The result above is therefore about the PUBLIC interop path.  That is not a defect in either: atomic
+legs deliberately move value through the asset router as `indirectCallMessageValue`, precisely because
+`IAtomicRecoverable.recoverAtomicCall` can reverse an asset-router deposit but cannot reverse a
+base-token transfer.  Banning native value is what keeps the timeout path meaningful for them, and
+`RecoveryLimits` is where that path's own limits live.
+
+Stating this because the inequality reads like a global conservation law and is not one. -/
+
+/-- An atomic bundle's ledger is all zeros, so both sides vanish. -/
+theorem atomic_ledger_trivial (l : Ledger) (h : ∀ p ∈ l, p.1 = 0) :
+    releasedSum l = 0 ∧ collectedSum l = 0 := by
+  induction l with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons hd tl ih =>
+    obtain ⟨v, st⟩ := hd
+    have hv : v = 0 := h (v, st) (List.mem_cons_self _ _)
+    have htl := ih (fun p hp => h p (List.mem_cons_of_mem _ hp))
+    subst hv
+    constructor
+    · by_cases hst : st = CallStatus.Executed <;> simp [releasedSum, hst, htl.1]
+    · simp [collectedSum, htl.2]
+
 end AttackVectors.BundleStatusMachine
