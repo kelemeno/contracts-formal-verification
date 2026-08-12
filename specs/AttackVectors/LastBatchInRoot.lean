@@ -178,6 +178,32 @@ theorem end_branch_from_onchain_check
   exact AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized' hao hroot
     (hlast_of_last_in_root (lastIdx_of_rightEmpty hin hcap hemp) hout) habsent
 
+/-! ## The deployed counterpart
+
+`AtomicFlowManager`'s `for_5976315420052011104` IS this check, compiled:
+
+    for { } lt(var_i, length) {var_i := add(var_i, 1)} {
+        let split_expr_1 := shr(var_i, _1)          -- bit `var_i` of the path mask
+        let split_expr_2 := and(split_expr_1, 1)
+        if iszero(split_expr_2) {                   -- a LEFT child at this level
+            let split_expr_4 := memory_array_index_access_struct_InteropCall_dyn(..., var_i)
+            let _3 := mload(split_expr_4)           -- the right sibling
+            if iszero(eq(_3, var_zeroSubtreeHash)) { revert(...) }
+        }
+        mstore(0, var_zeroSubtreeHash); mstore(32, var_zeroSubtreeHash)
+        var_zeroSubtreeHash := keccak256(0, 64)     -- zeros[i+1] = keccak(zeros[i] ‖ zeros[i])
+    }
+
+So `RightEmpty`'s "at every level where the node is a left child, the right sibling's subtree
+is empty" is the `iszero(and(shr(var_i, mask), 1))` guard plus the equality check, and the zero
+cascade this file's header describes is the loop's final three lines.
+
+Its spec is still `AFor := True` as of 2026-08-12.  Its helper calls are all closed
+(`memory_array_index_access_struct_InteropCall_dyn` and the panics), so the blocker is only
+the transcription: `ABody` has to carry a keccak `Option` match — the collision fallback —
+on top of two nested guards.  Closing it would connect `last_of_rightEmpty` to the deployed
+code, which is the natural next step for this file. -/
+
 /-! ## What this does and does not close
 
 CLOSED: the index-level claim the docstring asserts -- "a non-last leaf necessarily has a populated
