@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 197 of 207 depend only on Lean's standard base
+  RESULT as of this commit — 200 of 210 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -66,6 +66,8 @@
       CLEAN   released_le_collected                       no inflation (dest <= source)
       CLEAN   atomic_ledger_trivial                       SCOPE: vacuous for atomic bundles
       CLEAN   atomic_never_unbundled                      atomic path has ONE route
+      CLEAN   atomic_delivered_once                       destination capstone (atomic)
+      CLEAN   public_delivered_once                       destination capstone (public)
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -138,6 +140,7 @@ import specs.AttackVectors.LastBatchInRoot
 import specs.AttackVectors.BundleStatusMachine
 import specs.AttackVectors.AtomicSourceBinding
 import specs.AttackVectors.SelfCallAuthority
+import specs.AttackVectors.DestinationCapstone
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -366,3 +369,8 @@ import specs.AttackVectors.SelfCallAuthority
 #print axioms AttackVectors.BundleStatusMachine.atomic_ledger_trivial
 #print axioms AttackVectors.BundleStatusMachine.atomic_reach_two_states
 #print axioms AttackVectors.BundleStatusMachine.atomic_never_unbundled
+
+-- Destination-side capstone (composition; its content is the hypothesis list)
+#print axioms AttackVectors.DestinationCapstone.atomic_delivered_once
+#print axioms AttackVectors.DestinationCapstone.public_delivered_once
+#print axioms AttackVectors.DestinationCapstone.no_inflation
