@@ -79,5 +79,16 @@ if [ "$LIST" = "--list" ]; then
 fi
 
 echo
+# Ranking the TRUE-FOR tail by how many of its helper specs are still aliases is the cheapest
+# way to pick the next loop -- but check the alias test itself. Three successive versions of
+# that test gave WRONG answers here (a normaliser that ignored bound-variable names said "no
+# duplicates" when three were duplicates; a regex on the def line said "all helpers closed"
+# when every one was an alias). The test that holds up is the dumbest one: does the helper's
+# _user.lean contain the literal string "_concrete_of_code.1"?
+#
+# As of 2026-08-12, with 9 helpers closed: NO remaining TRUE-FOR loop has all its helpers
+# closed. Four are one away, all blocked on the same helper -- abi_encode_bytes (L1Bridgehub,
+# L2AssetRouter, and two in L1AssetRouter). That is the highest-leverage next closure.
+
 echo "To give a TRUE-FOR loop content, use scripts/loop-spec-skeleton.sh: it emits the"
 echo "seven obligations that depend only on loop shape, leaving ABody (and ABreak) per loop."
