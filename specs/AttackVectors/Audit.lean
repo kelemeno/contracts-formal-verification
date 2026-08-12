@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 161 of 171 depend only on Lean's standard base
+  RESULT as of this commit — 167 of 177 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -51,6 +51,8 @@
       CLEAN   polarity_summary                            inclusion vs absence
       CLEAN   inclusion_binding_requires_honesty          sharpness (polarity)
       CLEAN   local_honest_insertion                      HonestInsertion located
+      CLEAN   stranding_is_terminal                       recovery LIMIT
+      CLEAN   revert_anywhere_blocks                      recovery LIMIT
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -118,6 +120,7 @@ import specs.AttackVectors.BundleHashEncoding
 import specs.AttackVectors.FlowCanonical
 import specs.AttackVectors.ProofPolarity
 import specs.AttackVectors.LocalHonesty
+import specs.AttackVectors.RecoveryLimits
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -300,3 +303,11 @@ import specs.AttackVectors.LocalHonesty
 -- Where HonestInsertion lives: enforced locally, "same code" globally
 #print axioms AttackVectors.LocalHonesty.local_honest_insertion
 #print axioms AttackVectors.LocalHonesty.honestInsertion_of_guards_everywhere
+
+-- Timeout recovery: the exact shape of "best-effort" (LIMITS, not safety claims)
+#print axioms AttackVectors.RecoveryLimits.partial_recovery_accepted
+#print axioms AttackVectors.RecoveryLimits.accepted_below_full_recovery
+#print axioms AttackVectors.RecoveryLimits.stranding_is_terminal
+#print axioms AttackVectors.RecoveryLimits.one_revert_blocks_all
+#print axioms AttackVectors.RecoveryLimits.revert_anywhere_blocks
+#print axioms AttackVectors.RecoveryLimits.retry_does_not_help
