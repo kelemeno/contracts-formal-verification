@@ -1781,6 +1781,43 @@ not the last could be presented, and its end root need not be the final in-time 
    and whether the caveat is acceptable.
 4. The proofs themselves need no review — re-running `lake build` re-verifies them with the kernel.
 
+## Part B addendum — 2026-08-12: the destination side, delivered at most once
+
+The no-theft chain covers the SOURCE side (a leg is committed once, delivered or reclaimed, never
+both). The DESTINATION side has its own double-spend question, and it is answered by two independent
+state machines rather than by any single guard —
+`specs/AttackVectors/BundleStatusMachine.lean`, axiom-free (zero axioms).
+
+**Bundle level.** Four functions each carry a status guard; read together they are a machine:
+
+| function | guard | result |
+|---|---|---|
+| `verifyBundle` | `Unreceived` | `Verified` |
+| `executeBundle` | `Unreceived \|\| Verified` | `FullyExecuted` |
+| `unbundleBundle` | `Verified \|\| Unbundled` | `Unbundled` |
+| `executeAtomicBundle` | `Unreceived` | `FullyExecuted` |
+
+`reach_from_fullyExecuted` and `reach_from_unbundled` show both delivery states are absorbing, and
+`routes_exclusive` that neither reaches the other in either order — so the whole-bundle route and the
+per-call unbundled route cannot both run. `both_routes_available` confirms this is not vacuous.
+
+**Call level.** Bundle exclusivity alone does NOT give delivery-once, because `Unbundled → Unbundled`
+is legal and the unbundled route processes calls across arbitrarily many transactions.
+`callReach_from_executed` closes it: `Executed` is terminal, so `require(recorded == Unprocessed)`
+blocks a second execution of the same call. `callReach_from_cancelled` adds that cancellation is a
+one-way door. The two levels are independent — neither implies the other — and only together do they
+give **each call is delivered at most once**.
+
+**A liveness dependency spanning two contracts, worth watching.** `executeAtomicBundle` admits only
+`Unreceived`, where `executeBundle` also admits `Verified`. An atomic bundle that ever reached
+`Verified` could never be executed — source funds burned, only the timeout path left, whose recovery is
+partial (Part D). That is safe ONLY because atomic bundles are never published to L1
+(`InteropCenter._dispatchBundle` skips `_sendBundleToL1` on the `isAtomic` branch), so no inclusion
+proof exists and `verifyBundle` cannot succeed on one. Nothing enforces that across the two contracts;
+publishing atomic bundles to L1 for observability would silently brick their execution.
+**`scripts/check-source-invariants.sh` now tests this and five sibling facts**, each annotated with the
+Lean result that depends on it — the whole-program premises no compiler checks.
+
 ## Part D — What is NOT yet covered (honest gaps)
 - **Timeout recovery is partial, and its exact shape is now pinned** *(2026-08-12,
   `specs/AttackVectors/RecoveryLimits.lean`, axiom-clean)*. The source acknowledges the limit
