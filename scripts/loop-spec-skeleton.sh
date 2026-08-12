@@ -179,6 +179,13 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- for_5976315420052011104. GENERAL RULE: when the error message is ambiguous, mirror the
 -- PRIMITIVE the generated proof rewrites with, not the term the pretty-printer shows.
 --
+-- ...and note the knock-on for that loop'"'"'s ABreak: the frame lemmas
+-- (isOutOfFuel_setEvm'"'"'/multifill'"'"') do NOT fire through `(primCall b .Keccak256 [0,64]).1`,
+-- because that projection is a match, not a syntactic setEvm. Case on
+-- `b.evm.keccak256 0 64` FIRST (some/none), after which each branch is a setEvm and the
+-- frame lemmas apply. Everything else that loop needs is closed: both its guards carry
+-- isOk/not_break, and its ABody goes through.
+--
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
 -- ABreak change:
