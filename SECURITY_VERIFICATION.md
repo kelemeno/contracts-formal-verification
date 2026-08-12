@@ -924,6 +924,17 @@ newly compiled into the corpus — 632 VC files, `fun_markFullyExecutedAndRun` i
   block a timeout), an injected or duplicated leg, a permuted flow re-presentation, or a swapped
   settlement-layer clock is rejected up front — before any Merkle proof is even looked at.
   Canonical ascending order also makes the flow presentation unique per leg set.
+- **The consequence is now proven, not asserted** *(2026-08-12,
+  `specs/AttackVectors/FlowCanonical.lean`, axiom-clean)*: the two claims above — "no duplicated leg"
+  and "unique per leg set" — are GLOBAL, over all position pairs and all permutations, while the
+  deployed loop only ever compares NEIGHBOURS. The bridge is transitivity of `<`
+  (`ascending_iff_pairwise`), giving `no_duplicate_leg` (distinct positions ⇒ distinct legs, at any
+  distance) and `ascending_unique` (same legs in any order ⇒ the same list, so there is no permuted
+  re-presentation to find). `valid_pairing_functional` adds what the two guards buy jointly: the
+  zipped `(bundleHash, sourceChainId)` pairing has distinct keys and loses no leg, so one leg cannot
+  be presented as originating on two chains within a flow. `neighbour_distinct_insufficient` shows
+  the gap was real rather than pedantic — the cheaper guard "adjacent legs differ" passes `[1,2,1]`,
+  so an ORDERING is what makes the neighbour scan lift, not merely a distinctness test.
 - **Caveat / trusted base:** **axiom-free**. The length guard's revert direction is not stated
   (its revert body calls the calldata-tail accessor whose closed form is not yet proven); the pass
   direction is what acceptance-implies arguments need. Injectivity of the flow encoding (flowId ⇒
