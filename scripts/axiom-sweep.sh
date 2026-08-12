@@ -8,6 +8,15 @@
 #   ./scripts/axiom-sweep.sh specs/AttackVectors        # sweep a directory
 #   ./scripts/axiom-sweep.sh specs/AttackVectors Audit  # ...and flag ones the ledger omits
 #
+# IT ALSO DETECTS `sorry` AT DECLARATION LEVEL. A declaration proved with `sorry` reports `sorryAx`
+# among its axioms, so it shows up as NOT CLEAN. That is sharper than grepping files for the word: it
+# names the DECLARATION, ignores `sorry` mentioned in prose, and catches one buried in a single tactic
+# block of an otherwise-complete file. As of 2026-08-12 the corpus has 27 (AtomicFlowManager 12,
+# L2InteropCommitmentTree 6, L2AssetRouter 5, L2InteropHandler 4, none elsewhere).
+#
+# NOTE it matches `theorem` AND `lemma`, excluding `private` (which #print axioms cannot reach from
+# outside its module). Before 2026-08-12 it matched only `theorem` and silently undercounted.
+#
 # Exit 0 always; the report is the output. Run from the repo root.
 set -u
 DIR="${1:-specs/AttackVectors}"

@@ -1781,6 +1781,14 @@ and block-spec task rather than a reasoning one.
   | `specs/DiamondProxy` | 8 / 8 | |
   | `specs/L1AssetRouter`, `specs/L2AssetRouter` | 1 / 1, 7 / 7 | mostly unbuilt, see `unbuilt-check.sh` |
 
+  **`sorryAx` is visible here too.**  A declaration proved with `sorry` reports `sorryAx` among its
+  axioms, so the sweep doubles as a declaration-level `sorry` detector — sharper than grepping files,
+  since it names the declaration, ignores `sorry` in prose, and catches one buried in a single tactic
+  block of an otherwise-complete file.  Corpus-wide there are **27**: `AtomicFlowManager` 12,
+  `L2InteropCommitmentTree` 6, `L2AssetRouter` 5, `L2InteropHandler` 4, and none anywhere else.  Note
+  this counts PROVED-WITH-`sorry` declarations, which is a different question from the `A_… := sorry`
+  stub definitions counted above — a stub is an unspecified predicate, this is an unproven proof.
+
   **These numbers replace earlier ones and are larger in both columns.**  Until 2026-08-12 the sweep
   matched only `^theorem` and silently skipped every `lemma`, so all previously published counts
   undercounted — `specs/AttackVectors` was reported as 123/127 and is really 148/152.  The tool now
