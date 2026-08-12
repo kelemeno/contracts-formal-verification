@@ -92,6 +92,24 @@ check "atomic+verify: Unreceived-only guards" "$ATOMIC_GUARD" "2" \
   "BundleStatusMachine.Step constructors" \
   "the modelled transition edges no longer match the deployed guards"
 
+# 7. The self-call enumeration. The `msg.sender == address(this)` disjunct in the
+#    handler's permission gates is safe only because every self-call site is
+#    preceded by the equivalent check, in receiveMessage's dispatch handlers.
+HANDLER="$SRC/interop/interop-handler"
+SELF_CALLS=$(grep -rn --include="*.sol" -E 'this\.[a-zA-Z_]+\(' "$HANDLER" | grep -v '\.selector' | wc -l | tr -d ' ')
+check "handler: exactly 3 self-call sites" "$SELF_CALLS" "3" \
+  "SelfCallAuthority.selfCall_relays_authority" \
+  "a self-call added without the preceding attribute check passes the gate on the address(this) disjunct alone, handing the gated action to anyone who can get a bundle executed"
+
+# 8. One dispatch branch per self-call site. A fourth branch (e.g. for atomic
+#    execution) would make executeAtomicBundle's currently-dead address(this)
+#    disjunct live -- before its permission check exists, since the check lives in
+#    a different function from the disjunct.
+DISPATCH_BRANCHES=$(grep -c 'selector == this\.' "$HANDLER/InteropHandlerBase.sol" | tr -d ' ')
+check "receiveMessage: 3 dispatch branches" "$DISPATCH_BRANCHES" "3" \
+  "SelfCallAuthority (the inert-disjunct note)" \
+  "a new branch makes a dormant address(this) disjunct reachable; confirm the matching _handle* permission check landed in the same change"
+
 echo
 if [ "$FAIL" -eq 0 ]; then
   echo "all invariants hold"
