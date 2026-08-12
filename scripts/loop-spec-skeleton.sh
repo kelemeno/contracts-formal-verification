@@ -148,6 +148,16 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- AtomicFlowManager for_6242390032430749259 / for_423567071893050842, whose bodies go
 -- through calldata_array_index_access_* and memory_array_index_access_struct_*.)
 --
+-- ...AND CLOSING THE HELPERS IS NECESSARY BUT NOT SUFFICIENT. With all four helpers/guards
+-- given closed forms, that loop's ABreak still does not close: each Spec in the chain adds
+-- its own Ok / OutOfFuel / Checkpoint case, and a function spec whose conclusion is itself
+-- an existential adds another level below that. Walking it inline does not terminate in
+-- any readable way.
+-- The right factoring is one REUSABLE lemma per helper, proved once:
+--     lemma <fn>_never_checkpoint : Spec (A_<fn> args) s₀ s₉ → isOk s₀ → ¬ isBreak s₉
+-- (or the stronger "output is Ok"). Then ABreak is three rewrites instead of a nested
+-- case analysis. Prove those before attempting the loop again.
+--
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
 -- ABreak change:
