@@ -1,4 +1,5 @@
 import Mathlib.Tactic
+import specs.AttackVectors.TimeoutSoundness
 
 /-
   "THE CHAIN'S LAST BATCH IN THIS ROOT" — the zero-cascade check, justified.
@@ -128,6 +129,54 @@ theorem rightEmpty_of_last {i h : ℕ} : RightEmpty i (i + 1) h := by
       _ < 2 ^ k * (i / 2 ^ k) + 2 ^ k := Nat.add_lt_add_left h1 _
       _ = (i / 2 ^ k + 1) * 2 ^ k := by ring
   exact lt_of_lt_of_le hlt hj
+
+/-! ## Closing the seam: from an INDEX fact to `hlast`, which is a TIME fact
+
+`last_of_rightEmpty` says leaf `B` is the last batch INSIDE the root.  `TimeoutSoundness.hlast` says
+every batch after `B` settles no earlier than the root's creation time `T`.  Those are different kinds
+of statement, and one more assumption bridges them — the aggregation-layer fact that a batch which is
+NOT in this root was aggregated into a later one, hence settles no earlier than this root's time.
+
+Naming it is the point.  It is the same species as `TimeOrdered`, and like `TimeOrdered` it is a
+property of batch aggregation that no on-chain check in this contract can establish. -/
+
+/-- A batch outside the root settles no earlier than the root's creation time. -/
+def OutsideRootLate (inRoot : ℕ → Prop) (time : ℕ → ℕ) (T : ℕ) : Prop :=
+  ∀ n, ¬ inRoot n → T ≤ time n
+
+/-- **THE BRIDGE.**  Last-in-root (an index fact, from the zero-cascade check) plus aggregation
+ordering (a time fact, assumed) gives exactly `TimeoutSoundness`'s `hlast`. -/
+theorem hlast_of_last_in_root {inRoot : ℕ → Prop} {time : ℕ → ℕ} {T B : ℕ}
+    (hlastIdx : ∀ m, inRoot m → m ≤ B)
+    (hout : OutsideRootLate inRoot time T) :
+    ∀ n, B < n → T ≤ time n :=
+  fun n hn => hout n (fun hin => absurd (hlastIdx n hin) (by omega))
+
+/-- The zero-cascade check supplies `hlastIdx` when the root holds batches `0 .. n-1`. -/
+theorem lastIdx_of_rightEmpty {i n h : ℕ} (hi : i < n) (hn : n ≤ 2 ^ h)
+    (hemp : RightEmpty i n h) : ∀ m, m < n → m ≤ i := by
+  intro m hm
+  have := last_of_rightEmpty hi hn hemp
+  omega
+
+/-- **THE WHOLE END-BRANCH CHAIN, COMPOSED.**  On-chain zero-cascade check ⇒ `B` is the last batch in
+the root ⇒ (with aggregation ordering) `hlast` ⇒ the value is absent from every in-time batch, i.e. the
+leg can never finalize.  Every hypothesis is either an on-chain check or a named assumption; nothing is
+left implicit. -/
+theorem end_branch_from_onchain_check
+    {H : AttackVectors.TimeoutSoundness.BatchHistory} {time : ℕ → ℕ}
+    (hao : AttackVectors.TimeoutSoundness.AppendOnly H)
+    {B nBatches hDepth D T : ℕ} {v : UInt256}
+    (htime : time = H.time)
+    (hroot : D < T)
+    (hin : B < nBatches) (hcap : nBatches ≤ 2 ^ hDepth)
+    (hemp : RightEmpty B nBatches hDepth)
+    (hout : OutsideRootLate (· < nBatches) time T)
+    (habsent : v ∉ H.endSet B) :
+    ∀ B' : ℕ, H.time B' ≤ D → v ∉ H.endSet B' := by
+  subst htime
+  exact AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized' hao hroot
+    (hlast_of_last_in_root (lastIdx_of_rightEmpty hin hcap hemp) hout) habsent
 
 /-! ## What this does and does not close
 
