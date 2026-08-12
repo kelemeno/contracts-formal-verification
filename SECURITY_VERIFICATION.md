@@ -1683,6 +1683,21 @@ comparison between the pinned snapshot and the later one matters.  So the honest
 hypothesis is not "the settlement layer" in general but this specific ordering property of batch
 aggregation, which the protocol's own soundness argument assumes and this corpus does not prove.
 
+**The delivery side matches the abstract gate exactly.**  `verifyInclusion` is the counterpart, and its
+three checks line up one-to-one with what the abstract layer assumes of a delivery witness:
+
+| check | abstract counterpart |
+|---|---|
+| `_authenticateRoot(…, IMT_END_ROOT_LEAF_INDEX)` | the witness is against a published root |
+| `if (slChainId != _expectedSlChainId) revert` | the same settlement-layer binding `authorizeRefund` does for absence |
+| `if (l1BatchTimestamp > _deadline) revert` | the delivery gate `t i ≤ D` |
+| `IndexedMerkleTree.verifyInclusion(…)` | membership in the represented leaf set |
+
+So `t i ≤ D` for delivery and `D < t (j+1)` for reclaim are BOTH enforced, on the same authenticated
+`l1BatchTimestamp`, which is what makes the abstract exclusivity applicable to the deployed pair.  The
+source comment on the deadline check — "`t` only rises, so a commit can't be back-dated to look in-time
+after the fact" — is the monotonicity assumption again, stated at the point of use.
+
 **And `_verifyLastBatchInRoot` has no abstract counterpart at all.**  Nothing in `IMTAbstract` or
 `Timestamps` corresponds to "this is the chain's last batch in the root"; it is a structural check on
 the aggregation path.  The end branch's soundness depends on it — without it, an in-time batch that is
