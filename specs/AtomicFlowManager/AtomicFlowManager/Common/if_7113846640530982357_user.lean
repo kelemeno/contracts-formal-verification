@@ -39,6 +39,27 @@ lemma if_7113846640530982357_abs_of_concrete {s₀ s₉ : State} :
   · intro hgt
     rw [if_neg hgt] at heq
     exact ⟨s, hp, heq.symm⟩
+/-- **THE GUARD'S OUTPUT IS `Ok`.**  Either the state is untouched (no underflow), or it is
+`panic_error_0x11`'s output — and a revert yields an `Ok` state carrying the reverted flag.
+
+`¬ ❓ s₉` is required: `Spec` is vacuous on an out-of-fuel result, so without it the panic
+branch could hand back `OutOfFuel`. -/
+lemma if_7113846640530982357_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_7113846640530982357 s₀ s₉) : isOk s₉ := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · obtain ⟨hle, hgt⟩ := h
+    by_cases hg : (Ok evm store)["diff_1"]!! ≤ (Ok evm store)["var_i"]!!
+    · rw [hle hg]; simp [isOk]
+    · obtain ⟨s, hp, rfl⟩ := hgt hg
+      exact panic_error_0x11_isOk (by simp [isOk])
+        (Spec_ok_unfold (P := A_panic_error_0x11) (by simp [isOk]) hnf hp)
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+lemma if_7113846640530982357_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_7113846640530982357 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (if_7113846640530982357_isOk hok hnf h)
+
 end
 
 end AtomicFlowManager.Common
