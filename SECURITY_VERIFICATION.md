@@ -1596,6 +1596,22 @@ admits exactly one bad case, the boundary `v = W.nextKey`, and
 `weak_window_without_dedup_breaks_keyInj` shows dedup is what rejects it.  So guard (iv) is not
 belt-and-braces: it is load-bearing precisely because the loop's exit test is `≥`.
 
+**Only two functions write tree state, and the abstract history covers both.**
+`ConcreteBridge.ConcreteLeafHistory` assumes every step is a leaf-set no-op or one guarded insert.
+Enumerating the writers confirms that is the whole surface:
+
+* `IndexedMerkleTree.sol` — `setup` (writes `leaves[0] = {0,0,0}`, the genesis leaf) and `insert`.
+  `root`, `merklePath`, `hashLeaf`, `verifyInclusion`, `verifyNonInclusion` are `view`/`pure`.
+* `L2InteropCommitmentTree.sol` — `initL2()` (`onlyUpgrader`, calls `setup`, and `setup` itself reverts
+  if the tree was already seeded) and `insert(...)`.  `root`, `leafCount`, `leafAt`, `merklePath`,
+  `appender` are `view`.
+
+So the genesis equation the abstract capstones take (`leafSetOf (σ 0) = {⟨0,0⟩}`) is exactly what
+`setup` establishes, and no non-governance path can write a leaf outside `insert`.  This is the
+`LeafSetFrame` coverage question answered at the SOURCE level — still an enumeration rather than a
+theorem, but an enumeration of a closed and small surface, which is a different thing from a grep over
+generated Yul.
+
 **The bounded search is fail-closed.**  On exhausting `MAX_LOW_INDEX_SEARCH_ATTEMPTS` the loop reverts
 (`IMTLowLeafNextTooSmall`) rather than proceeding with a wrong low leaf.  So a caller supplying a bad
 `_lowLeafIndex` cannot force an insert through the wrong window — the failure mode is a rejected
