@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 184 of 194 depend only on Lean's standard base
+  RESULT as of this commit — 186 of 196 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -59,6 +59,7 @@
       CLEAN   begin_branch_needs_beginIsPrevEnd           sharpness (begin(N)=end(N-1))
       CLEAN   routes_exclusive                            no double delivery via 2 routes
       CLEAN   callReach_from_executed                     each call delivered at most once
+      CLEAN   atomic_source_bound                         atomic path: declared = vouching chain
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -129,6 +130,7 @@ import specs.AttackVectors.LocalHonesty
 import specs.AttackVectors.RecoveryLimits
 import specs.AttackVectors.LastBatchInRoot
 import specs.AttackVectors.BundleStatusMachine
+import specs.AttackVectors.AtomicSourceBinding
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -342,3 +344,7 @@ import specs.AttackVectors.BundleStatusMachine
 #print axioms AttackVectors.BundleStatusMachine.callReach_from_cancelled
 #print axioms AttackVectors.BundleStatusMachine.call_outcomes_exclusive
 #print axioms AttackVectors.BundleStatusMachine.cancel_idempotent_execute_not
+
+-- The atomic path's source binding, and what it rests on
+#print axioms AttackVectors.AtomicSourceBinding.atomic_source_bound
+#print axioms AttackVectors.AtomicSourceBinding.atomic_source_unbound_without_honest
