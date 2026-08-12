@@ -203,6 +203,16 @@ And when consuming a block's ABSTRACT spec rather than a hand-written closed for
 `¬ ❓ s₉`); and reading a variable back out of the resulting store wants
 `lookup_insert' (by aesop)`, not `lookup_insert`.
 
+**Editing discipline (process, not Lean).**  Scripted edits to this repo's docs and specs are
+applied with a `python3 - <<'PY'` heredoc that `assert`s on its anchor.  **Chain the next step with
+`&&`, never `;`.**  With a semicolon a failed assert still lets the `git commit` run, and the commit
+message then claims an edit that did not happen — this went wrong three times on 2026-08-11/12
+(`bad6815`, `61b7979`, and one caught before committing).  The assert is only useful if the shell
+stops on it.
+
+Same rule for the reported numbers: re-run the measurement AFTER the edit and paste what it prints.
+Several commit messages this session quoted a ledger count that the edit had failed to change.
+
 **Known gaps.**
 
 0. **ℕ-vs-`UInt256` index round trip — an unbudgetable elaboration blowup.** Passing
