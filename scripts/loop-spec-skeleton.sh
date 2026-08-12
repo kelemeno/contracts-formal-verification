@@ -137,4 +137,16 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 --
 -- In BOTH cases the closer is \`simp [..., State.insert, State.setEvm]\`: without those
 -- two unfolds simp cannot see the constructor clash and leaves the goal open.
+--
+-- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
+-- the seven obligations above -- they key on loop shape, not body content. Only ABody and
+-- ABreak change:
+--   * ABody goes through the if-block's own proven spec (A_if_<id>) as an existential,
+--     rather than being a straight-line insert/setEvm chain.
+--   * ABreak still works, because a REVERT IS NOT A BREAK: \`evm_revert\` sets a flag on an
+--     Ok state, so the guard output is Ok-constructed on both branches. Do NOT case-split
+--     on the guard value -- that forces you to write out the whole zeta-expanded scratch
+--     expression. Unfold the guard inside the hypothesis instead:
+--         simp [Spec, A_if_<id>, State.insert, State.setEvm] at hif
+--     which refutes both branches at once. See for_7496197131413067314.
 EOF
