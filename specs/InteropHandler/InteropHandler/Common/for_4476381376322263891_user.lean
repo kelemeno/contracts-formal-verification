@@ -116,7 +116,40 @@ lemma AContinue_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ →
     rw [hs] at this
     exact absurd this (by simp [State.isJump])
 
-lemma ABreak_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ (🧟s₂) := sorry
+lemma ABreak_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ (🧟s₂) := by
+  intro s₀ s₂ h0 h2 _hcond hbody
+  exfalso
+  -- This body contains no `break`, so `isBreak s₂` is contradictory.  Unlike the other
+  -- three closure lemmas this needs a real argument: the goal is the postcondition at the
+  -- REVIVED state, which is `Ok`, so vacuity gives nothing.  Instead walk the block chain.
+  rcases s₂ with _ | _ | c
+  · exact absurd h2 (by simp [State.isBreak])
+  · exact absurd h2 (by simp [State.isBreak])
+  · obtain ⟨s₁, hb1, s₂', hb2, s₃, hb3, hs3⟩ := hbody
+    subst hs3
+    rcases s₂' with ⟨e2, st2⟩ | _ | c2
+    · -- third block's closed form makes `s₃` an insert/setEvm chain on an `Ok`, never a Checkpoint
+      simp only [Spec] at hb3
+      have hA := hb3 (by simp [State.isOutOfFuel])
+      simp [A_block_8179420195348823280, State.insert, State.setEvm] at hA
+    · -- an out-of-fuel input forces an out-of-fuel output, but `s₃` is a Checkpoint
+      have hoo : ❓ (Checkpoint c) := by simpa [Spec] using hb3
+      simp [State.isOutOfFuel] at hoo
+    · -- a Checkpoint input propagates upward; rule it out from the second block
+      rcases s₁ with ⟨e1, st1⟩ | _ | c1
+      · simp only [Spec] at hb2
+        have hA := hb2 (by simp [State.isOutOfFuel])
+        simp [A_block_5612315614323394231, State.insert, State.setEvm] at hA
+      · have hoo : ❓ (Checkpoint c2) := by simpa [Spec] using hb2
+        simp [State.isOutOfFuel] at hoo
+      · -- and the first block, whose input `s₀` is `Ok` by hypothesis
+        rcases s₀ with ⟨e0, st0⟩ | _ | _
+        · simp only [Spec] at hb1
+          have hA := hb1 (by simp [State.isOutOfFuel])
+          simp [A_block_2862394693737849679, State.insert, State.setEvm] at hA
+        · exact absurd h0 (by simp [isOk])
+        · exact absurd h0 (by simp [isOk])
+
 lemma ALeave_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ s₂ := by
   intro s₀ s₂ _h0 h2 _hcond _hbody
   -- a `leave` state is a Checkpoint, so it is never `Ok` and the postcondition is vacuous
