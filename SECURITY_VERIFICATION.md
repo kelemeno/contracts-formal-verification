@@ -1782,6 +1782,32 @@ not the last could be presented, and its end root need not be the final in-time 
 4. The proofs themselves need no review — re-running `lake build` re-verifies them with the kernel.
 
 ## Part D — What is NOT yet covered (honest gaps)
+- **Timeout recovery is partial, and its exact shape is now pinned** *(2026-08-12,
+  `specs/AttackVectors/RecoveryLimits.lean`, axiom-clean)*. The source acknowledges the limit
+  ("timeout recovery is best-effort"; "refund safety for a fund-moving leg is the flow author's
+  responsibility"), but not its shape. `_recoverBundle` counts successes and reverts only on ZERO, so:
+  - **The acceptance threshold is `recovered >= 1`, not `recovered == callsLen`.** A claim where one
+    call recovers and the rest decline SUCCEEDS. `claimRefund` sets `Reverted` before the external
+    calls, and #(AFM) `refunded_leg_cannot_refund_again` makes that terminal — so a transaction that
+    reported success can strand the remaining calls' funds permanently (`stranding_is_terminal`).
+  - **A single reverting target blocks the entire claim**, including calls that would have recovered,
+    and a retry hits the same target (`revert_anywhere_blocks`, `retry_does_not_help`). This is the
+    part that does not fit the docstring's framing: "the flow author's responsibility" is a per-call
+    statement, but the failure COUPLES calls the comment treats as independent, and the flow author
+    may not control every target. Note the call is raw — under solc 0.8.x a target with no code also
+    reverts here, since the `bool` return is decoded.
+
+  Neither is a claim that the system is unsafe; both say what a successful `claimRefund` does not
+  promise. What IS unconditional is the native-`value` rejection, unbypassable by the single-funnel
+  argument (`_dispatchBundle` and `append` each have exactly one call site, and `_validateAtomicBundle`
+  precedes the append inside the same branch).
+- **Where the bundle-hash encoding result is load-bearing.** `claimRefund` decodes an
+  ATTACKER-SUPPLIED `_bundle` and keys leg state by `encodeInteropBundleHash(bundle.sourceChainId,
+  _bundle)`. So "same hash ⇒ same bundle ⇒ same recovery targets" is what stops a claimant substituting
+  a bundle with attacker-chosen `to` addresses. `BundleHashEncoding.abiEncode_inj` closes the
+  encoding-level half of that (keccak injectivity remains the other half) — this call site is the
+  concrete reason that file exists rather than being a hygiene exercise.
+
 - **"Only Bridgehub/NTV/Nullifier can move funds"** (caller authorization) — **substantially addressed** by
   #15 (BRIDGE_HUB) and #16 (NativeTokenVault, the actual fund-mover-into-NTV path, with the authorized address
   pinned to a real storage read). For both, the operands + guard literal are pinned; the actual comparison +
