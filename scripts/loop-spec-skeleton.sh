@@ -186,6 +186,17 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- frame lemmas apply. Everything else that loop needs is closed: both its guards carry
 -- isOk/not_break, and its ABody goes through.
 --
+-- Three ABreak assemblies attempted for it; none landed. What did NOT work: casing on keccak
+-- inline before the frame rewrites (h2 keeps the un-cased form, so the sides stop matching);
+-- and a `private lemma` pair for the projection (right idea, but the not-out-of-fuel
+-- direction needs the case on the SAME scrutinee the goal mentions, which the helper hides).
+-- The shape that should work is that pair stated with X UNIVERSALLY QUANTIFIED --
+--     keccak_proj_isOk : isOk X -> isOk (primCall X .Keccak256 [0,64]).1
+--     keccak_proj_nf   : out-of-fuel (primCall X .Keccak256 [0,64]).1 -> out-of-fuel X
+-- proved by `rcases hk : X.evm.keccak256 0 64 <;> simp [EVMKeccak256\', hk, ...]`, then used
+-- with NO further casing in ABreak. Do the not-out-of-fuel direction first and in isolation:
+-- chaining it through the break/out-of-fuel exclusion is what failed each time.
+--
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
 -- ABreak change:
