@@ -1544,7 +1544,12 @@ full tree.  The invariant is maintained STRUCTURALLY, one layer down, by `FullMe
 construction rather than by checking, and `capacity_overflow_forges_root` is not live **provided that
 branch is correct**.
 
-**And that branch is not verified here.**  Grepping `specs/L2InteropCommitmentTree` for height-growth
+**The rule is now proved correct.**  `AttackVectors/CapacityInvariant.lean` models the growth rule and
+shows the invariant is preserved from a genesis tree for any number of pushes (`cap_push`,
+`capacity_never_exceeded`, `cap_at_size`) — so `hcap` is not merely plausible, and the `if` is doing
+real work: any condition that fired later would break the no-growth branch.
+
+**What remains unverified is that the deployed code implements that rule.**  Grepping `specs/L2InteropCommitmentTree` for height-growth
 results returns nothing; `height` appears only in `imt_root_atlas_user`, and not as a theorem about the
 growth step.  So `hcap` is currently discharged by an unverified contract branch: an honest reading is
 that every capacity-conditioned result rests on `FullMerkle.push` growing the height exactly when
@@ -1559,7 +1564,7 @@ hypothesis look well-understood — but it says nothing about what SUPPLIES it. 
 
 | hypothesis | proved indispensable by | what actually supplies it |
 |---|---|---|
-| `hcap : L.length ≤ 2^height` | `TreeShape.capacity_overflow_forges_root` | `FullMerkle.push`'s height-growth branch — **structural, and not verified here** |
+| `hcap : L.length ≤ 2^height` | `TreeShape.capacity_overflow_forges_root` | `FullMerkle.push`'s height-growth branch.  The RULE is now proved correct (`AttackVectors/CapacityInvariant.lean`); what remains unverified is that the deployed code implements it |
 | `Monotone t` (settlement order) | `Timestamps.monotone_timestamps_indispensable` | the settlement layer — **out of model scope (A8)**; `Timestamps` says explicitly "nothing here says anything about how `t` is produced on chain" |
 | `GapSound S` (tree-builder) | — | `ConcreteBridge` + `evolution_sound`, from a `ConcreteLeafHistory` — **verified** |
 | `habs` (abstraction) | — | `WitnessMember` / `FoldMembership`, from the fold's acceptance — **verified** |
