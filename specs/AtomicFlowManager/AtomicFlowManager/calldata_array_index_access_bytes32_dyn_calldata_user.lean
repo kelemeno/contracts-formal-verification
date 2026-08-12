@@ -36,6 +36,37 @@ lemma calldata_array_index_access_bytes32_dyn_calldata_abs_of_concrete {s₀ s�
   intro h
   exact h
 
+/-- **THE ACCESSOR'S OUTPUT IS `Ok`.**  Same argument as the memory accessor: a
+revive/setStore/insert chain over the guard's output, and the guard's output is `Ok`. -/
+lemma calldata_array_index_access_bytes32_dyn_calldata_isOk {addr base_ref length index} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_calldata_array_index_access_bytes32_dyn_calldata addr base_ref length index s₀ s₉) : isOk s₉ := by
+  obtain ⟨ss, hif, heq⟩ := h
+  subst heq
+  have hss_nf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_multifill']
+    exact hoo
+  have hssok : isOk ss :=
+    if_6945705467323769142_isOk
+      (by simp [isOk_insert]; exact isOk_initcall_of_isOk hok) hss_nf
+      (Spec_ok_unfold (P := A_if_6945705467323769142)
+        (by simp [isOk_insert]; exact isOk_initcall_of_isOk hok) hss_nf hif)
+  have hm : isOk (multifill ["split_expr_1"] [Fin.shiftLeft (ss["index"]!!) 5] ss) :=
+    isOk_multifill hssok
+  apply isOk_insert.mpr
+  apply isOk_setStore_of_isOk
+  rw [revive_of_ok (by simpa [isOk_insert] using hm)]
+  simpa [isOk_insert] using hm
+
+/-- The form `ABreak` obligations consume directly. -/
+lemma calldata_array_index_access_bytes32_dyn_calldata_not_break {addr base_ref length index} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_calldata_array_index_access_bytes32_dyn_calldata addr base_ref length index s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (calldata_array_index_access_bytes32_dyn_calldata_isOk hok hnf h)
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager
