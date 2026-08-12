@@ -213,6 +213,18 @@ stops on it.
 Same rule for the reported numbers: re-run the measurement AFTER the edit and paste what it prints.
 Several commit messages this session quoted a ledger count that the edit had failed to change.
 
+**Check the Solidity against the proofs' assumptions.**  The abstract layer makes assumptions no Lean
+file validates, and nothing else in this workflow looks at them.  Read
+`era-contracts/l1-contracts/contracts/atomic-interop/*.sol` and
+`contracts/common/libraries/{IndexedMerkleTree,FullMerkle}.sol` — NOT `zkstack-out/`, which is empty.
+
+Take a hypothesis the proofs lean on, find what supplies it in the source, and record whether that is
+(a) an explicit guard, (b) a structural invariant, or (c) genuinely out of model.  Five of these on
+2026-08-12 are written up in `SECURITY_VERIFICATION.md`'s Part B/D addenda; the payoff case was
+`authorizeRefund`'s source-chain binding, which is what makes the abstract single-tree exclusivity
+sound for a multi-chain system — a reader of the Lean alone would assume multi-chain was modelled and
+discharged, because no hypothesis there mentions a chain id.
+
 **Known gaps.**
 
 0. **ℕ-vs-`UInt256` index round trip — an unbudgetable elaboration blowup.** Passing
