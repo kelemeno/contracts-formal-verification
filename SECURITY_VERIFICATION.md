@@ -1525,6 +1525,34 @@ refund or delivery loop needs.
 **And one does not**, which is the honest asymmetry: bundle DELIVERY has only the state half, because
 its guard is not extracted.  See the Part D addendum of the same date.
 
+### Part D addendum — 2026-08-12: what discharges `hcap`, and what does not
+
+Nearly every `MerkleSpec` and `TreeShape` result carries `hcap : L.length ≤ 2 ^ height`, and
+`TreeShape.capacity_overflow_forges_root` shows it is INDISPENSABLE — drop it and a forged root exists.
+So it is worth knowing precisely what supplies it in the deployed system.
+
+**It is not a guard.**  `IndexedMerkleTree.sol` has no height or capacity constant, and no revert on a
+full tree.  The invariant is maintained STRUCTURALLY, one layer down, by `FullMerkle.sol`'s push:
+
+    if (index == 1 << self._height) {
+        uint256 newHeight = self._height.uncheckedInc();
+        self._height = newHeight;
+        …
+    }
+
+— when the next leaf index reaches capacity, the height grows.  So `leafCount ≤ 2^height` holds by
+construction rather than by checking, and `capacity_overflow_forges_root` is not live **provided that
+branch is correct**.
+
+**And that branch is not verified here.**  Grepping `specs/L2InteropCommitmentTree` for height-growth
+results returns nothing; `height` appears only in `imt_root_atlas_user`, and not as a theorem about the
+growth step.  So `hcap` is currently discharged by an unverified contract branch: an honest reading is
+that every capacity-conditioned result rests on `FullMerkle.push` growing the height exactly when
+`index == 1 << _height`, which is assumed rather than proved.
+
+Note this is a different KIND of gap from the ones above — not a missing composition step, but a
+hypothesis whose real-world justification lives in a library the corpus does not model.
+
 ## Part C — What a reviewer should do
 
 1. **Read Part A** and decide if the assumptions are acceptable for your threat model (especially
