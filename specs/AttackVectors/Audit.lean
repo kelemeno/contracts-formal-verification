@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 136 of 146 depend only on Lean's standard base
+  RESULT as of this commit — 138 of 148 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  The `_of_sound_start` variants are
   the GENERALIZED capstones: they replace the genesis hypothesis with soundness of the
   initial state, so they apply to a tree already in service or carried across an
@@ -93,6 +93,7 @@ import specs.AttackVectors.NoCrossBundle
 import specs.AttackVectors.NoCrossLeg
 import specs.AttackVectors.NestedSlots
 import specs.AttackVectors.CapacityInvariant
+import specs.AttackVectors.TimeoutSoundness
 import specs.AttackVectors.NoReplayCross
 import specs.L1Bridgehub.L1Bridgehub.fun_registerNewZKChain_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_weld_user
@@ -202,6 +203,8 @@ import specs.AtomicFlowManager.Layout
 #print axioms AttackVectors.NestedSlots.nested_write_frames_fresh
 #print axioms AttackVectors.CapacityInvariant.cap_push
 #print axioms AttackVectors.CapacityInvariant.cap_at_size
+#print axioms AttackVectors.TimeoutSoundness.begin_absence_implies_never_finalized
+#print axioms AttackVectors.TimeoutSoundness.finalized_blocks_begin_timeout
 #print axioms AttackVectors.NoReplayCross.replay_still_reverts_after_other_finalization
 #print axioms generated.L1Bridgehub.L1Bridgehub.fun_registerNewZKChain_value_survives_fun_add
 #print axioms AttackVectors.NestedSlots.finalize_frames_other_batch
