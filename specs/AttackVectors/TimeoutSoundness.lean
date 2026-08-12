@@ -142,6 +142,70 @@ theorem finalized_blocks_end_timeout {H : BatchHistory}
   by_contra habsent
   exact end_absence_implies_never_finalized hao hintime hroot hlast habsent B' hB' hmem
 
+/-! ## The begin branch's hidden assumption, promoted
+
+`beginSet` above is DEFINED as `begin(n+1) = end(n)`.  That is convenient and it matches the library
+header ("its begin root equals the end root of the last in-time batch"), but defining it hides it: the
+begin branch's soundness RESTS on that equation, and nothing on chain checks it.
+
+`_authenticateRoot` authenticates the begin and end roots of the SAME batch, at leaf indices 2 and 3 of
+that batch's root tree.  The equation relates DIFFERENT batches — batch `n+1`'s begin leaf to batch
+`n`'s end leaf — so no single proof can establish it.  It is a property of how the source chain builds
+its batch roots, in the same trust bucket as `TimeOrdered` and `LastBatchInRoot.OutsideRootLate`.
+
+Below it is a hypothesis rather than a definition, and the sharpness result shows it is load-bearing. -/
+
+/-- A history that records begin sets INDEPENDENTLY, instead of deriving them. -/
+structure BatchHistory' where
+  beginSet : ℕ → Finset UInt256
+  endSet : ℕ → Finset UInt256
+  time : ℕ → ℕ
+
+/-- The append-only tree property, as an assumption. -/
+def BeginIsPrevEnd (H : BatchHistory') : Prop := ∀ n : ℕ, H.beginSet (n + 1) = H.endSet n
+
+/-- Append-only, restated for the independent history. -/
+def AppendOnly' (H : BatchHistory') : Prop := ∀ n : ℕ, H.endSet n ⊆ H.endSet (n + 1)
+
+/-- **THE BEGIN BRANCH, WITH THE ASSUMPTION VISIBLE.**  Same conclusion as
+`begin_absence_implies_never_finalized`, but `BeginIsPrevEnd` now appears as a hypothesis instead of
+being built into the model. -/
+theorem begin_absence_of_beginIsPrevEnd {H : BatchHistory'}
+    (hbp : BeginIsPrevEnd H) (hao : AppendOnly' H) (hto : Monotone H.time)
+    {L D : ℕ} {v : UInt256} (hlate : D < H.time L) (habsent : v ∉ H.beginSet L) :
+    ∀ B : ℕ, H.time B ≤ D → v ∉ H.endSet B := by
+  intro B hB hmem
+  -- as in the derived model: time ordering places the in-time batch before the late one
+  have hBL : B < L := by
+    by_contra hge
+    exact absurd (hto (not_lt.mp hge)) (by omega)
+  obtain ⟨k, rfl⟩ : ∃ k, L = k + 1 := ⟨L - 1, by omega⟩
+  have hmono : ∀ {a b : ℕ}, a ≤ b → H.endSet a ⊆ H.endSet b := by
+    intro a b hab
+    induction b with
+    | zero => simp_all
+    | succ c ih =>
+      rcases Nat.lt_or_ge a (c + 1) with h | h
+      · exact fun x hx => hao c (ih (by omega) hx)
+      · have : a = c + 1 := by omega
+        subst this; exact fun _ hx => hx
+  exact habsent (hbp k ▸ hmono (by omega : B ≤ k) hmem)
+
+/-- **AND IT IS LOAD-BEARING.**  Drop `BeginIsPrevEnd` and the begin branch is unsound: a history whose
+begin sets are unrelated to its end sets admits an absence witness at a late batch while the value is
+finalized on time.  So the equation is not bookkeeping — it is what the branch runs on. -/
+theorem begin_branch_needs_beginIsPrevEnd :
+    ∃ (H : BatchHistory') (L D B : ℕ) (v : UInt256),
+      AppendOnly' H ∧ Monotone H.time ∧ D < H.time L ∧ v ∉ H.beginSet L ∧
+        H.time B ≤ D ∧ v ∈ H.endSet B := by
+  refine ⟨⟨fun _ => ∅, fun _ => {0}, fun n => n⟩, 1, 0, 0, 0, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro n; exact fun _ hx => hx
+  · exact fun a b hab => hab
+  · simp
+  · simp
+  · simp
+  · simp
+
 /-! ## THE TWO ROOTS ARE NOT INTERCHANGEABLE — and only one swap is dangerous
 
 The branch is a prover input (`_absence.provesAgainstBeginRoot`), but it selects the LEAF INDEX that
