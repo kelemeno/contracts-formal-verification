@@ -1565,7 +1565,7 @@ hypothesis look well-understood — but it says nothing about what SUPPLIES it. 
 | hypothesis | proved indispensable by | what actually supplies it |
 |---|---|---|
 | `hcap : L.length ≤ 2^height` | `TreeShape.capacity_overflow_forges_root` | `FullMerkle.push`'s height-growth branch.  The RULE is now proved correct (`AttackVectors/CapacityInvariant.lean`); what remains unverified is that the deployed code implements it |
-| `Monotone t` (settlement order) | `Timestamps.monotone_timestamps_indispensable` | the settlement layer — **out of model scope (A8)**; `Timestamps` says explicitly "nothing here says anything about how `t` is produced on chain" |
+| `Monotone t` (settlement order) | `Timestamps.monotone_timestamps_indispensable` | **"batch order follows aggregation-time order"**, the assumption `AtomicInteropProof`'s own SOUNDNESS paragraph invokes — see the addendum below.  Still out of model scope, but now named |
 | `GapSound S` (tree-builder) | — | `ConcreteBridge` + `evolution_sound`, from a `ConcreteLeafHistory` — **verified** |
 | `habs` (abstraction) | — | `WitnessMember` / `FoldMembership`, from the fold's acceptance — **verified** |
 | `CacheInj`, `CacheInUsed`, `Fuel` | — | model configuration of the keccak pool, stated as hypotheses — see the trusted-base note |
@@ -1660,6 +1660,33 @@ generated Yul.
 (`IMTLowLeafNextTooSmall`) rather than proceeding with a wrong low leaf.  So a caller supplying a bad
 `_lowLeafIndex` cannot force an insert through the wrong window — the failure mode is a rejected
 transaction, not an unsound insert.
+
+### Part B addendum — 2026-08-12: what the timeout protocol actually proves, and where `Monotone t` really lives
+
+The abstract layer models a reclaim witness as non-inclusion at a deadline-pinned snapshot.
+`AtomicInteropProof.verifyTimeoutAbsence` realises that with a two-branch protocol the abstract layer
+does not represent, and its header states the argument:
+
+* **begin branch** (`t > deadline`): the value is absent from the batch-BEGIN IMT root of a late batch.
+  Soundness rests on the tree being append-only with `begin(N) == end(N-1)`, so absence at a late
+  batch's begin implies absence from every in-time batch.
+* **end branch** (`t ≤ deadline`): the batch is additionally proven to be the chain's LAST inside the
+  aggregated root (`_verifyLastBatchInRoot` — every left-child hop carries the empty right-subtree
+  hash), and the value is absent from that batch's END root.  This exists to restore refund liveness
+  for a source chain that HALTS and never settles a post-deadline batch.
+
+**Where `Monotone t` really lives.**  The library's SOUNDNESS paragraph says a value committed in a
+batch `B` with `t_B ≤ deadline` is contained in `begin(L)` of every batch `L` with `t_L > deadline`
+"(batch order follows aggregation-time order)".  That parenthesis is the concrete counterpart of the
+abstract `Monotone t` — or more precisely of `Timestamps`' sharpened LOCAL condition, since only the
+comparison between the pinned snapshot and the later one matters.  So the honest provenance of that
+hypothesis is not "the settlement layer" in general but this specific ordering property of batch
+aggregation, which the protocol's own soundness argument assumes and this corpus does not prove.
+
+**And `_verifyLastBatchInRoot` has no abstract counterpart at all.**  Nothing in `IMTAbstract` or
+`Timestamps` corresponds to "this is the chain's last batch in the root"; it is a structural check on
+the aggregation path.  The end branch's soundness depends on it — without it, an in-time batch that is
+not the last could be presented, and its end root need not be the final in-time IMT state.
 
 ## Part C — What a reviewer should do
 
