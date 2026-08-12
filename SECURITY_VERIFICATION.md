@@ -1596,6 +1596,27 @@ admits exactly one bad case, the boundary `v = W.nextKey`, and
 `weak_window_without_dedup_breaks_keyInj` shows dedup is what rejects it.  So guard (iv) is not
 belt-and-braces: it is load-bearing precisely because the loop's exit test is `≥`.
 
+**The leg state machine is a guarded monotone progression, with exactly three writers.**  The refund
+results (`refunded_leg_cannot_refund_again`, and the cross-leg frames of
+`AttackVectors/NoCrossLeg.lean`) reason about `_state[flowId][bundleHash]` transitions; the source
+surface is:
+
+| writer | transition | guard |
+|---|---|---|
+| `append` | `Unset → Committed` | `if (_state[…] != Unset) revert ManagerLegAlreadyCommitted` |
+| `authorizeRefund` | `Committed → Revertable` | `if (_state[…] != Committed) continue` |
+| `claimRefund` | `Revertable → Reverted` | `if (s != Revertable) revert ManagerLegNotRevertable` |
+
+Nothing writes a leg back to a lower state, and each writer requires the exact predecessor — so the
+progression `Unset → Committed → Revertable → Reverted` is the whole behaviour, and "refunded stays
+refunded" is a source-level fact, not only an abstract one.
+
+`claimRefund` also flips to `Reverted` BEFORE `_recoverBundle`'s external calls, and carries a comment
+saying so: reentrancy safety rests on CEI plus this state machine rather than on a `nonReentrant`
+guard.  That ordering is what makes `flow_substituted_claim_reverts` and
+`refunded_leg_cannot_refund_again` bite on a reentrant call rather than only on a sequential second
+transaction.
+
 **Only two functions write tree state, and the abstract history covers both.**
 `ConcreteBridge.ConcreteLeafHistory` assumes every step is a leaf-set no-op or one guarded insert.
 Enumerating the writers confirms that is the whole surface:
