@@ -95,10 +95,15 @@ echo
 # in all (5 mcopy copies + 4 ifs), so this pattern is confined to loops and mcopy rather than
 # endemic -- but mcopy is the one that blocks real work.
 #
-# The mcopy terminus also splits the two PARTIAL loops, so check before picking one up:
-#   for_4936625126437712955  BLOCKED -- reaches mcopy via abi_decode_bytes_fromMemory
-#   for_8649674080430825952  viable  -- none of its dependencies call mcopy
-# The blocked one's four guards are all closed now, which is as far as it can go from here.
+# BOTH PARTIAL loops reach mcopy, so neither is finishable from this repo:
+#   for_4936625126437712955  via abi_decode_bytes_fromMemory
+#   for_8649674080430825952  via fun_formatEvmV1
+# The first one's four guards are all closed now, which is as far as it can go.
+#
+# (An earlier version of this note called the second one "viable". That was wrong: the check
+# had been truncated with `head -8` and fun_formatEvmV1 sits below the cut. When testing a
+# dependency set for a blocker, enumerate ALL of it -- a truncated search that finds nothing
+# is indistinguishable from a clean one.)
 # L2AssetRouter, and two in L1AssetRouter). That is the highest-leverage next closure.
 
 echo "To give a TRUE-FOR loop content, use scripts/loop-spec-skeleton.sh: it emits the"
