@@ -40,7 +40,16 @@ def ABody_for_4476381376322263891 (s₀ s₉ : State) : Prop :=
   ∃ s₁, Spec A_block_2862394693737849679 s₀ s₁ ∧
     ∃ s₂, Spec A_block_5612315614323394231 s₁ s₂ ∧
       ∃ s₃, Spec A_block_8179420195348823280 s₂ s₃ ∧ s₃ = s₉
-def AFor_for_4476381376322263891 (s₀ s₉ : State) : Prop := sorry
+/-- Loop postcondition: on normal exit the index has REACHED the call count, i.e. the
+loop body ran for every `i < length`.  That is what makes "every call's status was
+written" available downstream — the net-effect statement needs both this and the body's
+per-iteration write.
+
+Deliberately a property of `s₉` alone: the closure lemmas thread it through the
+recursive call unchanged, and `length` is untouched by body and post (the body writes
+storage and locals; the post writes `var_i`). -/
+def AFor_for_4476381376322263891 (s₀ s₉ : State) : Prop :=
+  ∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["var_i"]!! < (Ok evm store)["length"]!!)
 
 lemma for_4476381376322263891_cond_abs_of_code {s₀ fuel} : eval fuel for_4476381376322263891_cond (s₀) = (s₀, ACond_for_4476381376322263891 (s₀)) := by
   unfold eval ACond_for_4476381376322263891
@@ -69,9 +78,29 @@ lemma for_4476381376322263891_concrete_of_body_abs {s₀ s₉ : State} :
   intro _hne hc
   exact hc
 
-lemma AZero_for_4476381376322263891 : ∀ s₀, isOk s₀ → ACond_for_4476381376322263891 (👌 s₀) = 0 → AFor_for_4476381376322263891 s₀ s₀ := sorry
+lemma AZero_for_4476381376322263891 : ∀ s₀, isOk s₀ → ACond_for_4476381376322263891 (👌 s₀) = 0 → AFor_for_4476381376322263891 s₀ s₀ := by
+  intro s₀ hok hcond
+  unfold AFor_for_4476381376322263891 ACond_for_4476381376322263891 at *
+  intro evm store hs
+  subst hs
+  intro hlt
+  -- the guard evaluated to 0, so the comparison it decided must have been false
+  simp only [State.mkOk] at hcond
+  simp [fromBool, Bool.toUInt256, hlt] at hcond
+
 lemma AOk_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → APost_for_4476381376322263891 s₂ s₄ → Spec AFor_for_4476381376322263891 s₄ s₅ → AFor_for_4476381376322263891 s₀ s₅
-:= sorry
+:= by
+  intro s₀ s₂ s₄ s₅ _h0 h2 h5 _hcond _hbody hpost hspec
+  -- the post state is `Ok` (it is an insert into one), so the recursive Spec unfolds
+  rcases s₂ with ⟨e2, st2⟩ | _ | _
+  · have h4 : s₄ = (Ok e2 st2)⟦"var_i" ↦ ((Ok e2 st2)["var_i"]!! + 1)⟧ := hpost e2 st2 rfl
+    have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
+    -- `AFor` does not mention its first argument, so `AFor s₄ s₅` IS the goal `AFor s₀ s₅`
+    have hres := Spec_ok_unfold (P := AFor_for_4476381376322263891) (s := s₄) (s' := s₅) hok4 h5 hspec
+    exact hres
+  · exact absurd h2 (by simp [isOk])
+  · exact absurd h2 (by simp [isOk])
+
 lemma AContinue_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → Spec APost_for_4476381376322263891 (🧟s₂) s₄ → Spec AFor_for_4476381376322263891 s₄ s₅ → AFor_for_4476381376322263891 s₀ s₅ := sorry
 lemma ABreak_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ (🧟s₂) := sorry
 lemma ALeave_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ s₂ := sorry
