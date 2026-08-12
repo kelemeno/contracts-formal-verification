@@ -109,4 +109,88 @@ that leaves it can never be treated as fresh again. -/
 theorem unreceived_unreachable {s : Status} : ¬ Step s .Unreceived := by
   cases s <;> rintro ⟨⟩
 
+/-! ## The per-call machine — where a double delivery would actually land
+
+Bundle-level exclusivity says a bundle takes one route.  It does NOT by itself say a CALL is delivered
+once: the unbundled route processes calls individually, across as many `unbundleBundle` transactions as
+the unbundler likes (`Unbundled -> Unbundled` is a legal edge).  The per-call guard is what closes it:
+
+    if (requested == Executed)  { require(recorded == Unprocessed, CallNotExecutable);  recorded = Executed; }
+    else if (requested == Cancelled) { require(recorded != Executed, CallAlreadyExecuted);
+                                       if (recorded == Unprocessed) recorded = Cancelled; }
+    // any other request is skipped
+
+Note the asymmetry in the second branch: cancelling is IDEMPOTENT (re-cancelling a `Cancelled` call is
+a silent no-op, not a revert), while executing is not.  That is what lets an unbundler resubmit a
+status array without the transaction reverting on already-cancelled entries. -/
+
+inductive CallStatus
+  | Unprocessed | Executed | Cancelled
+  deriving DecidableEq, Repr
+
+/-- The per-call transitions, one constructor per reachable edge of the loop above. -/
+inductive CallStep : CallStatus → CallStatus → Prop
+  | execute : CallStep .Unprocessed .Executed
+  | cancel : CallStep .Unprocessed .Cancelled
+  | cancelAgain : CallStep .Cancelled .Cancelled
+
+inductive CallReach : CallStatus → CallStatus → Prop
+  | refl (s : CallStatus) : CallReach s s
+  | tail {a b c : CallStatus} : CallReach a b → CallStep b c → CallReach a c
+
+/-- **A CALL IS EXECUTED AT MOST ONCE.**  `Executed` has no outgoing edge: the `require(recorded ==
+Unprocessed)` on the execute branch is what makes a second execution of the same call impossible, no
+matter how many `unbundleBundle` transactions are submitted. -/
+theorem callExecuted_terminal {t : CallStatus} : ¬ CallStep .Executed t := by
+  rintro ⟨⟩
+
+theorem callReach_from_executed {t : CallStatus} (h : CallReach .Executed t) : t = .Executed := by
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih => exact absurd (ih ▸ hstep) callExecuted_terminal
+
+/-- **AND A CANCELLED CALL IS NEVER EXECUTED.**  The execute branch demands `Unprocessed`, so
+cancellation is a one-way door — `Cancelled` only loops to itself. -/
+theorem callReach_from_cancelled {t : CallStatus} (h : CallReach .Cancelled t) : t = .Cancelled := by
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih =>
+    subst ih
+    cases hstep
+    rfl
+
+/-- The per-call counterpart of `routes_exclusive`: executed and cancelled are mutually unreachable. -/
+theorem call_outcomes_exclusive :
+    (¬ CallReach .Executed .Cancelled) ∧ (¬ CallReach .Cancelled .Executed) := by
+  constructor
+  · intro h; exact absurd (callReach_from_executed h) (by decide)
+  · intro h; exact absurd (callReach_from_cancelled h) (by decide)
+
+/-- Both outcomes are reachable from a fresh call, so the exclusivity is not vacuous. -/
+theorem call_outcomes_available :
+    CallReach .Unprocessed .Executed ∧ CallReach .Unprocessed .Cancelled :=
+  ⟨.tail (.refl _) .execute, .tail (.refl _) .cancel⟩
+
+/-- **CANCELLATION IS IDEMPOTENT, EXECUTION IS NOT.**  Re-cancelling is a legal edge; there is no
+`Executed -> Executed`.  The asymmetry is deliberate in the source (a resubmitted status array must not
+revert on entries already cancelled) and it is why `Cancelled` needs its self-loop while `Executed`
+does not. -/
+theorem cancel_idempotent_execute_not :
+    CallStep .Cancelled .Cancelled ∧ ¬ CallStep .Executed .Executed :=
+  ⟨.cancelAgain, callExecuted_terminal⟩
+
+/-! ## The two levels compose
+
+A call reaches `Executed` by exactly one of two routes:
+
+* the whole-bundle route, where `executeBundle` / `executeAtomicBundle` set every call to `Executed` in
+  one transaction, from bundle status `Unreceived` or `Verified`; or
+* the unbundled route, where each call transitions individually, from bundle status `Unbundled`.
+
+`routes_exclusive` rules out taking both, and `callReach_from_executed` rules out repeating either.
+Neither alone suffices: bundle-level exclusivity says nothing about repeated per-call execution within
+the unbundled route, and the per-call guard says nothing about a bundle being both fully executed and
+unbundled.  Together they give "each call is delivered at most once", which is the property the
+destination side of no-theft needs. -/
+
 end AttackVectors.BundleStatusMachine
