@@ -1553,6 +1553,22 @@ that every capacity-conditioned result rests on `FullMerkle.push` growing the he
 Note this is a different KIND of gap from the ones above — not a missing composition step, but a
 hypothesis whose real-world justification lives in a library the corpus does not model.
 
+**And `hcap` is not the only one.**  The corpus contains several sharpness results, each proving some
+hypothesis indispensable by exhibiting an attack when it is dropped.  A sharpness result makes a
+hypothesis look well-understood — but it says nothing about what SUPPLIES it.  Collected:
+
+| hypothesis | proved indispensable by | what actually supplies it |
+|---|---|---|
+| `hcap : L.length ≤ 2^height` | `TreeShape.capacity_overflow_forges_root` | `FullMerkle.push`'s height-growth branch — **structural, and not verified here** |
+| `Monotone t` (settlement order) | `Timestamps.monotone_timestamps_indispensable` | the settlement layer — **out of model scope (A8)**; `Timestamps` says explicitly "nothing here says anything about how `t` is produced on chain" |
+| `GapSound S` (tree-builder) | — | `ConcreteBridge` + `evolution_sound`, from a `ConcreteLeafHistory` — **verified** |
+| `habs` (abstraction) | — | `WitnessMember` / `FoldMembership`, from the fold's acceptance — **verified** |
+| `CacheInj`, `CacheInUsed`, `Fuel` | — | model configuration of the keccak pool, stated as hypotheses — see the trusted-base note |
+
+The middle two rows are the ones a reviewer should weigh: they were once "the last real obligations"
+and are now discharged.  The top two are the reverse — airtight abstractly, and resting on something
+the corpus does not reach.  `Timestamps` is scrupulous about saying so; `hcap` was not, until now.
+
 ## Part C — What a reviewer should do
 
 1. **Read Part A** and decide if the assumptions are acceptable for your threat model (especially
