@@ -1818,6 +1818,40 @@ publishing atomic bundles to L1 for observability would silently brick their exe
 **`scripts/check-source-invariants.sh` now tests this and five sibling facts**, each annotated with the
 Lean result that depends on it — the whole-program premises no compiler checks.
 
+## Part B addendum — 2026-08-12: the destination-side capstone
+
+`specs/AttackVectors/DestinationCapstone.lean` (axiom-free) gathers the destination results proved this
+session. It is a COMPOSITION, not a new argument; its value is that the hypotheses appear in one place
+instead of being spread across five files.
+
+| clause | result | rests on |
+|---|---|---|
+| each call delivered at most once (atomic) | `atomic_delivered_once` | bundle-status terminality alone |
+| each call delivered at most once (public) | `public_delivered_once` | BOTH machines |
+| released ≤ collected | `no_inflation` | subset bound + at-most-once |
+| source identity = vouching chain | `AtomicSourceBinding.atomic_source_bound` | **`HonestInsertion`** |
+| bundle hash unique per send | `BundleHashEncoding.distinct_sends_distinct_hashes` | salt guard + encoding injectivity |
+
+**The four hypotheses, and which the destination cannot check.** (A) `HonestInsertion` — an assumption
+about OTHER chains, reduced by `LocalHonesty` to "every leg-set chain runs an unmodified deployment";
+on the atomic path it is the ONLY thing binding the source identity shown to recipients, because
+`_validateBundleDestinationContext`'s first check compares that field to itself. (B) keccak
+injectivity — encoding halves proved, hash halves assumed. (C) two whole-program enumerations, both in
+`scripts/check-source-invariants.sh`. (D) the SOURCE side is out of scope here — end-to-end no-theft
+needs `NoTheft` and `RecoveryLimits` as well, and the latter records that recovery is partial.
+
+**Deliberately not claimed**, since a capstone is what gets read instead of the parts: the
+`released ≤ collected` clause is VACUOUS for atomic bundles (`atomic_ledger_trivial` — they may not
+carry native value, so both sums are zero); a cancelled call's collected value is not followed back to
+the source; and nothing in the file is a liveness claim.
+
+**A path split worth knowing.** Atomic bundles can never reach `Verified` (no L1 proof exists for
+them), so `Unbundled` is unreachable and they have exactly ONE delivery route
+(`atomic_never_unbundled`). Delivery-once for them follows from bundle-status terminality alone — the
+per-call guard, which a reader would assume protects atomic flows, is not what protects them. Publishing
+atomic bundles to L1 would open the unbundled route AND brick `executeAtomicBundle`; check 3 of the
+invariant script covers both consequences.
+
 ## Part D — What is NOT yet covered (honest gaps)
 - **Timeout recovery is partial, and its exact shape is now pinned** *(2026-08-12,
   `specs/AttackVectors/RecoveryLimits.lean`, axiom-clean)*. The source acknowledges the limit
