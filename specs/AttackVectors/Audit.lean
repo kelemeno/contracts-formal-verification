@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 176 of 186 depend only on Lean's standard base
+  RESULT as of this commit — 180 of 190 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -57,6 +57,7 @@
       CLEAN   last_of_rightEmpty                          discharges hlast (index level)
       CLEAN   end_branch_from_onchain_check               end branch, check to conclusion
       CLEAN   begin_branch_needs_beginIsPrevEnd           sharpness (begin(N)=end(N-1))
+      CLEAN   routes_exclusive                            no double delivery via 2 routes
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -126,6 +127,7 @@ import specs.AttackVectors.ProofPolarity
 import specs.AttackVectors.LocalHonesty
 import specs.AttackVectors.RecoveryLimits
 import specs.AttackVectors.LastBatchInRoot
+import specs.AttackVectors.BundleStatusMachine
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -329,3 +331,9 @@ import specs.AttackVectors.LastBatchInRoot
 #print axioms AttackVectors.LastBatchInRoot.end_branch_from_onchain_check
 #print axioms AttackVectors.TimeoutSoundness.begin_absence_of_beginIsPrevEnd
 #print axioms AttackVectors.TimeoutSoundness.begin_branch_needs_beginIsPrevEnd
+
+-- Bundle status machine: one delivery per bundle, two mutually exclusive routes
+#print axioms AttackVectors.BundleStatusMachine.reach_from_fullyExecuted
+#print axioms AttackVectors.BundleStatusMachine.reach_from_unbundled
+#print axioms AttackVectors.BundleStatusMachine.routes_exclusive
+#print axioms AttackVectors.BundleStatusMachine.both_routes_available
