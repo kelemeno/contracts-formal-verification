@@ -11,7 +11,7 @@
   this repo's "completed" block specs are `A := concrete` aliases that remove the
   `sorry` token while proving nothing, so token counts mislead badly.
 
-  RESULT as of this commit — 169 of 179 depend only on Lean's standard base
+  RESULT as of this commit — 172 of 182 depend only on Lean's standard base
   (`propext`, `Quot.sound`, `Classical.choice`).  Reproduce the split with
   `scripts/audit-count.sh`, which PARSES the axiom sets rather than grepping for a
   literal list: `#print axioms` emits them in an unspecified order and wraps long
@@ -54,6 +54,7 @@
       CLEAN   stranding_is_terminal                       recovery LIMIT
       CLEAN   revert_anywhere_blocks                      recovery LIMIT
       CLEAN   end_branch_with_begin_root_unsound          sharpness (root role)
+      CLEAN   last_of_rightEmpty                          discharges hlast (index level)
 
   READ THE CLEAN MARKS CORRECTLY.  Axiom-clean means the PROOF adds nothing to Lean's
   base — it does NOT mean the result is unconditional.  Most of these carry
@@ -122,6 +123,7 @@ import specs.AttackVectors.FlowCanonical
 import specs.AttackVectors.ProofPolarity
 import specs.AttackVectors.LocalHonesty
 import specs.AttackVectors.RecoveryLimits
+import specs.AttackVectors.LastBatchInRoot
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -316,3 +318,8 @@ import specs.AttackVectors.RecoveryLimits
 -- Timeout protocol: the begin/end roots are not interchangeable
 #print axioms AttackVectors.TimeoutSoundness.begin_branch_with_end_root_sound
 #print axioms AttackVectors.TimeoutSoundness.end_branch_with_begin_root_unsound
+
+-- "Last batch in root": the zero-cascade check IS "last filled leaf"
+#print axioms AttackVectors.LastBatchInRoot.exists_first_left
+#print axioms AttackVectors.LastBatchInRoot.last_of_rightEmpty
+#print axioms AttackVectors.LastBatchInRoot.rightEmpty_of_last
