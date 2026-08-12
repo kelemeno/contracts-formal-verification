@@ -1574,6 +1574,33 @@ The middle two rows are the ones a reviewer should weigh: they were once "the la
 and are now discharged.  The top two are the reverse — airtight abstractly, and resting on something
 the corpus does not reach.  `Timestamps` is scrupulous about saying so; `hcap` was not, until now.
 
+### Part B addendum — 2026-08-12: the abstract insert guards ARE the deployed checks
+
+`AttackVectors/InsertGuard.lean` analyses four guards abstractly and proves each indispensable by
+exhibiting an attack when it is dropped.  Reading `IndexedMerkleTree.sol`'s `insert` against it, the
+correspondence is exact — worth recording, because a sharpness result about an abstract guard is only
+interesting if the guard is really there.
+
+| abstract guard | deployed check |
+|---|---|
+| (i) tree initialised | `if (leafNumber == 0) revert IMTNotInitialized()` |
+| (ii) low leaf below the value, `W.key < v` | `if (lowLeaf.value >= _value) revert IMTLowLeafValueTooLarge(…)` |
+| (iii) window, `W.nextKey = 0 ∨ v ≤ W.nextKey` | the search loop's EXIT condition: it continues `while (nextValue != 0 && nextValue < _value)` |
+| (iv) dedup | `if (self.valueToIndex[_value] != 0) revert IMTValueAlreadyExists(_value)` |
+
+Two things this pins down that were previously only implicit.
+
+**Why the window is WEAK (`≤`) rather than strict.**  Nothing chooses it — it falls out of the loop
+exiting on `nextValue >= _value`.  `InsertGuard.weak_window_member_forces_boundary` shows a weak window
+admits exactly one bad case, the boundary `v = W.nextKey`, and
+`weak_window_without_dedup_breaks_keyInj` shows dedup is what rejects it.  So guard (iv) is not
+belt-and-braces: it is load-bearing precisely because the loop's exit test is `≥`.
+
+**The bounded search is fail-closed.**  On exhausting `MAX_LOW_INDEX_SEARCH_ATTEMPTS` the loop reverts
+(`IMTLowLeafNextTooSmall`) rather than proceeding with a wrong low leaf.  So a caller supplying a bad
+`_lowLeafIndex` cannot force an insert through the wrong window — the failure mode is a rejected
+transaction, not an unsound insert.
+
 ## Part C — What a reviewer should do
 
 1. **Read Part A** and decide if the assumptions are acceptable for your threat model (especially
