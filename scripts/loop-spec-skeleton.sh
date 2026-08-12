@@ -138,6 +138,16 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- In BOTH cases the closer is \`simp [..., State.insert, State.setEvm]\`: without those
 -- two unfolds simp cannot see the constructor clash and leaves the goal open.
 --
+-- WHEN NOT TO CONVERT AT ALL. If the body composes through FUNCTION specs that are still
+-- aliases (\`A_<fn> := <fn>_concrete_of_code.1\`), ABody transcribes fine but ABreak does
+-- NOT close: nothing forces the intermediate states to be Ok, because the alias is
+-- opaque. Converting anyway would leave the loop PARTIAL, and a converted-but-partial
+-- loop introduces sorryAx into every dependent -- where the vacuous TRUE-FOR version was
+-- clean. A contentless-but-clean loop beats a half-done one. Give the accessor functions
+-- closed forms FIRST, then the loop follows. (Hit on
+-- AtomicFlowManager for_6242390032430749259 / for_423567071893050842, whose bodies go
+-- through calldata_array_index_access_* and memory_array_index_access_struct_*.)
+--
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
 -- ABreak change:
