@@ -96,4 +96,89 @@ theorem finalized_blocks_begin_timeout {H : BatchHistory}
   by_contra habsent
   exact begin_absence_implies_never_finalized hao hto hlate habsent B hB hmem
 
+/-! ## THE END BRANCH
+
+The other half of the protocol, for a source chain that HALTS and never settles a post-deadline batch.
+Its argument, again from `AtomicInteropProof`'s header:
+
+    Since the root was created at `T > deadline`, any batch aggregated after it has `t' >= T > deadline`,
+    so the proven batch's end root is the final IMT state reachable in time — absence there means the
+    leg can never finalize.
+
+The structural check `_verifyLastBatchInRoot` enters as the hypothesis `hlast` below: everything after
+`B` settles no earlier than the root's creation time.  That is what "B is the chain's LAST batch inside
+this root" buys, expressed without modelling the aggregation tree. -/
+
+/-- **END-BRANCH SOUNDNESS.**  If `B` settled by the deadline, every batch after it settles no earlier
+than a root time `T` strictly past the deadline, and the value is absent from `B`'s END set, then the
+value is absent from the END set of every in-time batch.
+
+`hlast` is the abstract content of `_verifyLastBatchInRoot`: without it a non-final in-time batch could
+be presented, and a later in-time batch could still commit the value. -/
+theorem end_absence_implies_never_finalized {H : BatchHistory}
+    (hao : AppendOnly H)
+    {B : ℕ} {D T : ℕ} {v : UInt256}
+    (hintime : H.time B ≤ D) (hroot : D < T)
+    (hlast : ∀ n : ℕ, B < n → T ≤ H.time n)
+    (habsent : v ∉ H.endSet B) :
+    ∀ B' : ℕ, H.time B' ≤ D → v ∉ H.endSet B' := by
+  intro B' hB' hmem
+  -- an in-time batch cannot lie beyond `B`: everything past `B` settles at or after `T > D`
+  have hle : B' ≤ B := by
+    by_contra hgt
+    have := hlast B' (by omega)
+    omega
+  exact habsent (endSet_mono hao hle hmem)
+
+/-- **CONTRAPOSITIVE.**  A value committed in some in-time batch is present in the END set of the
+chain's last in-time batch, so no end-branch timeout proof exists for it. -/
+theorem finalized_blocks_end_timeout {H : BatchHistory}
+    (hao : AppendOnly H)
+    {B : ℕ} {D T : ℕ} {v : UInt256}
+    (hintime : H.time B ≤ D) (hroot : D < T)
+    (hlast : ∀ n : ℕ, B < n → T ≤ H.time n)
+    {B' : ℕ} (hB' : H.time B' ≤ D) (hmem : v ∈ H.endSet B') :
+    v ∈ H.endSet B := by
+  by_contra habsent
+  exact end_absence_implies_never_finalized hao hintime hroot hlast habsent B' hB' hmem
+
+/-! ### Two structural observations the proofs make visible
+
+**1. `TimeOrdered` is not used in the END branch.**  The begin branch needs it exactly once, to place
+the late batch after the in-time one.  Here `hlast` does that work directly, so the end branch stays
+sound even for a history whose settlement times are not monotone in the batch index.
+
+**2. `hintime` is redundant.**  The contract checks that the proven batch settled by the deadline, but
+the soundness conclusion does not need it: absence at a LATER batch is a strictly stronger claim than
+absence at an in-time one, because END sets only grow.  So that check is a well-formedness guard, not a
+soundness requirement — dropping it would not admit a forged timeout proof.  Witnessed below. -/
+
+/-- The END branch with `hintime` dropped, witnessing observation 2. -/
+theorem end_absence_implies_never_finalized' {H : BatchHistory}
+    (hao : AppendOnly H)
+    {B : ℕ} {D T : ℕ} {v : UInt256}
+    (hroot : D < T)
+    (hlast : ∀ n : ℕ, B < n → T ≤ H.time n)
+    (habsent : v ∉ H.endSet B) :
+    ∀ B' : ℕ, H.time B' ≤ D → v ∉ H.endSet B' := by
+  intro B' hB' hmem
+  have hle : B' ≤ B := by
+    by_contra hgt
+    have := hlast B' (by omega)
+    omega
+  exact habsent (endSet_mono hao hle hmem)
+
+/-- **BOTH BRANCHES, ONE STATEMENT.**  Whichever branch a prover declares, a successful timeout proof
+implies the value is absent from every in-time batch — which is exactly "the leg can never finalize",
+the property `authorizeRefund` relies on before marking legs `Revertable`. -/
+theorem timeout_implies_never_finalized {H : BatchHistory}
+    (hao : AppendOnly H) (hto : TimeOrdered H) {D : ℕ} {v : UInt256}
+    (h : (∃ L, D < H.time L ∧ v ∉ beginSet H L)
+       ∨ (∃ B T, H.time B ≤ D ∧ D < T ∧ (∀ n, B < n → T ≤ H.time n) ∧ v ∉ H.endSet B)) :
+    ∀ B : ℕ, H.time B ≤ D → v ∉ H.endSet B := by
+  rcases h with ⟨L, hlate, habsent⟩ | ⟨B, T, hintime, hroot, hlast, habsent⟩
+  · exact begin_absence_implies_never_finalized hao hto hlate habsent
+  · exact end_absence_implies_never_finalized hao hintime hroot hlast habsent
+
+
 end AttackVectors.TimeoutSoundness
