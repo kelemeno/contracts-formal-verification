@@ -158,6 +158,20 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 -- (or the stronger "output is Ok"). Then ABreak is three rewrites instead of a nested
 -- case analysis. Prove those before attempting the loop again.
 --
+-- WORKED INSTANCE (AtomicFlowManager, 2026-08-12): closing panic_error_0x11/0x32, three
+-- guards and two accessors -- each with a closed form AND an isOk/not_break lemma -- turned
+-- for_6242390032430749259'"'"'s ABreak into four `have`s. The sibling loop then ported with two
+-- search-and-replaces. The isOk lemmas chain: ¬ ❓ s₉ propagates BACKWARDS through the body
+-- (isOutOfFuel_insert'"'"'/setStore'"'"'/reviveJump'"'"'/multifill'"'"'), so the caller supplies it once.
+--
+-- A BODY CONTAINING keccak256 IS HARDER AGAIN. Its ABody carries an Option match (the
+-- collision fallback) whose pretty-printed form does not disambiguate how `multifill`
+-- associates with the match result, so transcribing from the error message stops working.
+-- Read the generated `_gen.lean` concrete definition directly instead of the mismatch, or
+-- reuse the accOut/keccakOut helpers the block specs use (see
+-- specs/InteropHandler/.../block_1292814770935828014_user.lean). Outstanding for
+-- for_5976315420052011104, whose helpers are otherwise all closed.
+--
 -- BODIES THAT CAN REVERT (an \`if ... { revert(0, 0) }\` in the body) do NOT break any of
 -- the seven obligations above -- they key on loop shape, not body content. Only ABody and
 -- ABreak change:
