@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Regression check for the WHOLE-PROGRAM facts the Lean proofs depend on.
+#
+# Several results in specs/AttackVectors/ are sound only because of properties no
+# guard and no compiler enforces -- "this function has exactly one call site",
+# "this code path is unreachable for atomic bundles".  They are the fragile links:
+# a future contract edit breaks them silently, and the Lean corpus keeps building.
+#
+# Each check below names the invariant, the Lean result that depends on it, and
+# what goes wrong if it changes.  Run after any change to the interop contracts.
+#
+# Usage: scripts/check-source-invariants.sh
+#        CONTRACTS_DIR=<tree> scripts/check-source-invariants.sh   # check another copy
+# Exit:  0 all hold, 1 at least one broken.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# CONTRACTS_DIR overrides the tree under test (used by the self-test below).
+SRC="${CONTRACTS_DIR:-$REPO/era-contracts/l1-contracts/contracts}"
+FAIL=0
+
+if [ ! -d "$SRC" ]; then
+  echo "contracts not found at $SRC (submodule not checked out?)"
+  exit 1
+fi
+
+# count_matches <pattern> <dir...> -- fixed-string count over .sol, comments excluded
+count_matches() {
+  local pat="$1"; shift
+  grep -rn --include="*.sol" -F "$pat" "$@" 2>/dev/null \
+    | grep -v -E '^\s*[^:]*:[0-9]+:\s*(///|//|\*)' \
+    | wc -l | tr -d ' '
+}
+
+check() {
+  local name="$1" actual="$2" expected="$3" depends="$4" breaks="$5"
+  if [ "$actual" = "$expected" ]; then
+    printf 'PASS  %-38s (%s)\n' "$name" "$actual"
+  else
+    FAIL=1
+    printf 'FAIL  %-38s expected %s, found %s\n' "$name" "$expected" "$actual"
+    printf '        depends: %s\n        breaks : %s\n' "$depends" "$breaks"
+  fi
+}
+
+echo "== whole-program invariants the Lean proofs rest on =="
+
+# 1. AtomicFlowManager.append has exactly ONE call site (the definition is in the
+#    manager + its interface; the single CALL is in InteropCenter._dispatchBundle).
+APPEND_CALLS=$(count_matches ').append(' "$SRC")
+check "append: single call site" "$APPEND_CALLS" "1" \
+  "LocalHonesty.sole_call_site, local_honest_insertion" \
+  "a second caller could insert a commit value not built with block.chainid, so this chain's tree would no longer hold only its own legs -- ProofPolarity's inclusion self-binding fails"
+
+# 2. _dispatchBundle has exactly one call site, so _validateAtomicBundle (which sits
+#    inside it, before append) covers every atomic commit.
+DISPATCH_CALLS=$(count_matches '_dispatchBundle(' "$SRC" | tr -d ' ')
+# one definition + one call = 2 occurrences
+check "_dispatchBundle: def + single call" "$DISPATCH_CALLS" "2" \
+  "RecoveryLimits.validation_unbypassable" \
+  "an atomic bundle could be committed without the native-value rejection, and a timed-out leg carrying value would be unrecoverable"
+
+# 3. Atomic bundles are never published to L1: _sendBundleToL1 must NOT appear in
+#    the isAtomic branch. Checked structurally -- it has exactly one call site, in
+#    _dispatchBundle's else branch.
+SEND_L1_CALLS=$(count_matches '_sendBundleToL1(' "$SRC")
+check "_sendBundleToL1: def + single call" "$SEND_L1_CALLS" "2" \
+  "BundleStatusMachine (the atomic liveness dependency)" \
+  "if atomic bundles reached L1, verifyBundle would succeed on them, move them to Verified, and executeAtomicBundle (Unreceived-only) would be permanently blocked"
+
+# 4. The commitment tree's insert is appender-gated.
+APPENDER_GUARD=$(count_matches 'if (msg.sender != appender()) revert' "$SRC/atomic-interop/L2InteropCommitmentTree.sol")
+check "tree insert: appender-gated" "$APPENDER_GUARD" "1" \
+  "LocalHonesty link 1" \
+  "anyone could insert arbitrary values into this chain's IMT, defeating HonestInsertion outright"
+
+# 5. The tree's mutating surface stays closed: exactly two non-view externals
+#    (initL2, onlyUpgrader-governance; and insert).
+# NOTE: no PCRE lookaheads here -- grep -E does not support them, and an earlier
+# draft of this line "worked" only by failing and falling through to a fallback.
+TREE_EXTERNALS=$(grep -E '^\s*function .*\bexternal\b' "$SRC/atomic-interop/L2InteropCommitmentTree.sol" \
+  | grep -v -E '\bview\b' | wc -l | tr -d ' ')
+check "tree: two mutating externals" "$TREE_EXTERNALS" "2" \
+  "LocalHonesty link 1 (no sibling mutator)" \
+  "a new mutating entry point could bypass the appender gate"
+
+# 6. executeAtomicBundle stays Unreceived-only. If this ever widens to accept
+#    Verified, check 3 stops being load-bearing -- but if it NARROWS or the
+#    constant changes, the status-machine proof needs revisiting.
+ATOMIC_GUARD=$(count_matches 'require(status == BundleStatus.Unreceived, BundleAlreadyProcessed(bundleHash));' "$SRC/interop/interop-handler")
+check "atomic+verify: Unreceived-only guards" "$ATOMIC_GUARD" "2" \
+  "BundleStatusMachine.Step constructors" \
+  "the modelled transition edges no longer match the deployed guards"
+
+echo
+if [ "$FAIL" -eq 0 ]; then
+  echo "all invariants hold"
+else
+  echo "BROKEN -- a Lean result above rests on the failing invariant; re-check it before trusting the proof"
+fi
+exit "$FAIL"
