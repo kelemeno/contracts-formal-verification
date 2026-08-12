@@ -94,6 +94,11 @@ echo
 # spec, not an alias. `grep -rn "^def A_[A-Za-z0-9_]* .*:= True$" specs/` finds 9 such specs
 # in all (5 mcopy copies + 4 ifs), so this pattern is confined to loops and mcopy rather than
 # endemic -- but mcopy is the one that blocks real work.
+#
+# The mcopy terminus also splits the two PARTIAL loops, so check before picking one up:
+#   for_4936625126437712955  BLOCKED -- reaches mcopy via abi_decode_bytes_fromMemory
+#   for_8649674080430825952  viable  -- none of its dependencies call mcopy
+# The blocked one's four guards are all closed now, which is as far as it can go from here.
 # L2AssetRouter, and two in L1AssetRouter). That is the highest-leverage next closure.
 
 echo "To give a TRUE-FOR loop content, use scripts/loop-spec-skeleton.sh: it emits the"
