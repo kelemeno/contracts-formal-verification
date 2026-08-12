@@ -101,9 +101,30 @@ lemma AOk_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
   · exact absurd h2 (by simp [isOk])
   · exact absurd h2 (by simp [isOk])
 
-lemma AContinue_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → Spec APost_for_4476381376322263891 (🧟s₂) s₄ → Spec AFor_for_4476381376322263891 s₄ s₅ → AFor_for_4476381376322263891 s₀ s₅ := sorry
+lemma AContinue_for_4476381376322263891 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → Spec APost_for_4476381376322263891 (🧟s₂) s₄ → Spec AFor_for_4476381376322263891 s₄ s₅ → AFor_for_4476381376322263891 s₀ s₅ := by
+  intro s₀ s₂ s₄ s₅ _h0 _h2 _hcond _hbody _hpost hspec
+  intro evm store hs
+  -- `s₅` is `Ok`, so it is not out of fuel; then case on `s₄` and read `Spec` off directly
+  have h5 : ¬ ❓ s₅ := by rw [hs]; simp [State.isOutOfFuel]
+  rcases s₄ with ⟨e4, st4⟩ | _ | c4
+  · exact Spec_ok_unfold (P := AFor_for_4476381376322263891) (s := Ok e4 st4) (s' := s₅)
+      (by simp [isOk]) h5 hspec evm store hs
+  · -- an out-of-fuel post state forces `s₅` out of fuel, contradicting `hs`
+    exact absurd (by simpa [Spec] using hspec) h5
+  · -- a checkpoint post state forces `s₅` to be a jump, which `Ok` is not
+    have : s₅.isJump c4 := by simpa [Spec] using hspec
+    rw [hs] at this
+    exact absurd this (by simp [State.isJump])
+
 lemma ABreak_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ (🧟s₂) := sorry
-lemma ALeave_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ s₂ := sorry
+lemma ALeave_for_4476381376322263891 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_4476381376322263891 s₀ = 0 → ABody_for_4476381376322263891 s₀ s₂ → AFor_for_4476381376322263891 s₀ s₂ := by
+  intro s₀ s₂ _h0 h2 _hcond _hbody
+  -- a `leave` state is a Checkpoint, so it is never `Ok` and the postcondition is vacuous
+  intro evm store hs
+  rcases s₂ with _ | _ | c
+  · exact absurd h2 (by simp [State.isLeave])
+  · exact absurd h2 (by simp [State.isLeave])
+  · exact absurd hs (by simp)
 
 end
 
