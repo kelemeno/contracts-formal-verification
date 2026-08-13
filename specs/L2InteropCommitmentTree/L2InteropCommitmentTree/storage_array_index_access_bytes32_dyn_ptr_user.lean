@@ -153,38 +153,65 @@ lemma isOk_arrIdxResultState {ss : State} (h : isOk ss) : isOk (arrIdxResultStat
   simp only [isOk_insert, primCall_keccakOut]
   exact isOk_multifill (by simpa [isOk_setEvm] using h)
 
-/-  **NEXT: the slot equation.**
+/-- **Where the element is.**  When the bounds check passes, the returned slot is
+`keccak(array) + index` — over the caller's own arguments and `s₀.evm`.
 
-    s₉[slot]!! = (keccakOut ((s₀.evm).mstore 0 array) 0 32).1 + index
+This is the equation the fold bridge needs: it turns "the accessor was called" into "the
+element was read from THIS slot", so a fold step can be stated in terms of the tree's
+contents rather than an intermediate state.
 
-given `index < sload s₀.evm array`.  Everything it needs is now proved above:
-`arrIdxGuardState_flag` (the guard is the identity when the check passes),
-`arrIdxGuardState_evm/_array/_index` (the caller's arguments and evm survive into the
-guard state), `isOk_arrIdxResultState` and `isOutOfFuel_arrIdxResultState` (the side
-conditions), and `primCall_keccakOut` (the keccak bridge).
-
-The assembly reaches this goal (read with `trace_state`, so this is exact):
-
-    (keccakOut (G🇪⟦mstore G.evm 0 (G["array"]!!)⟧).evm 0 32).1
-      + (G🇪⟦mstore …⟧🇪⟦(keccakOut …).2⟧)["index"]!!
-    = (keccakOut (mstore s₀.evm 0 array) 0 32).1 + index          where G = arrIdxGuardState array index s₀
-
-The FIRST summand is already right up to rewriting `G.evm = s₀.evm` and
-`G["array"]!! = array` (both proved above).  The second needs the `index` lookup peeled
-through TWO `setEvm` layers -- the mstore and the keccak's evm -- and that is where it
-stalls -- but NOT for the reason first assumed.  `pp.explicit` on an isolated instance shows
-the term is exactly `State.lookup! "index" (State.setEvm e G)` and `Clear.lookup_setEvm`
-closes it in one line.  So the shape is right; what fails is ELABORATION ORDER: passing the
-`isOk` side condition as `(by …)` inside the `rw` list leaves the lemma instance
-undetermined, and the rewrite then reports "pattern not found" with metavariables in the
-pattern.  The fix is to `have` each `isOk` fact with its type written out and pass it by
-name.  Doing that for the inner state got one rewrite further and then needed the same
-treatment for the OUTER `setEvm` (the keccak's evm), which is where this was left.  The likely cause, worth checking first, is that the printed term is not
-`lookup (setEvm …)` but something else with the same rendering -- so the next step is to
-`set_option pp.explicit true` on that goal and match what is actually there, rather than
-what it looks like.
--/
-
+Proof note: every `isOk` side condition is `have`d with its type written out and passed by
+NAME.  Passing one as `(by …)` inside `rw [...]` leaves the lemma instance undetermined and
+the rewrite fails with "pattern not found" and metavariables in the pattern -- which reads
+like a shape mismatch and is not one. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_val
+    {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (hlt : index < Clear.EVMState.sload s₀.evm array)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! = (keccakOut ((s₀.evm).mstore 0 array) 0 32).1 + index := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! ≠ 0 := by
+    rw [arrIdxGuardState_flag hok]; simp [hlt]
+  have hss : ss = arrIdxGuardState array index s₀ :=
+    (Spec_ok_unfold hgcok hssnf hg).1 hflag
+  subst hss
+  subst heq
+  have hgcnf : ¬ ❓ (arrIdxGuardState array index s₀) := fun hoo =>
+    isOk_and_isOutOfFuel ⟨hgcok, hoo⟩
+  have hrev : isOk (🧟(arrIdxResultState (arrIdxGuardState array index s₀))) :=
+    Clear.isOk_reviveJump_of_not_isOutOfFuel (by
+      rw [isOutOfFuel_arrIdxResultState]; exact hgcnf)
+  rw [lookup_insert' (isOk_insert.mpr (isOk_setStore_of_isOk hrev))]
+  unfold arrIdxResultState
+  set M := (arrIdxGuardState array index s₀)🇪⟦Clear.EVMState.mstore
+    (arrIdxGuardState array index s₀).evm 0
+    ((arrIdxGuardState array index s₀)["array"]!!)⟧ with hM
+  have hmok : isOk M := by rw [hM]; simp only [isOk_setEvm]; exact hgcok
+  have hkk : isOk (Clear.State.multifill ["split_expr_2"]
+      (primCall M .Keccak256 [0, 32]).2 (primCall M .Keccak256 [0, 32]).1) := by
+    simp only [primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hmok)
+  have houter : isOk (M🇪⟦(keccakOut M.evm 0 32).2⟧) := by
+    simp only [isOk_setEvm]; exact hmok
+  rw [lookup_insert_of_ne (by decide), lookup_insert' hkk]
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil]
+  rw [lookup_insert' houter]
+  -- goal: (keccakOut M.evm 0 32).1 + (M🇪⟦…⟧⟦"split_expr_2"↦…⟧["index"]!!) = …
+  -- skip the split_expr_2 insert, then peel the setEvm, then unfold M
+  rw [lookup_insert_of_ne (by decide), Clear.lookup_setEvm hmok, hM,
+    Clear.lookup_setEvm hgcok, arrIdxGuardState_index hok,
+    Clear.evm_setEvm_of_isOk hgcok, arrIdxGuardState_array hok, arrIdxGuardState_evm hok]
 
 end
 
