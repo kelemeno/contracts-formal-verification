@@ -51,6 +51,9 @@ def normalised_body(name):
     b = m.group(1)
     b = b.replace('_dyn_ptr', '_ACC').replace('_dyn__dyn', '_ACC')
     b = re.sub(r'\b(block|switch|if|for)_\d+\b', 'ID', b)
+    # solc numbers some locals by AST id (`expr_1562_mpos` vs `expr_mpos`), which makes
+    # two identical bodies look different -- that cost a wrong "no match" once
+    b = re.sub(r'\b([A-Za-z_]+)_\d+_(mpos|offset|length)\b', r'\1_\2', b)
     return b
 
 def is_alias(name):
