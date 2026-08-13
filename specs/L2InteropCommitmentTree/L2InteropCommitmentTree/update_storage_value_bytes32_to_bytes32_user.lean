@@ -52,6 +52,26 @@ lemma update_storage_value_bytes32_to_bytes32_not_break {slot offset value : Lit
     (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (update_storage_value_bytes32_to_bytes32_isOk hnf h)
 
+
+/-- **TOTAL FRAME.**  A pure storage writer returns NO value, so its spec ends
+`🧟s₂🏪⟦s₀⟧` with no output insert at all -- and therefore every local of the caller
+survives it, with no `≠` side conditions to discharge.
+
+This is the strongest frame in the fold's body and the reason the loop's accumulator can
+be tracked across the store at the end of each iteration. -/
+lemma update_storage_value_bytes32_to_bytes32_frame {slot offset value : Literal}
+    {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, _, s₂, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 s₂) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [Clear.lookup_setStore hrev hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

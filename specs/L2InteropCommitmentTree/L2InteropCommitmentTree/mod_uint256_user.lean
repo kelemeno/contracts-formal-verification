@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.mod_uint256_gen
@@ -46,6 +47,38 @@ lemma mod_uint256_isOk {r x} {s₀ s₉ : State} (hok : isOk s₀)
 lemma mod_uint256_not_break {r x} {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_mod_uint256 r x s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (mod_uint256_isOk hok h)
+
+
+/-- The callee state, `Ok` because nothing in this body can fail. -/
+private lemma mod_frame_isOk {x} {s₀ : State} (hok : isOk s₀) :
+    isOk (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧) :=
+  isOk_insert.mpr (isOk_initcall_of_isOk hok)
+
+/-- **VALUE.**  The output is the low bit of the argument: the fold's ORIENTATION at this
+level -- left child if zero, right child if one.  `FoldIndexBridge.idxAt_parity` is the
+abstract side of the same bit. -/
+lemma mod_uint256_val {r x} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_mod_uint256 r x s₀ s₉) : s₉[r]!! = Fin.land x 1 := by
+  unfold A_mod_uint256 at h
+  subst h
+  have hf := mod_frame_isOk (x := x) hok
+  have hres : isOk (multifill ["r"] [Fin.land ((s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!!) 1]
+      (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)) := isOk_multifill hf
+  have hx : (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!! = x := by
+    rw [lookup_insert_of_ne (by decide), Clear.lookup_initcall_one hok]
+  rw [lookup_insert' (isOk_setStore_of_isOk (by rw [revive_of_ok hres]; exact hres))]
+  simp only [multifill_cons, multifill_nil]
+  rw [lookup_insert' hf, hx]
+
+/-- **FRAME.**  Only `r` moves.  See `Clear.lookup_setStore`. -/
+lemma mod_uint256_frame {r x} {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀)
+    (hv : v ≠ r) (h : A_mod_uint256 r x s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  unfold A_mod_uint256 at h
+  subst h
+  have hf := mod_frame_isOk (x := x) hok
+  have hres : isOk (multifill ["r"] [Fin.land ((s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!!) 1]
+      (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)) := isOk_multifill hf
+  rw [lookup_insert_of_ne hv, revive_of_ok hres, Clear.lookup_setStore hres hok]
 
 end
 
