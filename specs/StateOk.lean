@@ -139,6 +139,15 @@ lemma isBreak_setBreak {t : State} (h : isOk t) : isBreak (💔 t) := by
   · exact absurd h (by simp [isOk])
   · exact absurd h (by simp [isOk])
 
+/-- The evm of a `setEvm` is the evm set, for any `Ok` state.  Clear has this only for a
+literal `Ok evm store` (`evm_setEvm_ok` in specs/RevertModel.lean), which does not apply
+when the state is an insert chain -- as it is inside every function body. -/
+lemma evm_setEvm_of_isOk {t : State} {e : EVM} (h : isOk t) : (t🇪⟦e⟧).evm = e := by
+  rcases t with ⟨a, b⟩ | _ | _
+  · rfl
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
 end
 
 end Clear

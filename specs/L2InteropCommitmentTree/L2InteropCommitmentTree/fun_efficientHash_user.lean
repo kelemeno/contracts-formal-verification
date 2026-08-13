@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
+import specs.KeccakDeterminism
+import specs.KeccakPrimOps
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash_gen
@@ -8,7 +11,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear Clear.KeccakPrimOps Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
 /-- The MERKLE PAIR HASH: `keccak256(lhs ‖ rhs)` over the two scratch words.
 
@@ -64,6 +67,44 @@ lemma fun_efficientHash_isOk {var_result var_lhs var_rhs} {s₀ s₉ : State} (h
 lemma fun_efficientHash_not_break {var_result var_lhs var_rhs} {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (fun_efficientHash_isOk hok h)
+
+/-- **The deployed hash IS `accOut`.**
+
+`fun_efficientHash(lhs, rhs)` returns `(accOut evm lhs rhs).1` — the same function the
+abstract keccak development uses (`specs/KeccakDeterminism.lean`), where
+`accOut σ key base = keccakOut ((σ.mstore 0 key).mstore 32 base) 0 64`.
+
+This is a bridge rather than a restatement: the concrete side reaches keccak through
+`primCall … .Keccak256` and the abstract side through `keccakOut`, and
+`primCall_keccakOut` is what identifies them.  `foldRoot` is defined by iterating
+`accOut`, so the deployed hash step and the abstract fold's hash step are now the same
+term, not merely analogous.
+
+`isOk s₉` is taken as a hypothesis rather than rebuilt: every caller has it from
+`fun_efficientHash_isOk`, and reconstructing it inside would mean naming the return
+state, which is the whole `🧟 … 🏪⟦…⟧` tower. -/
+lemma fun_efficientHash_val {var_result : Identifier} {var_lhs var_rhs : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) :
+    s₉[var_result]!! = (accOut s₀.evm var_lhs var_rhs).1 := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_fun_efficientHash at h
+    subst h
+    rw [lookup_insert' (by rwa [isOk_insert] at hok9)]
+    simp only [primCall_keccakOut, multifill_cons, multifill_nil]
+    rw [lookup_insert' (by
+      simp only [isOk_setEvm]
+      exact isOk_initcall_of_isOk (by simp [isOk]))]
+    unfold accOut
+    -- both sides are now `keccakOut _ 0 64`; reduce the concrete side's evm through the
+    -- two setEvm layers (Clear's projection needs a literal `Ok`, hence the general form)
+    have hinit : isOk ((Ok evm store)☎️⟦["var_lhs", "var_rhs"],[var_lhs, var_rhs]⟧) :=
+      isOk_initcall_of_isOk (by simp [isOk])
+    rw [Clear.evm_setEvm_of_isOk (by simp only [isOk_setEvm]; exact hinit),
+      Clear.evm_setEvm_of_isOk hinit]
+    simp [State.initcall, evm_multifill, evm_setStore]
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
 
 end
 
