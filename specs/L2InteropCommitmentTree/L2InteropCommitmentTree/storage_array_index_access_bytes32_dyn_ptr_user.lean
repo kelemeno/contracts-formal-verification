@@ -120,17 +120,59 @@ lemma arrIdxGuardState_flag {array index : Literal} {s₀ : State} (hok : isOk s
     Clear.lookup_initcall_snd hok (by decide), Clear.lookup_initcall_fst hok,
     initcall_evm_ai hok]
 
-/-  **NEXT: the slot equation.**  With the intermediate states named and
-`arrIdxGuardState_flag` proved, what remains is
+/-- The guard state keeps the caller's evm. -/
+lemma arrIdxGuardState_evm {array index : Literal} {s₀ : State} (hok : isOk s₀) :
+    (arrIdxGuardState array index s₀).evm = s₀.evm := by
+  unfold arrIdxGuardState
+  simp only [evm_insert]
+  exact initcall_evm_ai hok
+
+/-- The guard state still carries the caller's `array` argument. -/
+lemma arrIdxGuardState_array {array index : Literal} {s₀ : State} (hok : isOk s₀) :
+    (arrIdxGuardState array index s₀)["array"]!! = array := by
+  unfold arrIdxGuardState
+  rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+  exact Clear.lookup_initcall_fst hok
+
+/-- …and its `index` argument. -/
+lemma arrIdxGuardState_index {array index : Literal} {s₀ : State} (hok : isOk s₀) :
+    (arrIdxGuardState array index s₀)["index"]!! = index := by
+  unfold arrIdxGuardState
+  rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+  exact Clear.lookup_initcall_snd hok (by decide)
+
+/-- `arrIdxResultState` is out of fuel only if its input is. -/
+lemma isOutOfFuel_arrIdxResultState {ss : State} : ❓ (arrIdxResultState ss) ↔ ❓ ss := by
+  unfold arrIdxResultState
+  simp only [isOutOfFuel_insert', isOutOfFuel_multifill', primCall_keccakOut,
+    isOutOfFuel_setEvm']
+
+/-- `arrIdxResultState` preserves `Ok`. -/
+lemma isOk_arrIdxResultState {ss : State} (h : isOk ss) : isOk (arrIdxResultState ss) := by
+  unfold arrIdxResultState
+  simp only [isOk_insert, primCall_keccakOut]
+  exact isOk_multifill (by simpa [isOk_setEvm] using h)
+
+/-  **NEXT: the slot equation.**
 
     s₉[slot]!! = (keccakOut ((s₀.evm).mstore 0 array) 0 32).1 + index
 
-given `index < sload s₀.evm array`.  The route is: the flag is nonzero (above), so the
-guard is the identity and `ss = arrIdxGuardState array index s₀`; then peel the two
-result inserts with `lookup_insert'` / `lookup_insert_of_ne`, and rewrite the keccak with
-`primCall_keccakOut`.  Two mechanical type mismatches remained when this was last
-attempted -- pushing `❓` through `arrIdxResultState`, and one `isOk` side condition -- and
-the attempt was reverted rather than left with a `sorry`.
+given `index < sload s₀.evm array`.  Everything it needs is now proved above:
+`arrIdxGuardState_flag` (the guard is the identity when the check passes),
+`arrIdxGuardState_evm/_array/_index` (the caller's arguments and evm survive into the
+guard state), `isOk_arrIdxResultState` and `isOutOfFuel_arrIdxResultState` (the side
+conditions), and `primCall_keccakOut` (the keccak bridge).
+
+The assembly gets as far as
+
+    multifill ["split_expr_2"] (primCall M .Keccak256 [0,32]).2 (…).1 ["split_expr_2"]!!
+      + (…)["index"]!!  =  (keccakOut (mstore s₀.evm 0 array) 0 32).1 + index
+
+and then needs the two lookups read off the reduced multifill.  The rewrite that keeps
+failing is the `["index"]!!` one: after `lookup_insert_of_ne` the remaining term is not
+the `s🇪⟦e⟧[v]!!` shape `Clear.lookup_setEvm` expects.  Reading that goal with `trace_state`
+and matching the shape exactly is the way in -- the same method that settled every other
+step here.
 -/
 
 
