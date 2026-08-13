@@ -63,6 +63,10 @@ lemma rootGuardStateDyn_flag_iff {s : State} (hok : isOk s) :
   · simp [hlt]
   · simp [hlt]
 
+lemma for_4939860823883042599_cond_abs_of_code {s₀ fuel} : eval fuel for_4939860823883042599_cond (s₀) = (s₀, ACond_for_4939860823883042599 (s₀)) := by
+  unfold eval ACond_for_4939860823883042599
+  simp [for_4939860823883042599_cond, Lit']
+
 lemma for_4939860823883042599_concrete_of_post_abs {s₀ s₉ : State} :
   Spec for_4939860823883042599_post_concrete_of_code s₀ s₉ →
   Spec APost_for_4939860823883042599 s₀ s₉ := by
