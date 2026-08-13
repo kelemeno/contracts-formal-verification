@@ -10,15 +10,19 @@
 # the one dependency that mattered. A truncated search that finds nothing looks exactly like a
 # clean one, so this walks the whole closure.
 #
-# ANOMALY TO INVESTIGATE (2026-08-13): AtomicFlowManager's switch_7706602271607130061 -- the
-# Merkle path-order selection, and the LAST dependency of for_456069591477598358 -- appears to
-# admit `A := (s₉ = s₀)`. That spec builds, and a deliberately false spec (`s₉ = s₀ ∧ False`)
-# does NOT, so the probe is really checking. Yet the generated concrete_of_code visibly steps
-# through both switch branches and cites the accessor's abs_of_code, so a no-op model would be
-# surprising. Either the switch's emitted C is weaker than it looks, or the probe's
-# `apply spec_eq; exact hc.symm` shape is matching something other than intended. Resolve
-# before writing a real spec for it -- do NOT take the trivial one, and do not assume the
-# generator is wrong without reading the emitted C to the end.
+# RESOLVED (2026-08-13): switch_7706602271607130061 is NOT a modelling hole. Probing it,
+# `A := (s₉ = s₀)` builds -- which looks like a no-op model -- but printing the emitted C with
+#     example (s₀ s₉ : State) (h : <name>_concrete_of_code.1 s₀ s₉) : True := by
+#       unfold <name>_concrete_of_code at h; trace_state; trivial
+# shows the real thing: an existential composition through
+# A_memory_array_index_access_struct_InteropCall_dyn and A_fun_efficientHash, per branch, exactly
+# as the Yul reads. So the fault is in the PROBE, not the generator -- the
+# `apply spec_eq; intro _hne hc; exact hc.symm` shape can close a goal that is not the spec you
+# think you are writing. DO NOT take the trivial spec; transcribe the composition.
+#
+# General: `unfold ... at h; trace_state` on a hypothesis is the reliable way to see an emitted
+# C. The type-mismatch message is a shortcut that works most of the time; when a probe succeeds
+# SUSPICIOUSLY EASILY, print the term instead.
 #
 # Usage: scripts/loop-mcopy-reach.sh [--list|--todo]
 #   --todo ranks the workable loops by how many dependencies still need closing.
