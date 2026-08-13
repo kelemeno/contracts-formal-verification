@@ -36,6 +36,35 @@ lemma fun_efficientHash_abs_of_concrete {s₀ s₉ : State} {var_result var_lhs 
   apply spec_eq
   intro _hne hc
   exact hc.symm
+/-- The keccak projection preserves `Ok` in both branches of its collision fallback. -/
+private lemma keccak_proj_isOk (X : State) (hX : isOk X) :
+    isOk (primCall X .Keccak256 [0, 64]).1 := by
+  rcases hk : X.evm.keccak256 0 64 with _ | pr <;> simp [EVMKeccak256', hk, hX]
+
+/-- **OUTPUT IS `Ok`.**  The pair hash is a frame call: `initcall`, two scratch `mstore`s, the
+keccak step, then `multifill`/`revive`/`setStore` — each preserving `Ok`. The keccak step needs
+the projection lemma above, since `(primCall _ .Keccak256 _).1` is a match rather than a
+syntactic `setEvm`. -/
+lemma fun_efficientHash_isOk {var_result var_lhs var_rhs} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) : isOk s₉ := by
+  unfold A_fun_efficientHash at h
+  subst h
+  have hb : isOk ((s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+      (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧)🇪⟦EVMState.mstore
+      (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+        (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧).evm 32 var_rhs⟧) := by
+    simp [isOk_setEvm]
+    exact isOk_initcall_of_isOk hok
+  -- goal-directed: the multifill's implicits come from the goal, not from a `have`
+  apply isOk_insert.mpr
+  apply isOk_setStore_of_isOk
+  rw [revive_of_ok (isOk_multifill (keccak_proj_isOk _ hb))]
+  exact isOk_multifill (keccak_proj_isOk _ hb)
+
+lemma fun_efficientHash_not_break {var_result var_lhs var_rhs} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (fun_efficientHash_isOk hok h)
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager
