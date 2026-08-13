@@ -87,6 +87,58 @@ lemma not_isBreak_of_isJump_Continue {s : State} {evm : EVM} {store : VarStore}
   · rcases c with ⟨e, st⟩ | ⟨e, st⟩ | ⟨e, st⟩ <;>
       simp only [State.isJump] at h <;> simp [State.isBreak]
 
+/-- Once a step carries a checkpoint, REVIVING its output gives the same state as
+reviving its input.
+
+This is what a `break`-exiting loop needs.  When a body's guard breaks, the rest of
+the body still runs as `Spec` steps, but each one merely carries the checkpoint
+along; so the state the loop finally revives is the one that existed AT THE BREAK,
+not something the later steps produced.  Chaining this lemma across the remaining
+steps moves the goal back to the breaking guard, where the branch condition is
+known. -/
+lemma reviveJump_eq_of_Spec_of_isJump {P : State → State → Prop} {a b : State} {c : Jump}
+    (h : Spec P a b) (ha : isJump c a) : 🧟 b = 🧟 a := by
+  rcases a with ⟨evm, store⟩ | _ | c'
+  · exact absurd ha (by simp [State.isJump])
+  · exact absurd ha (by simp [State.isJump])
+  · simp only [State.isJump] at ha
+    subst ha
+    -- on a Checkpoint input, `Spec P a b` IS `b.isJump c` -- exhibit it before casing,
+    -- or the case analysis has nothing reduced to work with
+    have hb : isJump c b := h
+    rcases b with ⟨e, st⟩ | _ | c''
+    · simp [State.isJump] at hb
+    · simp [State.isJump] at hb
+    · simp only [State.isJump] at hb
+      subst hb
+      simp [State.reviveJump]
+
+/-- A `Break` state exhibits its jump, so the lemmas above apply to it. -/
+lemma isJump_Break_of_isBreak {s : State} (h : isBreak s) :
+    ∃ evm store, isJump (.Break evm store) s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · simp [State.isBreak] at h
+  · simp [State.isBreak] at h
+  · rcases c with ⟨e, st⟩ | ⟨e, st⟩ | ⟨e, st⟩
+    · simp [State.isBreak] at h
+    · exact ⟨e, st, by simp [State.isJump]⟩
+    · simp [State.isBreak] at h
+
+/-- Reviving a break undoes it: `🧟(💔 t) = t` for an `Ok` state.  So a loop that
+exits by breaking hands back exactly the state that was live when the guard fired. -/
+lemma reviveJump_setBreak {t : State} (h : isOk t) : 🧟 (💔 t) = t := by
+  rcases t with ⟨e, st⟩ | _ | _
+  · rfl
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+/-- A freshly broken `Ok` state is a `Break`. -/
+lemma isBreak_setBreak {t : State} (h : isOk t) : isBreak (💔 t) := by
+  rcases t with ⟨e, st⟩ | _ | _
+  · simp [State.isBreak, State.setBreak]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
 end
 
 end Clear
