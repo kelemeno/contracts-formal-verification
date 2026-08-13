@@ -116,6 +116,15 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
   · exact absurd h2 (by simp [State.isLeave])
   · exact absurd hs (by simp)
 
+-- !! THE PROBE SHAPE IS NOT SOUND AS A TEST OF A SPEC. Writing `A := (s₉ = s₀)` and closing
+-- with `apply spec_eq; intro _hne hc; exact hc` BUILDS against non-trivial concrete specs --
+-- observed on switch_7706602271607130061, if_1209118431116190868 and if_6747681429752853338,
+-- all of which have real content. Use the probe ONLY to read the type-mismatch message, never
+-- as evidence that a spec is right. To see the emitted C reliably:
+--     example (s₀ s₉ : State) (h : <name>_concrete_of_code.1 s₀ s₉) : True := by
+--       unfold <name>_concrete_of_code at h; trace_state; trivial
+-- and to check a FINISHED spec, append `∧ False` to it and confirm the build FAILS.
+--
 -- ABody: write a placeholder (\`s₉ = Ok evm store\`), build, and mirror the closed form
 -- from the type-mismatch message.
 --
