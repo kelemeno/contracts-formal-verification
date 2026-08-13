@@ -172,8 +172,14 @@ The assembly reaches this goal (read with `trace_state`, so this is exact):
 The FIRST summand is already right up to rewriting `G.evm = s₀.evm` and
 `G["array"]!! = array` (both proved above).  The second needs the `index` lookup peeled
 through TWO `setEvm` layers -- the mstore and the keccak's evm -- and that is where it
-stalls: `Clear.lookup_setEvm`'s pattern `?s🇪⟦?e⟧[?v]!!` does not fire against it, twice
-attempted.  The likely cause, worth checking first, is that the printed term is not
+stalls -- but NOT for the reason first assumed.  `pp.explicit` on an isolated instance shows
+the term is exactly `State.lookup! "index" (State.setEvm e G)` and `Clear.lookup_setEvm`
+closes it in one line.  So the shape is right; what fails is ELABORATION ORDER: passing the
+`isOk` side condition as `(by …)` inside the `rw` list leaves the lemma instance
+undetermined, and the rewrite then reports "pattern not found" with metavariables in the
+pattern.  The fix is to `have` each `isOk` fact with its type written out and pass it by
+name.  Doing that for the inner state got one rewrite further and then needed the same
+treatment for the OUTER `setEvm` (the keccak's evm), which is where this was left.  The likely cause, worth checking first, is that the printed term is not
 `lookup (setEvm …)` but something else with the same rendering -- so the next step is to
 `set_option pp.explicit true` on that goal and match what is actually there, rather than
 what it looks like.
