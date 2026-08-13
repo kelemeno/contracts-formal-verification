@@ -44,6 +44,55 @@ lemma switch_7706602271607130061_abs_of_concrete {s₀ s₉ : State} :
   intro h
   simpa [A_switch_7706602271607130061] using h
 
+/-- **OUTPUT IS `Ok`.**  Whichever branch the parity selects, the selected state is the output
+of `fun_efficientHash` applied after an accessor call, and both preserve `Ok`.
+
+`¬ ❓ s₉` is required for the same reason as elsewhere: `Spec` is vacuous on an out-of-fuel
+result. Because the generator evaluates BOTH branches and selects at the end, the hypothesis
+only constrains the branch actually taken — hence the case split before using it. -/
+lemma switch_7706602271607130061_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_7706602271607130061 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s, hacc, s₁, hh₁, s', hacc', s₂, hh₂, hsel⟩ := h
+  by_cases hg : (0 : UInt256) = s₀["expr_1"]!!
+  · rw [if_pos hg] at hsel
+    subst hsel
+    have hs_nf : ¬ ❓ s := by
+      intro hoo
+      apply hnf
+      rcases s with _ | _ | _
+      · simp [State.isOutOfFuel] at hoo
+      · simpa [Spec, isOutOfFuel_insert'] using hh₁
+      · simp [State.isOutOfFuel] at hoo
+    have hsok : isOk s :=
+      memory_array_index_access_struct_InteropCall_dyn_isOk hok hs_nf
+        (Spec_ok_unfold (P := A_memory_array_index_access_struct_InteropCall_dyn _ _ _)
+          hok hs_nf hacc)
+    have hqok : isOk (s⟦"split_expr_7" ↦ EVMState.mload s.evm (s["split_expr_6"]!!)⟧) :=
+      isOk_insert.mpr hsok
+    exact fun_efficientHash_isOk hqok
+      (Spec_ok_unfold (P := A_fun_efficientHash _ _ _) hqok hnf hh₁)
+  · rw [if_neg hg] at hsel
+    subst hsel
+    have hs_nf : ¬ ❓ s' := by
+      intro hoo
+      apply hnf
+      rcases s' with _ | _ | _
+      · simp [State.isOutOfFuel] at hoo
+      · simpa [Spec, isOutOfFuel_insert'] using hh₂
+      · simp [State.isOutOfFuel] at hoo
+    have hsok : isOk s' :=
+      memory_array_index_access_struct_InteropCall_dyn_isOk hok hs_nf
+        (Spec_ok_unfold (P := A_memory_array_index_access_struct_InteropCall_dyn _ _ _)
+          hok hs_nf hacc')
+    have hrok : isOk (s'⟦"split_expr_9" ↦ EVMState.mload s'.evm (s'["split_expr_8"]!!)⟧) :=
+      isOk_insert.mpr hsok
+    exact fun_efficientHash_isOk hrok
+      (Spec_ok_unfold (P := A_fun_efficientHash _ _ _) hrok hnf hh₂)
+
+lemma switch_7706602271607130061_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_7706602271607130061 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (switch_7706602271607130061_isOk hok hnf h)
+
 end
 
 end AtomicFlowManager.Common
