@@ -15,9 +15,10 @@
 # using a hand-written naming convention rather than A_<name>. So ghost specs are NOT endemic;
 # the probe shape is the way they get created, and it was only ever used interactively.
 #
-# NOTE the checker only understands `def A_<name>` / `def A<name>`. Loop specs (ACond_/APost_/
-# ABody_/AFor_) are NOT covered -- extending it there is worthwhile, since a loop's AFor is
-# exactly the kind of thing that can drift into meaning nothing.
+# LOOPS are covered too: for a `for_<id>_user.lean` the checker weakens AFor_<id>, the loop's
+# postcondition, since every closure lemma is stated in terms of it. All 25 REAL loops bind
+# (audited 2026-08-13). A loop whose AFor does not bind would be the TRUE-FOR problem wearing
+# a disguise -- green, sorry-free, and classified REAL by the content audit.
 #
 # Usage: scripts/spec-binds-check.sh <path-to-_user.lean> [...]
 set -uo pipefail
@@ -33,10 +34,14 @@ for f in "$@"; do
 import sys, re
 p, n = sys.argv[1], sys.argv[2]
 s = open(p).read()
-m = re.search(r'(^def A_?' + re.escape(n) + r'\b[^\n]*?:=[ \n])(.*?)(?=\n\s*\n|\nlemma|\ntheorem|\nend)', s, re.S | re.M)
-if not m:
-    sys.exit(3)
-open(p, 'w').write(s[:m.start(2)] + '(' + m.group(2) + ') ∧ False' + s[m.end(2):])
+# function/block/if/switch specs are `def A_<name>`; LOOP specs are `def AFor_<name>` -- weaken
+# the loop's POSTCONDITION, since every closure lemma is stated in terms of it.
+for pat in (r'^def A_?' + re.escape(n) + r'\b', r'^def AFor_' + re.escape(n) + r'\b'):
+    m = re.search(r'(' + pat + r'[^\n]*?:=[ \n])(.*?)(?=\n\s*\n|\nlemma|\ntheorem|\nend)', s, re.S | re.M)
+    if m:
+        open(p, 'w').write(s[:m.start(2)] + '(' + m.group(2) + ') ∧ False' + s[m.end(2):])
+        sys.exit(0)
+sys.exit(3)
 PY
   case $? in
     3) echo "SKIP  $name (could not locate its def)"; cp "/tmp/binds_$$.bak" "$f"; continue;;
