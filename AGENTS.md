@@ -382,6 +382,30 @@ Prefer a parser to a regex, and **self-test any checker in the FAILING direction
 
 ## VC Generator Notes
 
+### `EVMCleanup_bool'` — 8 generated files reference a lemma Clear does not have
+
+`scripts/unbuilt-check.sh` reports 65 spec files with no `.olean`. Sampling the
+`AtomicFlowManager` ones, all are BLOCKED UPSTREAM rather than silently broken, and they share
+one cause: eight generated files under `AtomicFlowManager/Common` emit `rw [EVMCleanup_bool']`,
+and that identifier does not exist anywhere in the pinned Clear (`grep` finds zero occurrences
+in `Clear/*.lean`). Only AtomicFlowManager is affected.
+
+**What it costs is specific and central.** The specs that cannot build because of it include
+
+    fun_authorizeRefund          the refund gate
+    fun_verifyTimeoutAbsence     the timeout proof verifier
+    fun_verifyInclusion_1261     the delivery proof verifier
+
+i.e. the three deployed functions the whole timeout/refund protocol runs through, and the
+concrete counterparts of `AttackVectors/TimeoutSoundness.lean` and `ProofPolarity.lean`. The
+abstract results stand on their own — they are stated over abstract batch histories and leaf
+sets, not over these functions — but the CONCRETE side of that protocol is unreachable until
+this is fixed.
+
+The fix is upstream, like `mcopy`: either the generator should stop emitting
+`EVMCleanup_bool'`, or Clear should provide it. Worth checking whether a newer Clear has it
+before attempting anything downstream.
+
 ### `mcopy` is NOT MODELLED — a hole in the trusted base, not a missing proof
 
 Yul's `mcopy(dst, src, len)` builtin has no primop in Clear (`grep Mcopy Clear/PrimOps.lean`
