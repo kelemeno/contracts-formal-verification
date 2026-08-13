@@ -282,6 +282,24 @@ work), one found too much (making a cheap target look expensive). So: a count is
 until its definition has been checked against a case whose answer you already know, and any
 question whose answer would stop you looking should be scripted.
 
+### What an ALIAS costs, precisely
+
+`def A_x := x_concrete_of_code.1` makes the abstract spec *be* the concrete one.  So:
+
+* composing through an alias is **not unsound** — a theorem proved through it is still a
+  theorem about the compiled code;
+* what it costs is **readable content** — nothing can be said about that step in abstract
+  terms, so any caller's spec is silent about it.
+
+That distinction decides whether closing one matters.  It mattered for `fun_pushNewLeaf`,
+whose whole purpose is to describe its branches; it matters less under a result that is
+stated about the concrete spec anyway (`no_theft_refund` proves slot separation from
+keccak injectivity and does not need its `abi_encode_*` imports to say anything).
+
+`scripts/chain-check.sh` reports aliases in a spec's IMPORT CLOSURE — not its proof term.
+A file can import what its key theorem never uses.  For actual dependencies, read
+`#print axioms` via `scripts/audit-count.sh`.
+
 ### `LOG` is modelled as a no-op
 
 `Log0`–`Log4` ARE primops, but they return the state unchanged

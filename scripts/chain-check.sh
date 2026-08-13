@@ -14,8 +14,18 @@
 # the same code -- see scripts/match-copies.sh, which finds those.
 #
 # This walks the transitive import closure of a spec and reports every alias in it.
-# An alias deep in the chain is not always wrong (mcopy cannot be specced at all, and a
-# contentless spec is honest about that), but it should be a decision, not a surprise.
+# WHAT THIS DOES AND DOES NOT MEAN.  `A_x := x_concrete_of_code.1` IS the concrete spec,
+# so composing through an alias is not unsound and does not make a result vacuous -- a
+# theorem proved through aliases is still a theorem about the compiled code.  What an
+# alias costs is READABLE CONTENT: nothing can be stated about that step in abstract
+# terms, so a caller's spec is silent about it.  That is why it mattered for
+# fun_pushNewLeaf (whose spec is meant to describe the branches) and matters less for a
+# result that is about the concrete spec anyway.
+#
+# Also: this walks the IMPORT CLOSURE, not the proof term.  A file can import a spec its
+# key theorem never uses, so an ALIAS verdict is "content is missing somewhere in this
+# chain", not "this result depends on an unspecified step".  For what a result actually
+# depends on, read `#print axioms` (scripts/audit-count.sh).
 #
 # Usage: scripts/chain-check.sh <contract> <name> [...]
 #        scripts/chain-check.sh L2InteropCommitmentTree fun_pushNewLeaf fun_root
