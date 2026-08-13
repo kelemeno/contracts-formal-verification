@@ -63,6 +63,14 @@ for dp, _, fns in os.walk(root):
                     ty = 'int256'
                 types.append(ty)
             sigs.add(f"{name}({','.join(types)})")
+            # A selector is computed over ABI types, not declared ones: an ENUM parameter
+            # encodes as uint8 and a CONTRACT/interface type as address.  Emitting the
+            # declared name (`LegState`) yields a selector matching nothing, which is how a
+            # real error looked undeclared until this was added.
+            elementary = re.compile(r'^(u?int\d*|bytes\d*|bytes|string|address|bool)(\[\d*\])?$')
+            if any(not elementary.match(t) for t in types):
+                for repl in ('uint8', 'address'):
+                    sigs.add(f"{name}({','.join(t if elementary.match(t) else repl for t in types)})")
 print('\n'.join(sorted(sigs)))
 PY
 )
