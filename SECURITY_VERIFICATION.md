@@ -2201,3 +2201,28 @@ and block-spec task rather than a reasoning one.
   import-olean freshness — corpus-level claims require fresh-compile audits; two silent
   regressions (renamed helpers, a renumbered enum) were found and repaired this way (#64,
   b696185).  The old pre-relocation InteropHandler corpus is deliberately unmaintained.
+
+## Part F — The deployed IMT insertion path (concrete, 2026-08-13)
+
+`fun_pushNewLeaf` and everything beneath it now have real specs (58 of them, each verified to
+bind and to keep its generated consumer building).  This is the concrete counterpart of the
+abstract IMT results in Part A: previously those results assumed a deployed insert with certain
+properties; those properties are now stated against the compiled code.
+
+What the chain establishes, in the contract's own terms:
+
+| Claim | Where |
+| --- | --- |
+| Leaves are appended, never overwritten — the write index is the leaf count read *before* the checked increment | `fun_pushNewLeaf` |
+| The leaf index cannot wrap (checked increment); the level count *can* in principle (unchecked) | `increment_uint256` vs `fun_uncheckedInc` |
+| A leaf update outside the tree's width reverts with `MerkleWrongIndex(index, bound)` | `if_2960513488629726830` |
+| The tree grows *before* the write, so the bound check sees the grown tree | `fun_pushNewLeaf` |
+| A new level's empty default is `hash(d, d)`, stored both as `defaults[level]` and as that level's only node | `block_3221258955042269759`, `block_5267003775473151689` |
+| The fold puts the running hash on the correct side by index parity, and uses `defaults[level]` at a level's right edge | `switch_8961670722464898128`, `switch_2003501192971474853` |
+| The root is element 0 of the top level's array | `fun_root` |
+| A reused inner array's stale tail is cleared before use | `array_push_from_array_…` |
+
+Still open on this track: the correspondence between these specs and the abstract `foldRoot` /
+`IMTAbstract` vocabulary is prose, not a theorem — the two describe the same computation in
+different terms.  `fun_publishRoot` is unreachable because it uses `mcopy`, which the VC
+generator does not model.
