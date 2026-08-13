@@ -163,16 +163,20 @@ given `index < sload s₀.evm array`.  Everything it needs is now proved above:
 guard state), `isOk_arrIdxResultState` and `isOutOfFuel_arrIdxResultState` (the side
 conditions), and `primCall_keccakOut` (the keccak bridge).
 
-The assembly gets as far as
+The assembly reaches this goal (read with `trace_state`, so this is exact):
 
-    multifill ["split_expr_2"] (primCall M .Keccak256 [0,32]).2 (…).1 ["split_expr_2"]!!
-      + (…)["index"]!!  =  (keccakOut (mstore s₀.evm 0 array) 0 32).1 + index
+    (keccakOut (G🇪⟦mstore G.evm 0 (G["array"]!!)⟧).evm 0 32).1
+      + (G🇪⟦mstore …⟧🇪⟦(keccakOut …).2⟧)["index"]!!
+    = (keccakOut (mstore s₀.evm 0 array) 0 32).1 + index          where G = arrIdxGuardState array index s₀
 
-and then needs the two lookups read off the reduced multifill.  The rewrite that keeps
-failing is the `["index"]!!` one: after `lookup_insert_of_ne` the remaining term is not
-the `s🇪⟦e⟧[v]!!` shape `Clear.lookup_setEvm` expects.  Reading that goal with `trace_state`
-and matching the shape exactly is the way in -- the same method that settled every other
-step here.
+The FIRST summand is already right up to rewriting `G.evm = s₀.evm` and
+`G["array"]!! = array` (both proved above).  The second needs the `index` lookup peeled
+through TWO `setEvm` layers -- the mstore and the keccak's evm -- and that is where it
+stalls: `Clear.lookup_setEvm`'s pattern `?s🇪⟦?e⟧[?v]!!` does not fire against it, twice
+attempted.  The likely cause, worth checking first, is that the printed term is not
+`lookup (setEvm …)` but something else with the same rendering -- so the next step is to
+`set_option pp.explicit true` on that goal and match what is actually there, rather than
+what it looks like.
 -/
 
 
