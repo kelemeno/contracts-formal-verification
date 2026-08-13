@@ -213,6 +213,23 @@ lemma storage_array_index_access_bytes32_dyn__dyn_val
     Clear.lookup_setEvm hgcok, arrIdxGuardStateDyn_index hok,
     Clear.evm_setEvm_of_isOk hgcok, arrIdxGuardStateDyn_array hok, arrIdxGuardStateDyn_evm hok]
 
+
+/-- **FRAME.**  The accessor writes only `slot` and `offset`; everything else is the
+caller's.  Note this needs NO bounds hypothesis -- an out-of-range call reverts, and a
+reverting call is not `Ok`, so `hnf` already covers it. -/
+lemma storage_array_index_access_bytes32_dyn__dyn_frame
+    {slot offset : Identifier} {array index : Literal} {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hvs : v ≠ slot) (hvo : v ≠ offset)
+    (h : A_storage_array_index_access_bytes32_dyn__dyn slot offset array index s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨ss, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 (arrIdxResultStateDyn ss)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hvs, lookup_insert_of_ne hvo, Clear.lookup_setStore hrev hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

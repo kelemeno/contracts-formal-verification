@@ -185,6 +185,29 @@ lemma lookup_initcall_fst {s : State} {u v : Ast.Identifier} {x y : UInt256} (h 
   · exact absurd h (by simp [isOk])
   · exact absurd h (by simp [isOk])
 
+/-- **The frame lemma.**  A compiled helper's spec ends `(🧟 res)🏪⟦s₀⟧⟦out ↦ …⟧`, and
+`setStore` keeps the CALLEE's evm but restores the CALLER's varstore
+(`setStore (Ok evm _) (Ok _ store) = Ok evm store`).  So every variable other than the
+named outputs reads straight through to `s₀`: a call cannot disturb its caller's locals.
+
+That is what a relational loop invariant needs.  A postcondition about `s₉` alone
+(`the exit flag is zero`) never has to look inside the body, which is why those
+obligations are mechanical; the moment the invariant relates `s₀` to `s₉` -- `var_i` only
+advances, the accumulator is the fold so far -- every step of the body must be shown not
+to clobber the variables the invariant mentions, and this is that lemma.
+
+Both states must be `Ok`: `setStore` swaps only when both are, and otherwise returns `s`
+unchanged, in which case the callee's own store is what a lookup would see. -/
+lemma lookup_setStore {s s' : State} {v : Ast.Identifier} (hs : isOk s) (hs' : isOk s') :
+    (s🏪⟦s'⟧)[v]!! = s'[v]!! := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · rcases s' with ⟨evm', store'⟩ | _ | _
+    · simp only [setStore_ok, State.lookup!]
+    · exact absurd hs' (by simp [isOk])
+    · exact absurd hs' (by simp [isOk])
+  · exact absurd hs (by simp [isOk])
+  · exact absurd hs (by simp [isOk])
+
 end
 
 end Clear

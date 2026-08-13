@@ -31,6 +31,11 @@ fail=0
 total=0
 for f in $FILES; do
   [ -f "$f" ] || { echo "SKIP  $f (missing)"; continue; }
+  # A hand-written support module (specs/StateOk.lean) has no generated counterpart, so
+  # there is nothing to consume.  Without this it reports FAIL "no such file", which is a
+  # false red -- and a checker that cries wolf is worse than no checker.
+  gen="generated/$(echo "$f" | sed 's|^specs/||; s|_user\.lean$|.lean|')"
+  [ -f "$gen" ] || { echo "SKIP  $f (no generated consumer)"; continue; }
   total=$((total + 1))
   mod="generated.$(echo "$f" | sed 's|^specs/||; s|/|.|g; s|_user\.lean$||')"
   # </dev/null: lake reads stdin and will eat the rest of a piped file list
