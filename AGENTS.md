@@ -261,6 +261,27 @@ discharged, because no hypothesis there mentions a chain id.
    hit a wall on one of these, re-diagnose it rather than assuming this entry — and please replace this
    text with what you find.
 
+## The checkers, and what each catches
+
+This corpus has six ways to look verified without being verified. Each has a script, because
+each was found the hard way and none is visible to the others.
+
+| script | catches |
+|---|---|
+| `audit-count.sh` | axiom miscounts — `#print axioms` emits an unspecified ORDER and WRAPS lines, so grepping for a literal axiom list both misclassifies and truncates (once reported 118 not-clean when the truth was 10) |
+| `loop-content-audit.sh` | `AFor := True` loop specs — green, sorry-free, axiom-clean, contentless — plus specs that look up a variable absent from their Yul |
+| `check-source-invariants.sh` | whole-program facts no compiler enforces (single call sites, unreachable paths, self-call sites preceded by their check) — an edit breaks them silently while the corpus keeps building |
+| `loop-mcopy-reach.sh` | work that cannot be finished here at all, because its dependency closure reaches the unmodelled `mcopy` builtin |
+| `spec-binds-check.sh` | specs the proof does NOT bind to — appends `∧ False` and expects the build to FAIL. Covers `def A_<name>` and loop `AFor_<name>` |
+| `unbuilt-check.sh` | spec files with no `.olean` — never compiled, so never checked |
+
+**The pattern worth internalising: every one of these failures reads as success.** A false
+"nothing left to do", a green build over a vacuous spec, a search whose regex was too narrow.
+Four measurement bugs on 2026-08-12 alone, in both directions — three found too little (hiding
+work), one found too much (making a cheap target look expensive). So: a count is not evidence
+until its definition has been checked against a case whose answer you already know, and any
+question whose answer would stop you looking should be scripted.
+
 ## Source-Level Checks: proving what the comments assert
 
 The most productive vein in `specs/AttackVectors/` is not new abstract machinery. It is reading the
