@@ -30,6 +30,23 @@ lemma mod_uint256_abs_of_concrete {s₀ s₉ : State} {r x} :
   apply spec_eq
   intro _hne hc
   exact hc.symm
+/-- **OUTPUT IS `Ok`.**  A frame call whose body only binds locals: `initcall`, `multifill`,
+`revive` and `setStore` each preserve `Ok`. -/
+lemma mod_uint256_isOk {r x} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_mod_uint256 r x s₀ s₉) : isOk s₉ := by
+  unfold A_mod_uint256 at h
+  subst h
+  have hf : isOk (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧) :=
+    isOk_insert.mpr (isOk_initcall_of_isOk hok)
+  apply isOk_insert.mpr
+  apply isOk_setStore_of_isOk
+  rw [revive_of_ok (isOk_multifill hf)]
+  exact isOk_multifill hf
+
+lemma mod_uint256_not_break {r x} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_mod_uint256 r x s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (mod_uint256_isOk hok h)
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager

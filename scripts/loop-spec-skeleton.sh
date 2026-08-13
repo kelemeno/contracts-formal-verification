@@ -160,40 +160,40 @@ lemma ALeave_$N : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_$N s₀
 --
 -- WORKED INSTANCE (AtomicFlowManager, 2026-08-12): closing panic_error_0x11/0x32, three
 -- guards and two accessors -- each with a closed form AND an isOk/not_break lemma -- turned
--- for_6242390032430749259'"'"'s ABreak into four `have`s. The sibling loop then ported with two
+-- for_6242390032430749259'"'"'s ABreak into four \`have\`s. The sibling loop then ported with two
 -- search-and-replaces. The isOk lemmas chain: ¬ ❓ s₉ propagates BACKWARDS through the body
 -- (isOutOfFuel_insert'"'"'/setStore'"'"'/reviveJump'"'"'/multifill'"'"'), so the caller supplies it once.
 --
 -- A BODY CONTAINING keccak256: SOLVED, and not the way you would guess. Its ABody carries an
 -- Option match (the collision fallback) whose pretty-printed form does NOT disambiguate how
--- `multifill` associates with the match result, so transcribing from the error message fails.
+-- \`multifill\` associates with the match result, so transcribing from the error message fails.
 -- Hand-writing the match fails too, and so does the accOut/keccakOut helper -- both differ
 -- structurally from what the generator emits.
 -- What works is mirroring the generated proof's own primitive. The gen file does
--- `rw [EVMKeccak256']`, and that lemma says the call IS a pair, so write:
+-- \`rw [EVMKeccak256']\`, and that lemma says the call IS a pair, so write:
 --
 --     multifill ["<var>"] (primCall b .Keccak256 [0, 64]).2 (primCall b .Keccak256 [0, 64]).1 = s₉
 --
--- with `b` the state after the two scratch mstores, and close with a bare `exact hc` -- do NOT
--- `rw [EVMKeccak256']` yourself, the unfolded goal has the match already expanded. Verified on
+-- with \`b\` the state after the two scratch mstores, and close with a bare \`exact hc\` -- do NOT
+-- \`rw [EVMKeccak256']\` yourself, the unfolded goal has the match already expanded. Verified on
 -- for_5976315420052011104. GENERAL RULE: when the error message is ambiguous, mirror the
 -- PRIMITIVE the generated proof rewrites with, not the term the pretty-printer shows.
 --
 -- ...and note the knock-on for that loop'"'"'s ABreak: the frame lemmas
--- (isOutOfFuel_setEvm'"'"'/multifill'"'"') do NOT fire through `(primCall b .Keccak256 [0,64]).1`,
+-- (isOutOfFuel_setEvm'"'"'/multifill'"'"') do NOT fire through \`(primCall b .Keccak256 [0,64]).1\`,
 -- because that projection is a match, not a syntactic setEvm. Case on
--- `b.evm.keccak256 0 64` FIRST (some/none), after which each branch is a setEvm and the
+-- \`b.evm.keccak256 0 64\` FIRST (some/none), after which each branch is a setEvm and the
 -- frame lemmas apply. Everything else that loop needs is closed: both its guards carry
 -- isOk/not_break, and its ABody goes through.
 --
 -- Three ABreak assemblies attempted for it; none landed. What did NOT work: casing on keccak
 -- inline before the frame rewrites (h2 keeps the un-cased form, so the sides stop matching);
--- and a `private lemma` pair for the projection (right idea, but the not-out-of-fuel
+-- and a \`private lemma\` pair for the projection (right idea, but the not-out-of-fuel
 -- direction needs the case on the SAME scrutinee the goal mentions, which the helper hides).
 -- The shape that should work is that pair stated with X UNIVERSALLY QUANTIFIED --
 --     keccak_proj_isOk : isOk X -> isOk (primCall X .Keccak256 [0,64]).1
 --     keccak_proj_nf   : out-of-fuel (primCall X .Keccak256 [0,64]).1 -> out-of-fuel X
--- proved by `rcases hk : X.evm.keccak256 0 64 <;> simp [EVMKeccak256\', hk, ...]`, then used
+-- proved by \`rcases hk : X.evm.keccak256 0 64 <;> simp [EVMKeccak256\', hk, ...]\`, then used
 -- with NO further casing in ABreak. Do the not-out-of-fuel direction first and in isolation:
 -- chaining it through the break/out-of-fuel exclusion is what failed each time.
 --
