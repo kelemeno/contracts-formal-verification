@@ -2226,3 +2226,31 @@ Still open on this track: the correspondence between these specs and the abstrac
 `IMTAbstract` vocabulary is prose, not a theorem — the two describe the same computation in
 different terms.  `fun_publishRoot` is unreachable because it uses `mcopy`, which the VC
 generator does not model.
+
+## Part G — The concrete foundations are alias-free (2026-08-13)
+
+Every concrete definition the AttackVectors corpus names now has an import closure containing no
+alias, checked with `scripts/chain-check.sh`:
+
+| foundation | contract | beneath it |
+| --- | --- | --- |
+| `imt_fidelity`, `imt_weld`, `imt_replay` | L2InteropCommitmentTree | self-contained models |
+| `imt_path` (`foldRoot`) | AtomicFlowManager | 8 |
+| `imt_leafhash` (`hashLeafOut`) | AtomicFlowManager | 12 |
+| `exclusivity` (`CommittedLeafAt`) | AtomicFlowManager | self-contained |
+| `no_theft_refund` | AtomicFlowManager | 7 |
+| `no_replay` | L1Nullifier | 7 |
+| `fun_registerNewZKChain` | L1Bridgehub | 5 |
+
+**What this does and does not say.**  An alias (`A_x := x_concrete_of_code.1`) is the concrete
+spec, so composing through one was never unsound — it simply said nothing about that step.  What
+changed is that those steps now have readable content: the guards name their errors, the storage
+reads state their masks, the slot derivations state their layout.  It is a documentation-strength
+result, not a soundness one, and `#print axioms` (200 clean of 210) is unchanged by it.
+
+Named errors recovered from bare selectors along the way: `ManagerBundleHashesNotSorted()`,
+`MerkleWrongIndex(uint256,uint256)`, `WithdrawalAlreadyFinalized()`, `ManagerLegNotRevertable(bytes32,bytes32,uint8)`,
+`ZKChainLimitReached()`.
+
+One documented weak point: `switch_8539157929318587848` (EnumerableSet.add) states its default
+branch existentially — control flow and return value, not the destination of the write.
