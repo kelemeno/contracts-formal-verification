@@ -48,7 +48,7 @@ rm -f /tmp/port_diff_$$.txt
 
 cp "$dst" "/tmp/port_backup_$$.lean"
 python3 - "$src" "$dst" "$NAME" "$FROM" "$TO" <<'PY'
-import sys
+import sys, re
 src, dst, name, frm, to = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 a, b = open(src).read(), open(dst).read()
 i = a.index('def A_' + name)
@@ -66,8 +66,16 @@ d = b.index('\nend\n\nend ')
 k2 = b.rfind('/--', 0, c)
 if k2 != -1 and b[k2:c].count('-/') == 1:
     c = k2
-# keep the target's own imports; StateOk may be needed by the ported proofs
-if 'import specs.StateOk' not in b and 'StateOk' in sec:
+# keep the target's own imports; StateOk may be needed by the ported proofs.  Detect it
+# by the LEMMA NAMES it defines, not by the literal string "StateOk" -- a ported proof
+# that uses Clear.isOk_reviveJump_of_not_isOutOfFuel never mentions the module.
+try:
+    _stateok = open('specs/StateOk.lean').read()
+    _names = re.findall(r'^lemma\s+([A-Za-z_][A-Za-z0-9_\']*)', _stateok, re.M)
+except OSError:
+    _names = []
+_needs = any(nm in sec for nm in _names)
+if 'import specs.StateOk' not in b and (_needs or 'StateOk' in sec):
     b = b.replace('import Clear.ReasoningPrinciple',
                   'import Clear.ReasoningPrinciple\nimport specs.StateOk', 1)
     c = b.index('def A_' + name)
