@@ -50,21 +50,31 @@ elif mode == "--todo":
         seen.add(n)
         for d in deps.get(n, ()): closure(d, seen)
         return seen
-    def unclosed(n):
-        for f in glob.glob(f'specs/**/{n}_user.lean', recursive=True):
+    def unclosed(n, ctr):
+        # An alias is the DEF being the concrete spec. A CLOSED spec still mentions
+        # `<n>_concrete_of_code.1` -- in its abs_of_concrete lemma STATEMENT -- so grepping the
+        # whole file reports every closed spec as an alias. Look at the def's own body only.
+        # scope to the loop's OWN contract: the same helper name exists in several, and a
+        # copy left open elsewhere says nothing about this loop.
+        for f in glob.glob(f'specs/{ctr}/**/{n}_user.lean', recursive=True):
             t = open(f).read()
-            if '_concrete_of_code.1' in t or 'sorry' in t or re.search(r':= True\s*$', t, re.M):
-                return True
+            if 'sorry' in t: return True
+            m = re.search(r'^def A_?' + re.escape(n) + r'\b(.*?)(?=^\s*(?:lemma|theorem|def|/--|end)\b)',
+                          t, re.S | re.M)
+            body = m.group(1) if m else ''
+            if re.search(r':=\s*' + re.escape(n) + r'_concrete_of_code\.1', body): return True
+            if re.search(r':=\s*True\s*$', body, re.M): return True
         return False
     contract = {os.path.basename(g)[:-len('_gen.lean')]: g.split('/')[1] for g in gen}
     rows = []
     for l in free:
-        todo = sorted(d for d in (closure(l) - {l}) if unclosed(d))
+        c = contract.get(l, '')
+        todo = sorted(d for d in (closure(l) - {l}) if unclosed(d, c))
         rows.append((len(todo), l, contract.get(l, '?'), todo[:3]))
     rows.sort()
     print("\nWORKABLE, by dependencies still needing closure:\n")
     for n, l, c, ex in rows:
         print(f"  {n:3}  {l}  ({c})  {ex}")
-    print("\nNOTE: the count is an UPPER bound -- `unclosed` flags a name if ANY contract's copy")
-    print("is still open, and several of these are already closed in the contract that matters.")
+    print("\nCounts are scoped to each loop's OWN contract, and read the def body only --")
+    print("a CLOSED spec still names <n>_concrete_of_code.1 in its abs_of_concrete statement.")
 PY
