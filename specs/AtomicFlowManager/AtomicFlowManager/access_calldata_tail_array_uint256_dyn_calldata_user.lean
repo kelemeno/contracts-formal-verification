@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_6743186873342481897
 import generated.AtomicFlowManager.AtomicFlowManager.Common.block_5731116343986243113
@@ -75,6 +76,33 @@ lemma access_calldata_tail_array_uint256_dyn_calldata_abs_of_concrete {s₀ s₉
   intro _hne hc
   obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := hc
   exact ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq.symm⟩
+
+/-- **Output is `Ok`.**  Needs only `¬ ❓ s₉` — NOT `isOk s₀`.  The function ends by
+reviving the callee state and restoring the caller's store, and a revived state is
+`Ok` unless it was out of fuel, which `¬ ❓ s₉` already excludes.  So the five nested
+block/guard `Spec`s never have to be walked: whatever they did, the return shape
+decides this. -/
+lemma access_calldata_tail_array_uint256_dyn_calldata_isOk
+    {addr length : Identifier} {base_ref ptr_to_tail : Literal} {s₀ s₉ : State} (hnf : ¬ ❓ s₉)
+    (h : A_access_calldata_tail_array_uint256_dyn_calldata addr length base_ref ptr_to_tail s₀ s₉) :
+    isOk s₉ := by
+  obtain ⟨s₁, _, s₂, _, s₃, _, s₄, _, s₅, _, heq⟩ := h
+  subst heq
+  have h5 : ¬ ❓ s₅ := by
+    intro hoo
+    apply hnf
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  apply isOk_insert.mpr
+  apply isOk_insert.mpr
+  apply isOk_setStore_of_isOk
+  exact Clear.isOk_reviveJump_of_not_isOutOfFuel h5
+
+lemma access_calldata_tail_array_uint256_dyn_calldata_not_break
+    {addr length : Identifier} {base_ref ptr_to_tail : Literal} {s₀ s₉ : State} (hnf : ¬ ❓ s₉)
+    (h : A_access_calldata_tail_array_uint256_dyn_calldata addr length base_ref ptr_to_tail s₀ s₉) :
+    ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (access_calldata_tail_array_uint256_dyn_calldata_isOk hnf h)
 
 end
 

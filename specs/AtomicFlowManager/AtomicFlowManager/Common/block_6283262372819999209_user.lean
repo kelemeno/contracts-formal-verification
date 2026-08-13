@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.AtomicFlowManager.AtomicFlowManager.access_calldata_tail_array_bytes32_dyn_calldata
 import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_bytes32_dyn_calldata
@@ -54,6 +55,31 @@ lemma block_6283262372819999209_abs_of_concrete {s₀ s₉ : State} :
   intro _hne hc
   obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := hc
   exact ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq.symm⟩
+
+/-- **Output is `Ok`.**  Walks the three-call chain.  No case split on the
+intermediates is needed: an out-of-fuel intermediate would force `❓ s₉` through the
+remaining `Spec`s, which `hnf` excludes, and a `Checkpoint` intermediate cannot
+arise because each producer is a function call whose result is `🧟`-shaped. -/
+lemma block_6283262372819999209_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_6283262372819999209 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
+  subst heq
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃
+      (by simpa [loadValBytes32, isOutOfFuel_insert'] using hoo))
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ :=
+    access_calldata_tail_array_bytes32_dyn_calldata_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ :=
+    calldata_array_index_access_bytes32_dyn_calldata_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+  have hload : isOk (loadValBytes32 s₂) := by
+    simpa [loadValBytes32, isOk_insert] using hs2
+  exact access_calldata_tail_array_bytes32_dyn_calldata_isOk hnf (Spec_ok_unfold hload hnf h₃)
+
+lemma block_6283262372819999209_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_6283262372819999209 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (block_6283262372819999209_isOk hok hnf h)
 
 end
 

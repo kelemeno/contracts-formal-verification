@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.AtomicFlowManager.AtomicFlowManager.checked_sub_uint256
 import generated.AtomicFlowManager.AtomicFlowManager.calldata_array_index_access_bytes32_dyn_calldata
@@ -66,6 +67,26 @@ lemma block_4720374723594237178_flag_ne_zero_iff {s₀ s₉ : State} (hok : isOk
   by_cases hlt : (loadPrevBytes32 s₁)["value_1"]!! < (loadPrevBytes32 s₁)["value"]!!
   · simp [hlt]
   · simp [hlt]
+
+/-- **Output is `Ok`.**  Same walk as block_6283262372819999209, one call shorter,
+ending in inserts rather than a call. -/
+lemma block_4720374723594237178_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_4720374723594237178 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  subst heq
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    apply hnf
+    simpa [loadPrevBytes32, isOutOfFuel_insert'] using hoo
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ := checked_sub_uint256_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ :=
+    calldata_array_index_access_bytes32_dyn_calldata_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+  simpa [loadPrevBytes32, isOk_insert] using hs2
+
+lemma block_4720374723594237178_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_4720374723594237178 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (block_4720374723594237178_isOk hok hnf h)
 
 end
 
