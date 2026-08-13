@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakPrimOps
+import specs.KeccakDeterminism
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
@@ -10,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The hash step**: `var_currentHash := fun_efficientHash(split_expr_8, var_currentHash)`.
 
@@ -39,6 +41,22 @@ lemma block_1432253982873054235_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf 
 lemma block_1432253982873054235_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_block_1432253982873054235 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_1432253982873054235_isOk hok hnf h)
+
+/-- **The odd-index fold step, in the abstract vocabulary.**
+
+After this block the running hash is `(accOut evm sibling current).1` -- the sibling FIRST,
+current second, which is `foldRoot`'s odd-index case:
+
+    out := if idx &&& 1 = 0 then accOut σ cur sib else accOut σ sib cur
+
+So this block and that branch of `foldRoot` compute the same term. -/
+lemma block_1432253982873054235_val {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (hnf : ¬ ❓ s₉) (h : A_block_1432253982873054235 s₀ s₉) :
+    s₉["var_currentHash"]!! =
+      (accOut s₀.evm (s₀["split_expr_8"]!!) (s₀["var_currentHash"]!!)).1 := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  exact fun_efficientHash_val hok hok9 (Spec_ok_unfold hok (by rw [heq] at hnf; exact hnf) hs)
 
 end
 
