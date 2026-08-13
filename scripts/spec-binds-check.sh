@@ -37,7 +37,10 @@ s = open(p).read()
 # function/block/if/switch specs are `def A_<name>`; LOOP specs are `def AFor_<name>` -- weaken
 # the loop's POSTCONDITION, since every closure lemma is stated in terms of it.
 for pat in (r'^def A_?' + re.escape(n) + r'\b', r'^def AFor_' + re.escape(n) + r'\b'):
-    m = re.search(r'(' + pat + r'[^\n]*?:=[ \n])(.*?)(?=\n\s*\n|\nlemma|\ntheorem|\nend)', s, re.S | re.M)
+    # `.*?` (not `[^\n]*?`) because a def's binders may sit on their own lines, so the
+    # `:=` is not necessarily on the `def` line.  With `[^\n]` those specs SKIPped --
+    # loudly, but a skip nobody reads is an unverified spec.
+    m = re.search(r'(' + pat + r'.*?:=[ \n])(.*?)(?=\n\s*\n|\nlemma|\ntheorem|\nend)', s, re.S | re.M)
     if m:
         open(p, 'w').write(s[:m.start(2)] + '(' + m.group(2) + ') ∧ False' + s[m.end(2):])
         sys.exit(0)
