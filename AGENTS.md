@@ -282,6 +282,20 @@ work), one found too much (making a cheap target look expensive). So: a count is
 until its definition has been checked against a case whose answer you already know, and any
 question whose answer would stop you looking should be scripted.
 
+### `LOG` is modelled as a no-op
+
+`Log0`–`Log4` ARE primops, but they return the state unchanged
+(`| .Log3, [a,b,c,d,e] => (s, [])`), so an emitted event leaves no trace in the model. A
+compiled block ending in `log3(...)` produces a spec that does not mention it at all --
+first seen in `for_2008641262155462271`, whose Yul emits an event after the LegState write
+and whose generated body spec stops at the write.
+
+Unlike `mcopy` this is FAITHFUL for state reasoning: LOG genuinely cannot change EVM state,
+so nothing proved about storage or memory is weakened by it. What it means is narrower and
+worth stating: **no property about emitted events is provable in this corpus**, and two
+executions differing only in their events are indistinguishable here. Any claim of the form
+"the contract announces X when it does Y" is out of scope, not merely unproven.
+
 ## Source-Level Checks: proving what the comments assert
 
 The most productive vein in `specs/AttackVectors/` is not new abstract machinery. It is reading the

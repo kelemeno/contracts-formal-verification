@@ -59,6 +59,34 @@ lemma lookup_setEvm {s : State} {e : EVM} {v : Ast.Identifier} (h : isOk s) :
   · exact absurd h (by simp [isOk])
   · exact absurd h (by simp [isOk])
 
+/-- `Spec` propagates a `Checkpoint` FORWARD unchanged: its `Checkpoint c` branch is
+literally `s₁.isJump c`.
+
+This is the counterpart of `isOutOfFuel_of_Spec_of_isOutOfFuel` for the OTHER
+non-`Ok` constructor, and it is what a loop body containing `continue` needs: once
+the skip guard yields a `Continue` checkpoint, every later step in the body carries
+that same checkpoint through, so the body's output is still a `Continue`. -/
+lemma isJump_of_Spec_of_isJump {P : State → State → Prop} {a b : State} {c : Jump}
+    (h : Spec P a b) (ha : isJump c a) : isJump c b := by
+  rcases a with ⟨evm, store⟩ | _ | c'
+  · exact absurd ha (by simp [State.isJump])
+  · exact absurd ha (by simp [State.isJump])
+  · simp only [State.isJump] at ha
+    subst ha
+    exact h
+
+/-- A state carrying a `Continue` jump is not a `Break`.  Together with the lemma
+above this is how `ABreak` closes for a body whose skip path continues rather than
+reverting: the output is either `Ok` (no skip) or a `Continue` checkpoint (skip),
+and neither is a `Break`. -/
+lemma not_isBreak_of_isJump_Continue {s : State} {evm : EVM} {store : VarStore}
+    (h : isJump (.Continue evm store) s) : ¬ isBreak s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · simp [State.isBreak]
+  · simp [State.isBreak]
+  · rcases c with ⟨e, st⟩ | ⟨e, st⟩ | ⟨e, st⟩ <;>
+      simp only [State.isJump] at h <;> simp [State.isBreak]
+
 end
 
 end Clear
