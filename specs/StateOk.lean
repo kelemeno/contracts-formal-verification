@@ -148,6 +148,43 @@ lemma evm_setEvm_of_isOk {t : State} {e : EVM} (h : isOk t) : (t🇪⟦e⟧).evm
   · exact absurd h (by simp [isOk])
   · exact absurd h (by simp [isOk])
 
+/-- **Looking up a parameter right after `initcall`.**  `initcall` is
+`setStore default` then `multifill`, and `multifill` inserts the parameters in order --
+so the LAST parameter ends up outermost.  These two cover the shapes that occur: a
+one-parameter call, and the two-parameter case for each position.
+
+Clear has no such lemma, and without one the value of a function's own argument cannot be
+recovered inside its spec -- which is what blocks stating an accessor's result in terms of
+its inputs. -/
+lemma lookup_initcall_one {s : State} {v : Ast.Identifier} {x : UInt256} (h : isOk s) :
+    (s☎️⟦[v],[x]⟧)[v]!! = x := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    rw [lookup_insert' (isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+/-- Second of two parameters.  `multifill` inserts the FIRST parameter LAST
+(`multifill (v::vs) (a::as) s = (multifill vs as s)⟦v ↦ a⟧`), so the second is one insert
+down and the lookup has to skip the first -- hence the `≠`. -/
+lemma lookup_initcall_snd {s : State} {u v : Ast.Identifier} {x y : UInt256} (h : isOk s)
+    (hne : v ≠ u) : (s☎️⟦[u, v],[x, y]⟧)[v]!! = y := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    rw [lookup_insert_of_ne hne,
+      lookup_insert' (isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+/-- First of two parameters: inserted LAST, so outermost, so a direct `lookup_insert'`. -/
+lemma lookup_initcall_fst {s : State} {u v : Ast.Identifier} {x y : UInt256} (h : isOk s) :
+    (s☎️⟦[u, v],[x, y]⟧)[u]!! = x := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    rw [lookup_insert' (by simp only [isOk_insert]; exact isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
 end
 
 end Clear
