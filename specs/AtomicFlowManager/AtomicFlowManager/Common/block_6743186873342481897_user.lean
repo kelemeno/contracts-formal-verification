@@ -61,6 +61,15 @@ lemma block_6743186873342481897_bound_val {s₀ s₉ : State} (hok : isOk s₀)
     lookup_insert_of_ne (by decide : ("base_ref" : Identifier) ≠ "split_expr_0"),
     lookup_insert_of_ne (by decide : ("base_ref" : Identifier) ≠ "rel_offset_of_tail")]
 
+/-- Pure inserts on `s₀`, so `isOk` passes straight through. -/
+lemma block_6743186873342481897_isOk {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_block_6743186873342481897 s₀ s₉) : isOk s₉ := by
+  rw [h]; simp only [isOk_insert]; exact hok
+
+lemma block_6743186873342481897_not_break {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_block_6743186873342481897 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (block_6743186873342481897_isOk hok h)
+
 end
 
 end AtomicFlowManager.Common

@@ -72,6 +72,36 @@ lemma checked_sub_underflow_iff (a : UInt256) :
     rw [key, Nat.add_mod_right, Nat.mod_eq_of_lt (by omega)]
     omega
 
+/-- **Output is `Ok`.**  Same chain as the index accessor: the guard's output is `Ok`
+(a revert is an `Ok` state carrying the flag), and `revive`/`setStore`/`insert`
+preserve that.  `¬ ❓ s₉` is required and propagates BACKWARDS to the guard's output
+through those three constructors -- `Spec` is vacuous on out-of-fuel, so without it
+the guard could hand back `OutOfFuel`. -/
+lemma checked_sub_uint256_isOk {diff : Identifier} {x : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_checked_sub_uint256 diff x s₀ s₉) : isOk s₉ := by
+  obtain ⟨ss, hif, heq⟩ := h
+  subst heq
+  have hss_nf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  have hssok : isOk ss :=
+    AtomicFlowManager.Common.if_1169358955168516216_isOk
+      (by simp [isOk_insert]; exact isOk_initcall_of_isOk hok) hss_nf
+      (Spec_ok_unfold (P := AtomicFlowManager.Common.A_if_1169358955168516216)
+        (by simp [isOk_insert]; exact isOk_initcall_of_isOk hok) hss_nf hif)
+  apply isOk_insert.mpr
+  apply isOk_setStore_of_isOk
+  rw [revive_of_ok hssok]
+  exact hssok
+
+lemma checked_sub_uint256_not_break {diff : Identifier} {x : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_checked_sub_uint256 diff x s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (checked_sub_uint256_isOk hok hnf h)
+
 end
 
 end generated.AtomicFlowManager.AtomicFlowManager
