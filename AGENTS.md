@@ -402,9 +402,15 @@ abstract results stand on their own — they are stated over abstract batch hist
 sets, not over these functions — but the CONCRETE side of that protocol is unreachable until
 this is fixed.
 
-The fix is upstream, like `mcopy`: either the generator should stop emitting
-`EVMCleanup_bool'`, or Clear should provide it. Worth checking whether a newer Clear has it
-before attempting anything downstream.
+Checked how long-standing it is: `EVMCleanup_bool'` appears in NO local Clear copy — not the
+pinned dep (`8ab513e`, zero occurrences of even the string `Cleanup`), and not the stale root
+`Clear/` tree. It DOES appear in that stale tree's own `Clear/Generated/` output, so the
+generator has been emitting a lemma name Clear never provided, across at least two generations
+of output. This is a standing generator/library mismatch, not a recent regression.
+
+The fix is upstream, like `mcopy`: either the generator stops emitting `EVMCleanup_bool'`, or
+Clear provides it. Do not attempt anything downstream first — the 8 files are all `if_*` blocks
+whose specs would be unremarkable if they compiled.
 
 ### `mcopy` is NOT MODELLED — a hole in the trusted base, not a missing proof
 
