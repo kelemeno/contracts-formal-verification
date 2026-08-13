@@ -10,6 +10,16 @@
 # the one dependency that mattered. A truncated search that finds nothing looks exactly like a
 # clean one, so this walks the whole closure.
 #
+# ANOMALY TO INVESTIGATE (2026-08-13): AtomicFlowManager's switch_7706602271607130061 -- the
+# Merkle path-order selection, and the LAST dependency of for_456069591477598358 -- appears to
+# admit `A := (s₉ = s₀)`. That spec builds, and a deliberately false spec (`s₉ = s₀ ∧ False`)
+# does NOT, so the probe is really checking. Yet the generated concrete_of_code visibly steps
+# through both switch branches and cites the accessor's abs_of_code, so a no-op model would be
+# surprising. Either the switch's emitted C is weaker than it looks, or the probe's
+# `apply spec_eq; exact hc.symm` shape is matching something other than intended. Resolve
+# before writing a real spec for it -- do NOT take the trivial one, and do not assume the
+# generator is wrong without reading the emitted C to the end.
+#
 # Usage: scripts/loop-mcopy-reach.sh [--list|--todo]
 #   --todo ranks the workable loops by how many dependencies still need closing.
 set -uo pipefail
