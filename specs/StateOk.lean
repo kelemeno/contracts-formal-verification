@@ -49,6 +49,16 @@ lemma isOutOfFuel_of_Spec_of_isOutOfFuel {P : State → State → Prop} {a b : S
   · exact h
   · exact absurd ha (by simp [State.isOutOfFuel])
 
+/-- A variable lookup ignores `setEvm`: the varstore is untouched.  Clear has no
+such lemma, and without it a lookup sitting under the `mstore`s that a keccak
+accessor emits cannot be reduced. -/
+lemma lookup_setEvm {s : State} {e : EVM} {v : Ast.Identifier} (h : isOk s) :
+    (s🇪⟦e⟧)[v]!! = s[v]!! := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · rfl
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
 end
 
 end Clear
