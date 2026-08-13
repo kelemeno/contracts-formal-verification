@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_6359192996994294239
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_uncheckedInc
@@ -21,13 +22,37 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
-def A_if_2518866309321428816 (s₀ s₉ : State) : Prop := if_2518866309321428816_concrete_of_code.1 s₀ s₉
+/-- **The grow-a-level branch**: `if eq(_1, split_expr_1) { … }`.
+
+Taken when the leaf count `_1` has reached the tree's capacity `split_expr_1 = 1 << levels`
+-- i.e. the tree is exactly full -- and it runs the three growth blocks in order: bump the
+level count and read the old top default, hash that default with itself and append it to
+the defaults array, then give the new level a one-node array holding the same value.
+
+Note the condition is EQUALITY, not `≥`: the check happens on every insertion, so the
+count can only ever arrive at capacity exactly. -/
+def A_if_2518866309321428816 (s₀ s₉ : State) : Prop :=
+  ∃ s₁, Spec A_block_6359192996994294239 s₀ s₁ ∧
+    ∃ s₂, Spec A_block_3221258955042269759 s₁ s₂ ∧
+      ∃ s₃, Spec A_block_5267003775473151689 s₂ s₃ ∧
+        ((s₀["_1"]!! = s₀["split_expr_1"]!! → s₉ = s₃) ∧
+         (s₀["_1"]!! ≠ s₀["split_expr_1"]!! → s₉ = s₀))
 
 lemma if_2518866309321428816_abs_of_concrete {s₀ s₉ : State} :
   Spec if_2518866309321428816_concrete_of_code s₀ s₉ →
   Spec A_if_2518866309321428816 s₀ s₉ := by
-  intro h
-  simpa [A_if_2518866309321428816] using h
+  unfold if_2518866309321428816_concrete_of_code A_if_2518866309321428816
+  rcases s₀ with ⟨evm, store⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro _hne hc
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := hc
+  refine ⟨s₁, h₁, s₂, h₂, s₃, h₃, ?_, ?_⟩
+  · intro hg
+    rw [if_pos hg] at heq
+    exact heq.symm
+  · intro hg
+    rw [if_neg hg] at heq
+    exact heq.symm
 
 end
 
