@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakPrimOps
+import specs.KeccakDeterminism
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2600721580863995212
@@ -11,7 +13,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **Address of element `index` of a dynamic storage array.**
 
@@ -69,6 +71,32 @@ lemma storage_array_index_access_bytes32_dyn_ptr_isOk {slot offset : Identifier}
 lemma storage_array_index_access_bytes32_dyn_ptr_not_break {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
     (hnf : ¬ ❓ s₉) (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (storage_array_index_access_bytes32_dyn_ptr_isOk hnf h)
+
+/-- **`initcall` preserves the evm** for this call's parameter list. -/
+lemma initcall_evm_ai {s : State} {a i : Literal} (h : isOk s) :
+    (s☎️⟦["array", "index"],[a, i]⟧).evm = s.evm := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil, evm_insert, evm_setStore]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+/-- **The bounds flag, in the caller's terms.**
+
+`split_expr_1` is `lt(index, sload(array))` computed on the initcall'd state; recovering
+the parameters turns it into the caller's own comparison.  This is the step that lets a
+caller of the accessor know WHICH comparison decides the panic. -/
+lemma index_flag_val {s₀ : State} {array index : Literal} (hok : isOk s₀) :
+    (((s₀☎️⟦["array", "index"],[array, index]⟧)⟦"split_expr_0" ↦
+        Clear.EVMState.sload (s₀☎️⟦["array", "index"],[array, index]⟧).evm
+          ((s₀☎️⟦["array", "index"],[array, index]⟧)["array"]!!)⟧)["index"]!!)
+      < (((s₀☎️⟦["array", "index"],[array, index]⟧)⟦"split_expr_0" ↦
+        Clear.EVMState.sload (s₀☎️⟦["array", "index"],[array, index]⟧).evm
+          ((s₀☎️⟦["array", "index"],[array, index]⟧)["array"]!!)⟧)["split_expr_0"]!!)
+    ↔ index < Clear.EVMState.sload s₀.evm array := by
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  rw [lookup_insert_of_ne (by decide), lookup_insert' hf,
+    Clear.lookup_initcall_snd hok (by decide), Clear.lookup_initcall_fst hok,
+    initcall_evm_ai hok]
 
 end
 
