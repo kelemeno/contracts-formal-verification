@@ -84,5 +84,9 @@ if [ "$found" -eq 0 ]; then
   # A miss is informative: the error may live in a dependency, or the selector may
   # not be an error at all (solc uses the same shape for some function selectors).
   echo "no match -- selector is not a custom error declared under $CONTRACTS_DIR"
+  echo "  (Solidity BUILT-INS are not declared with \`error\` and will never match:"
+  echo "   Panic(uint256) = 0x4e487b71, Error(string) = 0x08c379a0.  A Panic payload"
+  echo "   carries a code in the next word -- 0x21/33 is invalid-enum, 0x11/17 is"
+  echo "   arithmetic overflow, 0x32/50 is array-out-of-bounds.)"
   exit 1
 fi
