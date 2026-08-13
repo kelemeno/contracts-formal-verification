@@ -10,13 +10,37 @@ section
 
 open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
-def A_if_8218475617004033221 (s₀ s₉ : State) : Prop := if_8218475617004033221_concrete_of_code.1 s₀ s₉
+/-- **Break when the two node counts meet**:
+`if eq(var_oldMaxNodeNumber, var_maxNodeNumber) { break }`.
+
+The loop's other exit.  Since `block_294889826768454570` halves BOTH counts each
+iteration, they meet exactly when the old tree's levels are exhausted — so this is
+the "nothing left to copy" exit, as distinct from the "no more levels" one above. -/
+def A_if_8218475617004033221 (s₀ s₉ : State) : Prop :=
+  (s₀["var_oldMaxNodeNumber"]!! = s₀["var_maxNodeNumber"]!! → s₉ = 💔s₀) ∧
+  (s₀["var_oldMaxNodeNumber"]!! ≠ s₀["var_maxNodeNumber"]!! → s₉ = s₀)
 
 lemma if_8218475617004033221_abs_of_concrete {s₀ s₉ : State} :
   Spec if_8218475617004033221_concrete_of_code s₀ s₉ →
   Spec A_if_8218475617004033221 s₀ s₉ := by
-  intro h
-  simpa [A_if_8218475617004033221] using h
+  unfold if_8218475617004033221_concrete_of_code A_if_8218475617004033221
+  rcases s₀ with ⟨evm, store⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro _hne hc
+  dsimp only at hc
+  constructor
+  · intro hg
+    rw [if_pos hg] at hc
+    exact hc.symm
+  · intro hg
+    rw [if_neg hg] at hc
+    exact hc.symm
+
+/-- On the non-breaking branch the state is untouched, so it is still `Ok`.  There is
+no unconditional `isOk` here -- the breaking branch is a `Break` checkpoint by design. -/
+lemma if_8218475617004033221_isOk_of_not_taken {s₀ s₉ : State} (hok : isOk s₀) (hg : s₀["var_oldMaxNodeNumber"]!! ≠ s₀["var_maxNodeNumber"]!!)
+    (h : A_if_8218475617004033221 s₀ s₉) : isOk s₉ := by
+  rw [h.2 hg]; exact hok
 
 end
 
