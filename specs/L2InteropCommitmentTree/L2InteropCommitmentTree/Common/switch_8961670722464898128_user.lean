@@ -59,6 +59,27 @@ lemma switch_8961670722464898128_abs_of_concrete {s₀ s₉ : State} :
     rw [← heq]
     simp [hodd]
 
+/-- Output is `Ok` on either parity.  The odd branch ends in the hash block, the even
+branch in `fun_efficientHash` -- both function returns. -/
+lemma switch_8961670722464898128_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_8961670722464898128 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heven, hodd⟩ := h
+  by_cases he : s₀["split_expr_5"]!! = 0
+  · rw [heven he] at hnf ⊢
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hexpr : isOk (s₀⟦"expr" ↦ 0⟧) := by simpa [isOk_insert] using hok
+    have hs3 : isOk s₃ :=
+      switch_2003501192971474853_isOk hexpr h3nf (Spec_ok_unfold hexpr h3nf h₃)
+    exact fun_efficientHash_isOk hs3 (Spec_ok_unfold hs3 hnf h₄)
+  · rw [hodd he] at hnf ⊢
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ := block_5648918763415424361_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    exact block_1432253982873054235_isOk hs1 hnf (Spec_ok_unfold hs1 hnf h₂)
+
+lemma switch_8961670722464898128_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_8961670722464898128 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (switch_8961670722464898128_isOk hok hnf h)
+
 end
 
 end L2InteropCommitmentTree.Common

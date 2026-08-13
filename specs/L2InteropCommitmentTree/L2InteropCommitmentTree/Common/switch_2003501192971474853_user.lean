@@ -72,6 +72,43 @@ lemma switch_2003501192971474853_uses_default {s₀ s₉ : State} (h : A_switch_
   obtain ⟨s₁, _, s₂, _, s₃, _, s₄, _, s₅, h₅, s₆, _, _, _⟩ := h
   exact ⟨s₅, h₅⟩
 
+/-- Output is `Ok` on either branch.  Each branch is an independent chain of function
+returns from `s₀`, so the `¬ ❓` walk is done separately per branch -- the untaken
+branch's states are never constrained. -/
+lemma switch_2003501192971474853_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_2003501192971474853 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, hedge, hne⟩ := h
+  by_cases he : s₀["var_maxNodeNumber"]!! = s₀["var_index"]!!
+  · rw [hedge he] at hnf ⊢
+    have h5nf : ¬ ❓ s₅ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₆
+        (by simpa [isOutOfFuel_insert'] using hoo))
+    have hs5 : isOk s₅ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h5nf (Spec_ok_unfold hok h5nf h₅)
+    have hld2 : isOk (s₅⟦"split_expr_11" ↦ Clear.EVMState.sload s₅.evm (s₅["_13"]!!)⟧) := by
+      simpa [isOk_insert] using hs5
+    exact extract_from_storage_value_dynamict_bytes32_isOk hnf (Spec_ok_unfold hld2 hnf h₆)
+  · rw [hne he] at hnf ⊢
+    have h3nf : ¬ ❓ s₃ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+        (by simpa [isOutOfFuel_insert'] using hoo))
+    have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+    have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+    have hs2 : isOk s₂ := checked_add_uint256_isOk h2nf (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hld : isOk (s₃⟦"split_expr_10" ↦ Clear.EVMState.sload s₃.evm (s₃["_11"]!!)⟧) := by
+      simpa [isOk_insert] using hs3
+    exact extract_from_storage_value_dynamict_bytes32_isOk hnf (Spec_ok_unfold hld hnf h₄)
+
+lemma switch_2003501192971474853_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_switch_2003501192971474853 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (switch_2003501192971474853_isOk hok hnf h)
+
 end
 
 end L2InteropCommitmentTree.Common
