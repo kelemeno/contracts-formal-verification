@@ -10,6 +10,15 @@
 # The test: append `∧ False` to the spec's definition. If the module still builds, the proof is
 # not binding to what the definition says, and the spec is worthless.
 #
+# Audited 2026-08-13: all 19 specs closed that day BIND, and a 10-spec sample spread across
+# the pre-existing corpus (324 non-alias, non-sorry specs) binds too -- 9 ok, 1 skipped for
+# using a hand-written naming convention rather than A_<name>. So ghost specs are NOT endemic;
+# the probe shape is the way they get created, and it was only ever used interactively.
+#
+# NOTE the checker only understands `def A_<name>` / `def A<name>`. Loop specs (ACond_/APost_/
+# ABody_/AFor_) are NOT covered -- extending it there is worthwhile, since a loop's AFor is
+# exactly the kind of thing that can drift into meaning nothing.
+#
 # Usage: scripts/spec-binds-check.sh <path-to-_user.lean> [...]
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
