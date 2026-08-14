@@ -335,6 +335,34 @@ lemma storage_array_index_access_bytes32_dyn_ptr_config
   have hCm : CachedInWindow (EVMState.mstore ss.evm 0 (ss["array"]!!)) := cachedInWindow_mstore hCss
   exact ⟨rangeInWindow_keccakOut hRm, cachedInWindow_keccakOut hRm hCm⟩
 
+
+/-- **THE ACCESSOR NEVER RETURNS A LOW SLOT.**
+
+`_val` says the slot is `keccak(array) + index`; `KeccakLowSlot` says a freshly minted
+keccak value plus a small offset is never a low slot.  Joining them is what turns "the
+fold writes SOME slot" into "the fold does not write slot `c`" -- and `c` is what a caller
+can name: the level count lives at a literal low slot.
+
+The side conditions are real and belong to the caller, not to this lemma:
+  * `hR`/`hC`  the keccak window, which the config frames carry to here;
+  * `hclean`   the hash step did not exhaust the pool (no collision flag);
+  * `hj`       the index is below `2 ^ 32` -- true of any real tree, not provable here;
+  * `hc`       the target slot is below `2 ^ 32`, which a literal slot number is. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_low
+    {slot offset : Identifier} {array index c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (hlt : index < Clear.EVMState.sload s₀.evm array)
+    (hR : RangeInWindow ((s₀.evm).mstore 0 array))
+    (hC : CachedInWindow ((s₀.evm).mstore 0 array))
+    (hclean : (keccakOut ((s₀.evm).mstore 0 array) 0 32).2.hash_collision = false)
+    (hj : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  rw [storage_array_index_access_bytes32_dyn_ptr_val hok hnf hso hlt h]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config index c hR hC
+    (Clear.KeccakDeterminism.keccakOut_some_of_clean hclean) hj hcl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
