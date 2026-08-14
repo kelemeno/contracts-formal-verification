@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
+import specs.KeccakDistinct
 import specs.KeccakLowSlot
 import specs.KeccakFresh
 import specs.KeccakSlotSep
@@ -186,5 +187,31 @@ theorem cacheInUsed_sstore {σ : EVMState} {p v : UInt256} (h : CacheInUsed σ) 
     simp only [hacc]
     intro I w hlk
     exact Finset.mem_union_right _ (h I w hlk)
+
+
+/-- **READING BACK WHAT YOU WROTE.**  The companion of
+`KeccakDistinct.sload_sstore_of_ne`: at the slot just written, `sload` returns the value.
+
+Two details of Clear's model this makes explicit.  It needs the `code_owner` ACCOUNT TO
+EXIST -- with no account `sstore` is a no-op and `sload` returns 0, so the lemma would be
+false.  And the account layer stores 0 by ERASING the key
+(`lookupStorage_updateStorage_self` returns `if v == 0 then 0 else v`), which happens to
+equal `v` in both cases, so the zero-erasure is invisible here -- but it is why this is not
+simply `rfl`.
+
+Needed by any "the length went up by one" result: `array.push` does `sstore(array,
+oldLen+1)` and the length is read back at that same slot. -/
+theorem sload_sstore_self {σ : EVMState} {p v : UInt256} {act : Account}
+    (hacc : σ.lookupAccount σ.execution_env.code_owner = some act) :
+    (σ.sstore p v).sload p = v := by
+  unfold EVMState.sstore EVMState.sload
+  simp only [hacc]
+  unfold EVMState.lookupAccount EVMState.updateAccount
+  simp only [Finmap.lookup_insert]
+  rw [Clear.KeccakDistinct.lookupStorage_updateStorage_self]
+  by_cases hv : v == 0
+  · simp only [hv, if_true]
+    exact (beq_iff_eq _ _).mp hv |>.symm
+  · simp only [hv, if_false]
 
 end Clear.StorageFrame
