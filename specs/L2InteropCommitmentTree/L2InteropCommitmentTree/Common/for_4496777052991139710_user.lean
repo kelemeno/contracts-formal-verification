@@ -35,7 +35,8 @@ def AFor_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
   (∀ q : UInt256, (q < s₀["start"]!! ∨ s₀["_1"]!! ≤ q) →
     Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
   ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
-    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm) ∧
+  (∀ v : Identifier, v ≠ "start" → s₉[v]!! = s₀[v]!!)
 
 /-- Loop body: zero one storage slot — `sstore(start, 0)`. -/
 def ABody_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
@@ -63,7 +64,7 @@ lemma for_4496777052991139710_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_4496777052991139710 (👌 s₀) = 0 → AFor_for_4496777052991139710 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_4496777052991139710 ACond_for_4496777052991139710 at *
-  refine ⟨?_, hok, ?_, fun h => h⟩
+  refine ⟨?_, hok, ?_, fun h => h, fun _ _ => rfl⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -90,14 +91,22 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         rw [h4]
         simp only [evm_insert]
         rw [hb, Clear.evm_setEvm_of_isOk (by simp [isOk])]
-      refine ⟨hAF.1, hAF.2.1, ?_, ?_⟩
-      swap
-      · -- the window: this iteration's write is an `sstore`, and the recursive call
-        -- carries the property the rest of the way
+      -- NAMED goals: an anonymous `case _` after a multi-goal `refine` takes the FIRST
+      -- one, not the one the block was written for, and the type error it produces points
+      -- somewhere else entirely
+      refine ⟨hAF.1, hAF.2.1, ?storage, ?config, ?vars⟩
+      case config =>
+        -- this iteration's write is an `sstore`, and the recursive call carries the
+        -- window the rest of the way
         rintro ⟨hR, hC⟩
-        refine hAF.2.2.2 ⟨?_, ?_⟩
+        refine hAF.2.2.2.1 ⟨?_, ?_⟩
         · rw [hev4]; exact Clear.StorageFrame.rangeInWindow_sstore hR
         · rw [hev4]; exact Clear.StorageFrame.cachedInWindow_sstore hC
+      case vars =>
+        -- the body is a pure `setEvm` and the post rebinds only the cursor
+        intro v hv
+        rw [hAF.2.2.2.2 v hv, h4, lookup_insert_of_ne hv, hb]
+        exact Clear.lookup_setEvm (by simp [isOk])
       intro q hq
       -- the body's `setEvm` leaves the varstore alone, so the cursor is the caller's
       have hstart2 : (Ok e2 st2 : State)["start"]!! = (Ok e0 st0 : State)["start"]!! := by
