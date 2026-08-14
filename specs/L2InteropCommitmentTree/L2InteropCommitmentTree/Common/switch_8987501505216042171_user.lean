@@ -109,6 +109,66 @@ lemma switch_8987501505216042171_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_switch_8987501505216042171 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (switch_8987501505216042171_isOk hok hnf h)
 
+
+/-- **FRAME.**  Both branches write only their own temporaries.
+
+Note the two chains start from `s₀` INDEPENDENTLY -- the zero-hash branch (`s₅`, array 3)
+does not run after the sibling branch -- so each case discharges through its own chain and
+neither needs the other's `isOk`. -/
+lemma switch_8987501505216042171_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["_9", "_10", "split_expr_9", "_11", "_12", "split_expr_10", "_13", "_14",
+      "split_expr_11", "expr"] : List Identifier))
+    (h : A_switch_8987501505216042171 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h9, h10, hadd, h11, h12, hld, h13, h14, hld2, hexpr⟩ := hv
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, hbrA, hbrB⟩ := h
+  by_cases hc : s₀["var_maxNodeNumber"]!! = s₀["var_index"]!!
+  · rw [hbrA hc] at hnf ⊢
+    have h5nf : ¬ ❓ s₅ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₆
+        (by simpa only [isOutOfFuel_insert'] using hoo))
+    have hs5 : isOk s₅ :=
+      storage_array_index_access_bytes32_dyn__dyn_isOk h5nf (Spec_ok_unfold hok h5nf h₅)
+    have hld2ok : isOk (s₅⟦"split_expr_11" ↦ Clear.EVMState.sload s₅.evm (s₅["_13"]!!)⟧) :=
+      isOk_insert.mpr hs5
+    have e6 : s₆[v]!! =
+        (s₅⟦"split_expr_11" ↦ Clear.EVMState.sload s₅.evm (s₅["_13"]!!)⟧)[v]!! :=
+      extract_from_storage_value_dynamict_bytes32_frame hld2ok hnf hexpr
+        (Spec_ok_unfold hld2ok hnf h₆)
+    have e5 : s₅[v]!! = s₀[v]!! :=
+      storage_array_index_access_bytes32_dyn__dyn_frame hok h5nf h13 h14
+        (Spec_ok_unfold hok h5nf h₅)
+    rw [e6, lookup_insert_of_ne hld2, e5]
+  · rw [hbrB hc] at hnf ⊢
+    have h3nf : ¬ ❓ s₃ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+        (by simpa only [isOutOfFuel_insert'] using hoo))
+    have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+    have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      storage_array_index_access_bytes32_dyn__dyn_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+    have hs2 : isOk s₂ := checked_add_uint256_isOk h2nf (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      storage_array_index_access_bytes32_dyn__dyn_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hldok : isOk (s₃⟦"split_expr_10" ↦ Clear.EVMState.sload s₃.evm (s₃["_11"]!!)⟧) :=
+      isOk_insert.mpr hs3
+    have e4 : s₄[v]!! =
+        (s₃⟦"split_expr_10" ↦ Clear.EVMState.sload s₃.evm (s₃["_11"]!!)⟧)[v]!! :=
+      extract_from_storage_value_dynamict_bytes32_frame hldok hnf hexpr
+        (Spec_ok_unfold hldok hnf h₄)
+    have e3 : s₃[v]!! = s₂[v]!! :=
+      storage_array_index_access_bytes32_dyn__dyn_frame hs2 h3nf h11 h12
+        (Spec_ok_unfold hs2 h3nf h₃)
+    have e2 : s₂[v]!! = s₁[v]!! :=
+      checked_add_uint256_frame hs1 h2nf hadd (Spec_ok_unfold hs1 h2nf h₂)
+    have e1 : s₁[v]!! = s₀[v]!! :=
+      storage_array_index_access_bytes32_dyn__dyn_frame hok h1nf h9 h10
+        (Spec_ok_unfold hok h1nf h₁)
+    rw [e4, lookup_insert_of_ne hld, e3, e2, e1]
+
 end
 
 end L2InteropCommitmentTree.Common

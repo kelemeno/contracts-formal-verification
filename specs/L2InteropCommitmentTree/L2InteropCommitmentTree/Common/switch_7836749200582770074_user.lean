@@ -80,6 +80,55 @@ lemma switch_7836749200582770074_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_switch_7836749200582770074 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (switch_7836749200582770074_isOk hok hnf h)
 
+
+/-- **FRAME.**  The parity switch folds one level into `var_currentHash` and touches
+nothing else -- in PARTICULAR not `var_index` or `var_i`, which is what lets a loop
+invariant mentioning them survive the fold step.
+
+Both branches are covered: even (`split_expr_5 = 0`) goes through the inner switch and
+the final hash, odd goes through the sibling load and its hash.  The output list is the
+union of the two. -/
+lemma switch_7836749200582770074_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["_5", "_6", "split_expr_6", "_7", "_8", "split_expr_7", "split_expr_8",
+      "var_currentHash", "_9", "_10", "split_expr_9", "_11", "_12", "split_expr_10",
+      "_13", "_14", "split_expr_11", "expr"] : List Identifier))
+    (h : A_switch_7836749200582770074 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h5, h6, hsub, h7, h8, hld, hout, hcur, h9, h10, hadd, h11, h12, hld10,
+    h13, h14, hld11, hexpr⟩ := hv
+  have hL5648 : v ∉ (["_5", "_6", "split_expr_6", "_7", "_8", "split_expr_7",
+      "split_expr_8"] : List Identifier) := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+    exact ⟨h5, h6, hsub, h7, h8, hld, hout⟩
+  have hL2003 : v ∉ (["_9", "_10", "split_expr_9", "_11", "_12", "split_expr_10", "_13",
+      "_14", "split_expr_11", "expr"] : List Identifier) := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+    exact ⟨h9, h10, hadd, h11, h12, hld10, h13, h14, hld11, hexpr⟩
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, hbrEven, hbrOdd⟩ := h
+  by_cases hc : s₀["split_expr_5"]!! = 0
+  · -- even: the inner switch from `s₀⟦expr ↦ 0⟧`, then the fold hash
+    rw [hbrEven hc] at hnf ⊢
+    have hins : isOk (s₀⟦"expr" ↦ 0⟧) := isOk_insert.mpr hok
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hs3 : isOk s₃ :=
+      switch_8987501505216042171_isOk hins h3nf (Spec_ok_unfold hins h3nf h₃)
+    have e4 : s₄[v]!! = s₃[v]!! :=
+      fun_efficientHash_frame hs3 hnf hcur (Spec_ok_unfold hs3 hnf h₄)
+    have e3 : s₃[v]!! = (s₀⟦"expr" ↦ 0⟧)[v]!! :=
+      switch_8987501505216042171_frame hins h3nf hL2003 (Spec_ok_unfold hins h3nf h₃)
+    rw [e4, e3, lookup_insert_of_ne hexpr]
+  · -- odd: the sibling load, then its hash
+    rw [hbrOdd hc] at hnf ⊢
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      block_3834594906904189566_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    have e2 : s₂[v]!! = s₁[v]!! :=
+      block_1432253982873054235_frame hs1 hnf hcur (Spec_ok_unfold hs1 hnf h₂)
+    have e1 : s₁[v]!! = s₀[v]!! :=
+      block_3834594906904189566_frame hok h1nf hL5648 (Spec_ok_unfold hok h1nf h₁)
+    rw [e2, e1]
+
 end
 
 end L2InteropCommitmentTree.Common
