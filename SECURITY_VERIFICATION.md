@@ -2478,3 +2478,41 @@ checked for SATISFIABILITY, not only for provability. Deriving `False` from its 
 is one `example` and would have caught this before it was committed. And a vacuity bug
 propagates to every consumer that restates the hypothesis — fixing the two loops left the
 wrapper still vacuous, and it was found only by grepping for the shape afterwards.
+
+
+### Part H addendum 6 — what actually blocks the levels-push length lemma (2026-08-14)
+
+The frame layer beneath the array-of-arrays push is complete: storage, account, config and
+variable frames for the index accessor, the offset guard, the zero-fill loop and its wrapper,
+the struct-copy loop and the data-slot helper — all axiom-clean, all in write-set form so a
+caller can discharge them. `arrArrPush_normal` peels the overflow guard. The remaining
+arithmetic, `keccak256_lt_add_of_config`, is proved: a low slot is strictly BELOW
+`keccak(P) + j`, which is what an interval-shaped frame needs.
+
+So the length lemma is not blocked by any of the things it looked blocked by. What blocks it
+is narrower and worth stating exactly, because it is a MODEL-level obligation rather than a
+missing proof:
+
+**The deeper layers hash at intermediate states.** The low-slot separations need
+`σ.keccak256 p n = some (r, σ')` — that the hash drew a fresh slot rather than hitting the
+collision fallback — at the state where each hash happens. Those states are existentially
+bound inside the specification chain, so the fact cannot be assumed by a caller who only
+knows `s₀`.
+
+The invariant that solves this already exists and was built for the fold:
+`specs/KeccakFuel.lean`'s `Fuel σ n` ("at least `n` unused pool entries remain, and the range
+is duplicate-free"). `Fuel.nonempty` is exactly the side condition that makes a hash succeed,
+and `Fuel.keccakOut` / `Fuel.mstore` / `Fuel.accOut` propagate it. A caller supplies
+`Fuel s₀.evm k` for the `k` hashes on the path.
+
+**What is missing is `Fuel.sstore`.** A storage write adds its slot to `used_range`, so the
+unused portion can shrink — by the occurrences of that slot in the range, which the `Nodup`
+half of `Fuel` caps at one. The levels push writes three times (the outer length, the inner
+length, the element) between its hashes, so `Fuel` cannot cross the path without it. This was
+attempted and reverted rather than left half-done; it is Mathlib list-arithmetic, not
+contract reasoning, and one detail makes it easy to get wrong: on the `none` branch of
+`sstore` — no account at `code_owner` — the write is the IDENTITY and `used_range` does not
+grow at all, so a bound that assumes growth is false there.
+
+Until that lands, the levels push has a complete and usable frame layer but no end-to-end
+length result, and `fun_pushNewLeaf` above it still states nothing a caller can use.
