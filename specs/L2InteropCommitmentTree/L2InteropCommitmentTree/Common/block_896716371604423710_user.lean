@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
 import specs.StorageFrame
@@ -69,6 +70,14 @@ lemma block_896716371604423710_config {s₀ s₉ : State} (hok : isOk s₀) (hnf
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact fun_efficientHash_config hok hR hC (Spec_ok_unfold hok hnf hs)
+
+/-- **FUEL FRAME.**  This block is one call to the deployed hash, so it costs one unit. -/
+lemma block_896716371604423710_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_block_896716371604423710 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact fun_efficientHash_fuel hok hf (Spec_ok_unfold hok hnf hs)
 
 end
 
