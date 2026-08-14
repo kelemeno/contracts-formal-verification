@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.FoldRightPeel
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2425414531525476249
@@ -25,7 +26,7 @@ set_option autoImplicit false
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 def ACond_for_2268004712116198193 (s₀ : State) : Literal := 1
 /-- The state the break guard sees: the level count loaded and compared. -/
@@ -398,6 +399,53 @@ lemma ABody_for_2268004712116198193_writes_one_slot {s₀ s₉ : State} (hok : i
       mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂), e1]
     unfold rootGuardState
     simp only [evm_insert]
+
+
+/-- **CONFIG FRAME.**  One iteration keeps the keccak window.
+
+With `ABody_..._writes_one_slot` this is both halves of what pinning the written slot
+needs: the slot equation comes from the accessor's `_val`, and `keccak256_add_ne_lowSlot_of_config`
+needs exactly `RangeInWindow`/`CachedInWindow` at the hashing state -- which a caller can
+now supply for its own `s₀` and have carried through. -/
+lemma ABody_for_2268004712116198193_config {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : ABody_for_2268004712116198193 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardState s₀) := by
+    unfold rootGuardState; simp only [isOk_insert]; exact hok
+  have hgce : (rootGuardState s₀).evm = s₀.evm := by
+    unfold rootGuardState; simp only [evm_insert]
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf : (rootGuardState s₀)["split_expr_4"]!! = 0
+  · exfalso
+    have e1 : s₁ = 💔(rootGuardState s₀) := hg.1 hf
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardState s₀ := hg.2 hf
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have h1e : s₁.evm = s₀.evm := by rw [e1]; exact hgce
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_8961670722464898128_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_5022472617119597648_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e2 : s₂.evm = s₁.evm := mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    obtain ⟨hR3, hC3⟩ := switch_8961670722464898128_config hs2 h3nf
+      (by rw [e2, h1e]; exact hR) (by rw [e2, h1e]; exact hC) (Spec_ok_unfold hs2 h3nf h₃)
+    obtain ⟨hR4, hC4⟩ := block_5022472617119597648_config hs3 h4nf hR3 hC3
+      (Spec_ok_unfold hs3 h4nf h₄)
+    exact block_2896862189596047701_config hs4 h5nf hR4 hC4 (Spec_ok_unfold hs4 h5nf h₅)
 
 end
 

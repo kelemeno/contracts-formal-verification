@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakLowSlot
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -11,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The increment's overflow guard**: `if gt(x, sum) { panic_error_0x11() }`.
 
@@ -64,6 +65,19 @@ lemma if_7624433659449274775_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
   · have hse : s₉ = s := hneg hc
     subst hse
     exact panic_error_0x11_sload hok (Spec_ok_unfold hok hnf hs)
+
+
+/-- **CONFIG FRAME.**  Guard passes (state unchanged) or panics (window untouched). -/
+lemma if_7624433659449274775_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_if_7624433659449274775 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["x"]!! ≤ s₀["sum"]!!
+  · rw [hpos hc]; exact ⟨hR, hC⟩
+  · have hse : s₉ = s := hneg hc
+    subst hse
+    exact panic_error_0x11_config hok hR hC (Spec_ok_unfold hok hnf hs)
 
 end
 

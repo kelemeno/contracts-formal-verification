@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1169358955168516216
@@ -12,7 +13,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- `checked_sub_uint256(x) = x - 1`, the compiler's checked decrement.
 
@@ -142,6 +143,36 @@ lemma checked_sub_uint256_sload {diff : Identifier} {x q : Literal} {s₀ s₉ :
       (Spec_ok_unfold hs2ok hssnf hif)]
   simp only [evm_insert]
   rw [Clear.evm_initcall hok]
+
+
+/-- **CONFIG FRAME.**  Guarded subtraction keeps the keccak window on both branches. -/
+lemma checked_sub_uint256_config {diff : Identifier} {x : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_checked_sub_uint256 diff x s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨ss, hif, heq⟩ := h
+  subst heq
+  have hs2ok : isOk ((s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)⟦"diff" ↦
+      (s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["x"]!! +
+      ((s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["split_expr_0"]!!)⟧) :=
+    isOk_insert.mpr (isOk_insert.mpr (isOk_initcall_of_isOk hok))
+  have hs2e : ((s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)⟦"diff" ↦
+      (s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["x"]!! +
+      ((s₀☎️⟦["x"],[x]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["split_expr_0"]!!)⟧).evm = s₀.evm := by
+    simp only [evm_insert]; exact Clear.evm_initcall hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_1169358955168516216_isOk hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hif)
+  have hcfg := L2InteropCommitmentTree.Common.if_1169358955168516216_config hs2ok hssnf
+    (by rw [hs2e]; exact hR) (by rw [hs2e]; exact hC) (Spec_ok_unfold hs2ok hssnf hif)
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hssok]
+  exact hcfg
 
 end
 

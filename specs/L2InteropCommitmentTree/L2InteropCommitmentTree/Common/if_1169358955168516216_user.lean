@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakLowSlot
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -11,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- The SUBTRACTION-UNDERFLOW guard, as a dichotomy:
 
@@ -73,6 +74,19 @@ lemma if_1169358955168516216_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
   · obtain ⟨s, hs, hse⟩ := hneg hc
     subst hse
     exact panic_error_0x11_sload hok (Spec_ok_unfold hok hnf hs)
+
+
+/-- **CONFIG FRAME.**  Same two branches. -/
+lemma if_1169358955168516216_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_if_1169358955168516216 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨hpos, hneg⟩ := h
+  by_cases hc : s₀["diff"]!! ≤ s₀["x"]!!
+  · rw [hpos hc]; exact ⟨hR, hC⟩
+  · obtain ⟨s, hs, hse⟩ := hneg hc
+    subst hse
+    exact panic_error_0x11_config hok hR hC (Spec_ok_unfold hok hnf hs)
 
 end
 

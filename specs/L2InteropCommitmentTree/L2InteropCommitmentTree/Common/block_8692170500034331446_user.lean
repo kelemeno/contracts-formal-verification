@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.KeccakDistinct
 import specs.StateOk
 
@@ -10,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
 /-- **Apply the mask and store**, second half:
 
@@ -82,6 +84,24 @@ lemma block_8692170500034331446_sload {q : UInt256} {s₀ s₉ : State} (hok : i
   simp only [multifill_cons, multifill_nil, evm_insert]
   rw [lookup_insert_of_ne n5, lookup_insert_of_ne n4, lookup_insert_of_ne n3]
   exact sload_setEvm_sstore (by simp only [isOk_insert]; exact hok) hq
+
+
+/-- **CONFIG FRAME.**  The write block `sstore`s; the keccak window is not storage. -/
+private lemma config_setEvm_sstore {t : State} {σ : EVM} {k v : UInt256} (hok : isOk t)
+    (hR : RangeInWindow σ) (hC : CachedInWindow σ) :
+    RangeInWindow (t🇪⟦EVMState.sstore σ k v⟧).evm ∧
+      CachedInWindow (t🇪⟦EVMState.sstore σ k v⟧).evm := by
+  rw [Clear.evm_setEvm_of_isOk hok]
+  exact ⟨rangeInWindow_sstore hR, cachedInWindow_sstore hC⟩
+
+lemma block_8692170500034331446_config {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_block_8692170500034331446 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  unfold A_block_8692170500034331446 at h
+  subst h
+  simp only [multifill_cons, multifill_nil, evm_insert]
+  exact config_setEvm_sstore (by simp only [isOk_insert]; exact hok) hR hC
 
 end
 

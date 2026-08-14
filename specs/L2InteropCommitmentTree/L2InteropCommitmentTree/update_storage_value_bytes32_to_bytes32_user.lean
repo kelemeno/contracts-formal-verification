@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.KeccakDistinct
 import specs.StateOk
 
@@ -12,7 +14,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common 
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common 
 
 /-- **Write a `bytes32` into a storage slot at a byte offset.**
 
@@ -113,6 +115,36 @@ lemma update_storage_value_bytes32_to_bytes32_sload_frame {slot offset value : L
   · simp only [State.initcall, evm_multifill, evm_setStore]
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
+
+
+/-- **CONFIG FRAME.**  The writer keeps the keccak window: a mask computation and one
+`sstore`, neither of which is `keccak_range` or `keccak_map`. -/
+lemma update_storage_value_bytes32_to_bytes32_config {slot offset value : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  subst heq
+  have hfok : isOk (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧) :=
+    isOk_initcall_of_isOk hok
+  have hfe : (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧).evm = s₀.evm :=
+    Clear.evm_initcall hok
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have ha₁ := Spec_ok_unfold hfok h1nf h₁
+  have hs1 : isOk s₁ := L2InteropCommitmentTree.Common.block_7182708311549001418_isOk hfok ha₁
+  have h1e : s₁.evm = s₀.evm := by
+    rw [L2InteropCommitmentTree.Common.block_7182708311549001418_evm ha₁, hfe]
+  have ha₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := L2InteropCommitmentTree.Common.block_8692170500034331446_isOk hs1 ha₂
+  have hcfg := L2InteropCommitmentTree.Common.block_8692170500034331446_config hs1
+    (by rw [h1e]; exact hR) (by rw [h1e]; exact hC) ha₂
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs2]
+  exact hcfg
 
 end
 
