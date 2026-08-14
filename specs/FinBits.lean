@@ -97,6 +97,17 @@ theorem shiftRight_one_le {x y : UInt256} (h : x ≤ y) :
   rw [hx, hy]
   exact Nat.div_le_div_right h
 
+/-- **DESCENDING KEEPS AN INDEX SMALL.**  Halving cannot raise the value, so a bound that
+held at the leaf level holds at every level above it.
+
+The fold needs this to keep applying the low-slot separation as it climbs: that argument
+wants the array index below `2 ^ 32` at EVERY level, and the loop supplies only the starting
+index.  Stated on `.val` because that is the form `lowSlotBound` comparisons take. -/
+theorem shiftRight_one_lt_of_lt {x : UInt256} {b : ℕ} (h : x.val < b) :
+    (Fin.shiftRight x 1).val < b := by
+  rw [shiftRight_one_val]
+  omega
+
 /-! ### The `offset = 0` field mask
 
 `update_storage_value_bytes32_to_bytes32` patches a FIELD of a packed slot: it builds a
