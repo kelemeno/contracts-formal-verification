@@ -140,3 +140,19 @@ soundness.
 No audited result is affected: `audit-count.sh` reports 210 results, 200 clean and 10 on
 the declared keccak axioms, with zero `sorryAx`. But `fun_requireExecutionAllowed` is an
 access-control guard, so it is worth knowing it is not currently proved.
+
+**Contamination sweep, every buildable contract's CLOSED specs:**
+
+| contract                | closed swept | sorryAx | note                                    |
+|-------------------------|--------------|---------|-----------------------------------------|
+| L2InteropCommitmentTree | 94           | 0       | 753 constants, the fold work            |
+| InteropHandler          | 164          | **2**   | the two named above                     |
+| L1Bridgehub + DiamondProxy | 21        | 0       | 1 rests on the DECLARED keccak axioms   |
+| L1Nullifier             | 11           | 0       |                                         |
+| L1AssetRouter           | 9            | 0       |                                         |
+| L2InteropHandler        | 8            | 0       |                                         |
+| AtomicFlowManager (64), L2AssetRouter (5) | — | ?  | UNCHECKABLE: generated modules do not elaborate |
+
+So stub contamination is confined to InteropHandler, and to two specs there. Two contracts
+cannot be checked at all until the generator output compiles -- that is 69 closed specs
+whose soundness is currently unknown, not known-good.
