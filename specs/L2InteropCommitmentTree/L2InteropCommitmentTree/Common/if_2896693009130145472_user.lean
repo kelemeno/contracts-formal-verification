@@ -50,6 +50,15 @@ lemma if_2896693009130145472_not_break {s₀ s₉ : State} (hok : isOk s₀) (hn
     (h : A_if_2896693009130145472 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_2896693009130145472_isOk hok hnf h)
 
+/-- **OFF THE OVERFLOW PATH THE GUARD DOES NOTHING.**  It panics only when the value is
+already `2^256 - 1`; anywhere else the state passes through.  This is the checked
+increment's guard, so "the counter went up by one" needs exactly this. -/
+lemma if_2896693009130145472_id_of_ne {s₀ s₉ : State}
+    (hne : s₀["value"]!! ≠ s₀["split_expr_0"]!!)
+    (h : A_if_2896693009130145472 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨_, _, _, hid⟩ := h
+  exact hid hne
+
 end
 
 end L2InteropCommitmentTree.Common

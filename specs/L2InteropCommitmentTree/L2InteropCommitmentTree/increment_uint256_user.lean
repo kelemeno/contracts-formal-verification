@@ -54,6 +54,45 @@ lemma increment_uint256_not_break {ret : Identifier} {value : Literal} {s₀ s�
     (h : A_increment_uint256 ret value s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (increment_uint256_isOk hnf h)
 
+/-- **THE CHECKED INCREMENT RETURNS `value + 1`.**
+
+solc's `increment_uint256` compares against `not(0)` FIRST and panics on equality, so off
+that path it simply adds one.  The tree's leaf counter goes through this, which is why
+"one push, one leaf" needs it: the increment is checked, so the count cannot silently wrap.
+
+The `2^256 - 1` case is excluded by hypothesis rather than by reachability -- a real tree
+never gets there, but that is an argument about the caller, not about this function. -/
+lemma increment_uint256_val {ret : Identifier} {value : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hno : value ≠ UInt256.lnot 0)
+    (h : A_increment_uint256 ret value s₀ s₉) : s₉[ret]!! = value + 1 := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["value"],[value]⟧) := isOk_initcall_of_isOk hok
+  have hfok : isOk ((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧) :=
+    isOk_insert.mpr hf0
+  have hvalue : ((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["value"]!!
+      = value := by
+    rw [lookup_insert_of_ne (by decide)]
+    exact Clear.lookup_initcall_one hok
+  have hsplit : ((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["split_expr_0"]!!
+      = UInt256.lnot 0 := lookup_insert' hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  have hss : ss = (s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧ :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_id_of_ne
+      (by rw [hvalue, hsplit]; exact hno) (Spec_ok_unfold hfok hssnf hg)
+  subst heq
+  rw [hss]
+  have hrok : isOk (((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)⟦"ret" ↦
+      ((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["value"]!! + 1⟧) :=
+    isOk_insert.mpr hfok
+  rw [lookup_insert' (isOk_setStore_of_isOk (by rw [revive_of_ok hrok]; exact hrok)),
+    lookup_insert' hfok, hvalue]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
