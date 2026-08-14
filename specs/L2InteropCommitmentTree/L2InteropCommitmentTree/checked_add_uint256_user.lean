@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakFuel
 import specs.KeccakLowSlot
 import specs.StateOk
 
@@ -142,6 +143,40 @@ lemma checked_add_uint256_config {sum : Identifier} {x : Literal} {s₀ s₉ : S
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk hssok]
   exact hcfg
+
+/-- **FUEL FRAME.**  The checked addition spends no pool on either branch: it adds, compares
+and returns, and its overflow panic writes memory and reverts.
+
+With `checked_div_uint256_evm` (which passes the whole machine state through) this completes
+the arithmetic helpers, so a hash budget survives the three of them that sit between the
+fold body's two accessor calls. -/
+lemma checked_add_uint256_fuel {sum : Identifier} {x : Literal} {k : ℕ} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_checked_add_uint256 sum x s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["x"],[x]⟧) := isOk_initcall_of_isOk hok
+  have hs2ok : isOk ((s₀☎️⟦["x"],[x]⟧)⟦"sum" ↦ (s₀☎️⟦["x"],[x]⟧)["x"]!! + 1⟧) :=
+    isOk_insert.mpr hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [← heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  have hsok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_7624433659449274775_isOk hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hg)
+  have hfss : Clear.KeccakFuel.Fuel ss.evm k := by
+    refine L2InteropCommitmentTree.Common.if_7624433659449274775_fuel hs2ok hssnf ?_
+      (Spec_ok_unfold hs2ok hssnf hg)
+    simp only [evm_insert]
+    rw [Clear.evm_initcall hok]
+    exact hf
+  rw [← heq]
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hsok]
+  exact hfss
 
 end
 

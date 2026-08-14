@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.StateOk
 import specs.StorageFrame
 import specs.KeccakLowSlot
@@ -78,6 +79,18 @@ lemma if_7624433659449274775_config {s₀ s₉ : State} (hok : isOk s₀) (hnf :
   · have hse : s₉ = s := hneg hc
     subst hse
     exact panic_error_0x11_config hok hR hC (Spec_ok_unfold hok hnf hs)
+
+/-- **FUEL FRAME.**  Neither branch spends pool: the identity branch is the caller's own
+state, and the overflow panic writes memory and reverts. -/
+lemma if_7624433659449274775_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_if_7624433659449274775 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨sp, hsp, hid, hfire⟩ := h
+  by_cases hg : s₀["x"]!! ≤ s₀["sum"]!!
+  · rw [hid hg]; exact hf
+  · have hpnf : ¬ ❓ sp := by rw [hfire hg] at hnf; exact hnf
+    rw [hfire hg]
+    exact panic_error_0x11_fuel hok hf (Spec_ok_unfold hok hpnf hsp)
 
 end
 

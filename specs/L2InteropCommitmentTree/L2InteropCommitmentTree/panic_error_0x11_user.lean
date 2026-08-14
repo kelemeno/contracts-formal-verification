@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakFuel
 import specs.KeccakLowSlot
 
 
@@ -116,6 +117,33 @@ lemma panic_error_0x11_config {s₀ s₉ : State} (hok : isOk s₀)
   have hCb : CachedInWindow b.evm := by
     rw [hbe]; exact cachedInWindow_mstore (cachedInWindow_mstore hC)
   exact ⟨rangeInWindow_evm_revert hRb, cachedInWindow_evm_revert hCb⟩
+
+/-- **FUEL FRAME.**  The arithmetic panic spends no pool either -- memory writes and a
+revert, neither of which touches `keccak_range` or `used_range`. -/
+lemma panic_error_0x11_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_panic_error_0x11 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  unfold A_panic_error_0x11 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 17⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  have hev : ((🧟 (b🇪⟦EVMState.evm_revert b.evm 0 36⟧))🏪⟦s₀⟧).evm
+      = EVMState.evm_revert b.evm 0 36 := by
+    rw [evm_setStore, Clear.evm_reviveJump_of_isOk hcok, Clear.evm_setEvm_of_isOk hbok]
+  have hfe : f.evm = s₀.evm := by rw [hfdef]; exact Clear.evm_initcall hok
+  have hbe : b.evm = EVMState.mstore (EVMState.mstore s₀.evm 0 (m["split_expr_0"]!!)) 4 17 := by
+    rw [hbdef, Clear.evm_setEvm_of_isOk haok, hadef, Clear.evm_setEvm_of_isOk hmok, hfe]
+  rw [hev, hbe]
+  exact Clear.KeccakFuel.Fuel.evm_revert 0 36
+    (Clear.KeccakFuel.Fuel.mstore 4 17 (Clear.KeccakFuel.Fuel.mstore 0 _ hf))
 
 end
 
