@@ -484,15 +484,15 @@ window puts every hash above the low range and stops the index from wrapping bac
 and `Fuel` is what says the hash drew a fresh slot at all rather than hitting the collision
 fallback -- a fact about a state no caller can name, which is exactly why it has to arrive
 as a propagated invariant. -/
-lemma push_element_ne_length_slot {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
-    (hlow : array.val < Clear.KeccakInjective.lowSlotBound)
+lemma push_element_ne_low_slot {array value0 c : Literal} {s₀ : State} (hok : isOk s₀)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound)
     (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
     (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
     (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
     (hf : Clear.KeccakFuel.Fuel s₀.evm 2) :
     (Clear.KeccakDeterminism.keccakOut
         ((pushSt s₀ array value0).evm.mstore 0 array) 0 32).1
-      + Clear.EVMState.sload s₀.evm array ≠ array := by
+      + Clear.EVMState.sload s₀.evm array ≠ c := by
   obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
   have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := array) hRs
   have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := array) hCs
@@ -531,7 +531,35 @@ lemma array_push_length_of_low_slot {array value0 : Literal} {s₀ s₉ : State}
     (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
     Clear.EVMState.sload s₉.evm array = Clear.EVMState.sload s₀.evm array + 1 := by
   refine array_push_length hok hnf hacc hfits hnw ?_ h
-  have hne := push_element_ne_length_slot (array := array) (value0 := value0) hok hlow hidx hR hC hf
+  have hne := push_element_ne_low_slot (array := array) (value0 := value0) (c := array)
+    hok hlow hidx hR hC hf
+  rw [pushSt_evm hok] at hne
+  exact fun hc => hne hc.symm
+
+/-- **A PUSH ONTO A LITERAL SLOT LEAVES EVERY OTHER LOW SLOT ALONE** -- separations derived.
+
+The companion to `array_push_length_of_low_slot`, and the form the tree needs: pushing onto
+one level must not disturb the leaf count, the levels pointer or the defaults pointer, all of
+which live at compile-time constant slots.  Both of the general frame's separation
+hypotheses are discharged here -- `q ≠ array` is the caller's own business, and `q` misses
+the ELEMENT slot because a low slot cannot be a keccak output offset by a small index. -/
+lemma array_push_sload_frame_of_low_slot {array value0 : Literal} {q : Literal}
+    {s₀ s₉ : State} {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hnw : (Clear.EVMState.sload s₀.evm array).val + 1 < UInt256.size)
+    (hqa : q ≠ array)
+    (hqlow : q.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 2)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  refine array_push_sload_frame hok hnf hacc hfits hnw hqa ?_ h
+  have hne := push_element_ne_low_slot (array := array) (value0 := value0) (c := q)
+    hok hqlow hidx hR hC hf
   rw [pushSt_evm hok] at hne
   exact fun hc => hne hc.symm
 
