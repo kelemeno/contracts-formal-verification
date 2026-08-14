@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x41
 
@@ -54,6 +55,21 @@ lemma if_4590714779410500988_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
 lemma if_4590714779410500988_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_if_4590714779410500988 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_4590714779410500988_isOk hok hnf h)
+
+
+/-- **THE LENGTH FITS: the guard changes nothing.**
+
+`array.push` panics (0x41) only if the array is already `2 ^ 64` long.  Off that path the
+guard is the identity, which is what a proof that the push INCREMENTS the length needs --
+otherwise the length fact would have to be threaded through a reverting state.
+
+A real tree never reaches `2 ^ 64` levels-worth of nodes, but that is an argument about
+reachability, not something this lemma assumes: the hypothesis is simply the flag. -/
+lemma if_4590714779410500988_id_of_ne {s₀ s₉ : State}
+    (hne : s₀["split_expr_0"]!! ≠ 0)
+    (h : A_if_4590714779410500988 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨_, _, _, hneg⟩ := h
+  exact hneg hne
 
 end
 
