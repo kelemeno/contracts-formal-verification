@@ -1,6 +1,8 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
 import specs.KeccakLowSlot
+import specs.KeccakFresh
+import specs.KeccakSlotSep
 
 /-! # What does NOT touch storage
 
@@ -21,7 +23,7 @@ DOES write storage) this is everything needed to carry a slot's value across a c
 
 namespace Clear.StorageFrame
 
-open Clear Clear.KeccakDeterminism Clear.KeccakLowSlot
+open Clear Clear.KeccakDeterminism Clear.KeccakLowSlot Clear.KeccakSlotSep Clear.KeccakFresh
 
 /-- `mstore` writes MEMORY.  Storage is untouched, so any `sload` reads back the same. -/
 @[simp] theorem sload_mstore (σ : EVMState) (a v q : UInt256) :
@@ -124,5 +126,65 @@ theorem rangeInWindow_evm_revert {σ : EVMState} {p n : UInt256} (h : RangeInWin
 
 theorem cachedInWindow_evm_revert {σ : EVMState} {p n : UInt256} (h : CachedInWindow σ) :
     CachedInWindow (σ.evm_revert p n) := h
+
+
+/-! ## The SEPARATION configuration survives the writes too
+
+`Separated`, `CacheInj` and `CacheInUsed` quantify over `keccak_map`, `keccak_range` and
+`used_range` -- again none of them memory or storage.  `KeccakSlotSep` and `KeccakFresh`
+cover the hash step (`separated_keccakOut`, `cacheInj_keccakOut`); these cover everything
+else a compiled body does, so the hypotheses of `cached_off_ne_off` can be carried from a
+caller's `s₀` to the state where the fold actually hashes.
+
+That matters for the array-LENGTH half of the accessor's bounds hypothesis: a length slot
+is itself `keccak(nodes) + i`, so ruling out a collision with the written node slot is an
+offset-vs-offset question, which is what `cached_off_ne_off` answers. -/
+
+theorem separated_mstore {σ : EVMState} {a v : UInt256} (h : Separated σ) :
+    Separated (σ.mstore a v) := h
+
+theorem separated_evm_revert {σ : EVMState} {p n : UInt256} (h : Separated σ) :
+    Separated (σ.evm_revert p n) := h
+
+theorem separated_sstore {σ : EVMState} {p v : UInt256} (h : Separated σ) :
+    Separated (σ.sstore p v) := by
+  unfold Separated Slots EVMState.sstore at *
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simpa only [hacc] using h
+  | some act => simpa only [hacc] using h
+
+theorem cacheInj_mstore {σ : EVMState} {a v : UInt256} (h : CacheInj σ) :
+    CacheInj (σ.mstore a v) := h
+
+theorem cacheInj_evm_revert {σ : EVMState} {p n : UInt256} (h : CacheInj σ) :
+    CacheInj (σ.evm_revert p n) := h
+
+theorem cacheInj_sstore {σ : EVMState} {p v : UInt256} (h : CacheInj σ) :
+    CacheInj (σ.sstore p v) := by
+  unfold CacheInj EVMState.sstore at *
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simpa only [hacc] using h
+  | some act => simpa only [hacc] using h
+
+theorem cacheInUsed_mstore {σ : EVMState} {a v : UInt256} (h : CacheInUsed σ) :
+    CacheInUsed (σ.mstore a v) := h
+
+theorem cacheInUsed_evm_revert {σ : EVMState} {p n : UInt256} (h : CacheInUsed σ) :
+    CacheInUsed (σ.evm_revert p n) := h
+
+/-- NOTE the asymmetry: `sstore` DOES touch the keccak state -- it adds the written slot to
+`used_range`.  `Separated` and `CacheInj` do not mention `used_range` and so are literally
+unchanged, but `CacheInUsed` needs the (easy) monotonicity step: the set only GROWS, so a
+value already in it stays in it.  "A storage write does not touch the keccak model" would
+have been the wrong claim. -/
+theorem cacheInUsed_sstore {σ : EVMState} {p v : UInt256} (h : CacheInUsed σ) :
+    CacheInUsed (σ.sstore p v) := by
+  unfold CacheInUsed EVMState.sstore at *
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simpa only [hacc] using h
+  | some act =>
+    simp only [hacc]
+    intro I w hlk
+    exact Finset.mem_union_right _ (h I w hlk)
 
 end Clear.StorageFrame
