@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_6945705467323769142
@@ -58,6 +59,26 @@ lemma storage_array_index_access_bytes32_dyn_ptr_5303_isOk {slot offset : Identi
 lemma storage_array_index_access_bytes32_dyn_ptr_5303_not_break {slot offset : Identifier} {array : Literal} {s₀ s₉ : State}
     (hnf : ¬ ❓ s₉) (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (storage_array_index_access_bytes32_dyn_ptr_5303_isOk hnf h)
+
+
+/-- **FRAME.**  The specialised accessor (array slot inlined) writes only `slot` and
+`offset`, like its general sibling -- so `var_index` and `var_maxNodeNumber` cross the leaf
+write untouched and reach the loop. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_frame
+    {slot offset : Identifier} {array : Literal} {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hvs : v ≠ slot) (hvo : v ≠ offset)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  obtain ⟨ss, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 ((ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧
+      |> fun m => Clear.State.multifill ["slot"] (primCall m .Keccak256 [0, 32]).2
+           (primCall m .Keccak256 [0, 32]).1)⟦"offset" ↦ 0⟧)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hvs, lookup_insert_of_ne hvo, Clear.lookup_setStore hrev hok]
 
 end
 
