@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
+import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -59,6 +61,18 @@ lemma if_1169358955168516216_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
 lemma if_1169358955168516216_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_if_1169358955168516216 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_1169358955168516216_isOk hok hnf h)
+
+
+/-- **STORAGE FRAME.**  Underflow guard; same two branches. -/
+lemma if_1169358955168516216_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_1169358955168516216 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨hpos, hneg⟩ := h
+  by_cases hc : s₀["diff"]!! ≤ s₀["x"]!!
+  · rw [hpos hc]
+  · obtain ⟨s, hs, hse⟩ := hneg hc
+    subst hse
+    exact panic_error_0x11_sload hok (Spec_ok_unfold hok hnf hs)
 
 end
 

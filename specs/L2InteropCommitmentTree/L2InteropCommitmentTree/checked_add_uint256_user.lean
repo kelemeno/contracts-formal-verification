@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_7624433659449274775
@@ -91,6 +92,29 @@ lemma checked_add_uint256_frame {sum : Identifier} {x : Literal} {v : Identifier
     apply hnf
     simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
+
+/-- **STORAGE FRAME.**  Guarded addition writes no storage on either branch. -/
+lemma checked_add_uint256_sload {sum : Identifier} {x q : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (h : A_checked_add_uint256 sum x s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨ss, hif, heq⟩ := h
+  subst heq
+  have hs2ok : isOk ((s₀☎️⟦["x"],[x]⟧)⟦"sum" ↦ (s₀☎️⟦["x"],[x]⟧)["x"]!! + 1⟧) :=
+    isOk_insert.mpr (isOk_initcall_of_isOk hok)
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_7624433659449274775_isOk hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hif)
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hssok,
+    L2InteropCommitmentTree.Common.if_7624433659449274775_sload hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hif)]
+  simp only [evm_insert]
+  rw [Clear.evm_initcall hok]
 
 end
 

@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
+import specs.StorageFrame
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11_gen
@@ -58,6 +60,30 @@ lemma panic_error_0x11_isOk {s₀ s₉ : State} (hok : isOk s₀)
 lemma panic_error_0x11_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_panic_error_0x11 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (panic_error_0x11_isOk hok h)
+
+
+/-- **STORAGE FRAME.**  An arithmetic panic preserves every slot -- same reasoning as
+`panic_error_0x32_sload`: memory and the revert flag, never `account_map`. -/
+lemma panic_error_0x11_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x11 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  unfold A_panic_error_0x11 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 17⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  simp only [evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hcok, Clear.evm_setEvm_of_isOk hbok,
+    Clear.StorageFrame.sload_evm_revert, hbdef, Clear.evm_setEvm_of_isOk haok,
+    Clear.StorageFrame.sload_mstore, hadef, Clear.evm_setEvm_of_isOk hmok,
+    Clear.StorageFrame.sload_mstore, hfdef, Clear.evm_initcall hok]
 
 end
 

@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
+import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -49,6 +51,19 @@ lemma if_7624433659449274775_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
 lemma if_7624433659449274775_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_if_7624433659449274775 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_7624433659449274775_isOk hok hnf h)
+
+
+/-- **STORAGE FRAME.**  Overflow guard: either it passes and the state is unchanged, or it
+panics -- and a panic writes no storage either. -/
+lemma if_7624433659449274775_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_7624433659449274775 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["x"]!! ≤ s₀["sum"]!!
+  · rw [hpos hc]
+  · have hse : s₉ = s := hneg hc
+    subst hse
+    exact panic_error_0x11_sload hok (Spec_ok_unfold hok hnf hs)
 
 end
 
