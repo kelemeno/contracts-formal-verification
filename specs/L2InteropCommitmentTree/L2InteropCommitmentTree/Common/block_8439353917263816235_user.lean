@@ -2,6 +2,9 @@ import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.KeccakLowSlot
 import specs.StorageFrame
+import specs.KeccakFuel
+import specs.KeccakInjective
+import specs.FinBits
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_add_uint256
@@ -190,6 +193,65 @@ lemma block_8439353917263816235_config {s₀ s₉ : State} (hok : isOk s₀) (hn
   obtain ⟨hR4, hC4⟩ := storage_array_index_access_bytes32_dyn_ptr_config hs3 h4nf hR3 hC3
     (Spec_ok_unfold hs3 h4nf h₄)
   exact storage_array_index_access_bytes32_dyn_ptr_config hs4 hnf hR4 hC4
+    (Spec_ok_unfold hs4 hnf h₅)
+
+/-- **THE SLOT THIS BLOCK WRITES IS NEVER A LOW SLOT.**
+
+`ABody_..._writes_one_slot` produces the written slot as a witness but says nothing about
+WHICH slot it is; this supplies the only thing a caller needs about it -- that it is not one
+of the tree's constant-numbered slots, so a fold step cannot disturb the leaf count, the
+level count or the defaults pointer.
+
+Note what is NOT required: the array-length invariant.  The slot comes from the SECOND of
+two accessor calls, and the accessor computes its address on both branches, so
+`_slot_not_low` applies without the bounds check.  What is required is the keccak
+configuration carried to that second call -- window, fuel, and the index below `2 ^ 32` --
+and the index bound survives the descent because halving cannot raise a value. -/
+lemma block_8439353917263816235_slot_not_low {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 2)
+    (hj : (s₀["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_block_8439353917263816235 s₀ s₉) : s₉["_18"]!! ≠ c := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h4nf : ¬ ❓ s₄ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ := checked_div_uint256_isOk hok (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_div_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ := checked_add_uint256_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  have hs4 : isOk s₄ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h4nf (Spec_ok_unfold hs3 h4nf h₄)
+  -- the two divisions pass the whole machine state through
+  have e1 : s₁.evm = s₀.evm := checked_div_uint256_evm hok (Spec_ok_unfold hok h1nf h₁)
+  have e2 : s₂.evm = s₁.evm := checked_div_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  -- window and fuel, carried to the SECOND accessor call
+  obtain ⟨hR3, hC3⟩ := checked_add_uint256_config hs2 h3nf
+    (by rw [e2, e1]; exact hR) (by rw [e2, e1]; exact hC) (Spec_ok_unfold hs2 h3nf h₃)
+  obtain ⟨hR4, hC4⟩ := storage_array_index_access_bytes32_dyn_ptr_config hs3 h4nf hR3 hC3
+    (Spec_ok_unfold hs3 h4nf h₄)
+  have hf3 : Clear.KeccakFuel.Fuel s₃.evm 2 :=
+    checked_add_uint256_fuel hs2 h3nf (by rw [e2, e1]; exact hf) (Spec_ok_unfold hs2 h3nf h₃)
+  have hf4 : Clear.KeccakFuel.Fuel s₄.evm 1 :=
+    storage_array_index_access_bytes32_dyn_ptr_fuel hs3 h4nf hf3 (Spec_ok_unfold hs3 h4nf h₄)
+  -- the index halves once and stays below the bound
+  have ei1 : s₁["var_index"]!! = Fin.shiftRight (s₀["var_index"]!!) 1 :=
+    checked_div_uint256_val hok (Spec_ok_unfold hok h1nf h₁)
+  have ei2 : s₂["var_index"]!! = s₁["var_index"]!! :=
+    checked_div_uint256_frame hs1 (by decide) (Spec_ok_unfold hs1 h2nf h₂)
+  have ei3 : s₃["var_index"]!! = s₂["var_index"]!! :=
+    checked_add_uint256_frame hs2 h3nf (by decide) (Spec_ok_unfold hs2 h3nf h₃)
+  have ei4 : s₄["var_index"]!! = s₃["var_index"]!! :=
+    storage_array_index_access_bytes32_dyn_ptr_frame hs3 h4nf (by decide) (by decide)
+      (Spec_ok_unfold hs3 h4nf h₄)
+  have hjb : (s₄["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound := by
+    rw [ei4, ei3, ei2, ei1]
+    exact Clear.FinBits.shiftRight_one_lt_of_lt hj
+  exact storage_array_index_access_bytes32_dyn_ptr_slot_not_low hs4 hnf hR4 hC4 hf4 hjb hcl
     (Spec_ok_unfold hs4 hnf h₅)
 
 end
