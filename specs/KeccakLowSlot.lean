@@ -266,6 +266,34 @@ theorem keccak256_add_ne_lowSlot_of_config {σ σ' : EVMState} {p n r : UInt256}
   unfold lowSlotBound at *
   omega
 
+/-- **THE STRICT COMPANION.**  A low slot is not merely different from `keccak(P) + j` --
+it is strictly BELOW it.
+
+That is what an interval-shaped storage frame needs.  A loop that clears `keccak(P) + 1`
+upwards preserves every slot outside `[keccak(P) + 1, …)`, and for a literal slot the way
+to land outside is to be below the lower endpoint.  The `≠` version answers a different
+question (is this THE slot) and does not compose into an interval.
+
+Same two facts as the `≠` version: the window puts the hash above the low range, and stops
+the offset from wrapping back down into it. -/
+theorem keccak256_lt_add_of_config {σ σ' : EVMState} {p n r : UInt256} (j c : UInt256)
+    (hR : RangeInWindow σ) (hC : CachedInWindow σ)
+    (h : σ.keccak256 p n = some (r, σ'))
+    (hj : j.val < lowSlotBound) (hc : c.val < lowSlotBound) : c < r + j := by
+  have hko : keccakOut σ p n = (r, σ') := by unfold keccakOut; rw [h]
+  have hpost : CachedInWindow σ' := by
+    have hn := cachedInWindow_keccakOut (σ := σ) (p := p) (n := n) hR hC
+    rw [hko] at hn
+    exact hn
+  obtain ⟨hlo, hhi⟩ := hpost _ r (keccak256_caches h)
+  have hadd : (r + j).val = r.val + j.val := by
+    have h1 : (r + j).val = (r.val + j.val) % UInt256.size := rfl
+    rw [h1, Nat.mod_eq_of_lt (by unfold lowSlotBound at *; omega)]
+  show c.val < (r + j).val
+  rw [hadd]
+  unfold lowSlotBound at *
+  omega
+
 /-- `mstore` preserves the pool window — it touches neither the range nor the cache. -/
 theorem rangeInWindow_mstore {σ : EVMState} (a v : UInt256) (h : RangeInWindow σ) :
     RangeInWindow (σ.mstore a v) := h
