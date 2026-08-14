@@ -148,6 +148,16 @@ lemma if_228369243124659344_config {s₀ s₉ : State} (hok : isOk s₀)
     · exact absurd hok (by simp [isOk])
     · exact absurd hok (by simp [isOk])
 
+/-- **THE ELEMENT IS WORD-ALIGNED, SO THIS GUARD DOES NOTHING.**
+
+`storage_array_index_access_bytes32_dyn_ptr_offset` proves the accessor returns `offset = 0`
+for a `bytes32` element, and this guard reverts only on a nonzero offset -- it is solc's
+check that the caller is not addressing a packed field.  So on the array-push path the
+state passes through untouched, which is what lets a caller reason about the write that
+follows without carrying a reverting branch. -/
+lemma if_228369243124659344_id_of_zero {s₀ s₉ : State} (hz : s₀["offset"]!! = 0)
+    (h : A_if_228369243124659344 s₀ s₉) : s₉ = s₀ := h.1 hz
+
 end
 
 end L2InteropCommitmentTree.Common
