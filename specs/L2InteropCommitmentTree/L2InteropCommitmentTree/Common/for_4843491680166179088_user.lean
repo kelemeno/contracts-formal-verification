@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.StorageFrame
 import specs.FoldRightPeel
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_6078234115189856909
@@ -347,6 +348,57 @@ lemma ALeave_for_4843491680166179088 : ∀ s₀ s₂, isOk s₀ → isLeave s₂
       (Clear.not_isOutOfFuel_of_isLeave h2) hbody with hok | hbr
   · exact Clear.not_isOk_of_isLeave h2 hok
   · exact Clear.not_isLeave_of_isBreak hbr h2
+
+
+/-- **ONE ITERATION WRITES AT MOST ONE SLOT.**
+
+Everything the body does apart from the final `sstore` only reads: the guard loads the
+level count, the parity `mod` is arithmetic, the switch reads a sibling (or a zero hash)
+and hashes it, and the parent-advance block computes an address.  So there is a single
+slot `w` -- the parent node's -- off which storage is unchanged across the iteration.
+
+This is what a level-count-survives argument needs, and the reason it is stated
+existentially: `w` is `s₄["_18"]`, an address computed inside the body, so a caller cannot
+name it.  Pinning `w` to something a caller CAN name (a keccak-derived slot, hence never
+the low slot the level count lives in) is the next step. -/
+lemma ABody_for_4843491680166179088_writes_one_slot {s₀ s₉ : State} (hok : isOk s₀)
+    (hok9 : isOk s₉) (h : ABody_for_4843491680166179088 s₀ s₉) :
+    ∃ w : UInt256, ∀ q : UInt256, q ≠ w →
+      Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardStateGenDyn s₀) := by
+    unfold rootGuardStateGenDyn; simp only [isOk_insert]; exact hok
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf : (rootGuardStateGenDyn s₀)["split_expr_5"]!! = 0
+  · -- the guard broke, so the break reaches s₅ and contradicts `isOk`
+    exfalso
+    have e1 : s₁ = 💔(rootGuardStateGenDyn s₀) := hg.1 hf
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardStateGenDyn s₀ := hg.2 hf
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_1809072996261231762_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_2936313771097161809_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    refine ⟨s₄["_18"]!!, fun q hq => ?_⟩
+    rw [block_7643149059429413085_sload hs4 h5nf hq (Spec_ok_unfold hs4 h5nf h₅),
+      block_2936313771097161809_sload hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄),
+      switch_1809072996261231762_sload hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃),
+      mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂), e1]
+    unfold rootGuardStateGenDyn
+    simp only [evm_insert]
 
 end
 

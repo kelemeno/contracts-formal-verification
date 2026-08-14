@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
+import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2600721580863995212
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x32
@@ -229,6 +230,58 @@ lemma storage_array_index_access_bytes32_dyn__dyn_frame
     apply hnf
     simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [lookup_insert_of_ne hvs, lookup_insert_of_ne hvo, Clear.lookup_setStore hrev hok]
+
+
+/-- The result state's evm chain -- `mstore`, hash, then inserts -- writes no storage. -/
+private lemma sload_arrIdxResultStateDyn {ss : State} {q : Literal} (hok : isOk ss) :
+    Clear.EVMState.sload (arrIdxResultStateDyn ss).evm q = Clear.EVMState.sload ss.evm q := by
+  unfold arrIdxResultStateDyn
+  set M := ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧ with hM
+  have hmok : isOk M := by rw [hM]; simp only [isOk_setEvm]; exact hok
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.StorageFrame.sload_keccakOut, hM,
+    Clear.evm_setEvm_of_isOk hok, Clear.StorageFrame.sload_mstore]
+
+/-- **STORAGE FRAME.**  The accessor computes an address: it `mstore`s the array slot and
+hashes it, and writes NO storage.  So every slot reads back the same across the call.
+
+UNCONDITIONAL -- unlike `_val`, this needs no bounds hypothesis.  Out of bounds the code
+panics, and a panic does not write storage either
+(`Clear.StorageFrame.sload_evm_revert`), so both branches preserve every slot.  That
+matters for a caller: `isOk s₉` does NOT rule out the panic branch, since Clear models a
+revert as a flag on an otherwise-`Ok` state. -/
+lemma storage_array_index_access_bytes32_dyn__dyn_sload
+    {slot offset : Identifier} {array index q : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_storage_array_index_access_bytes32_dyn__dyn slot offset array index s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardStateDyn array index s₀) := by
+    unfold arrIdxGuardStateDyn; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultStateDyn]
+    exact hoo
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches: `ss` is `Ok`, and reads the same storage as the guard state
+  have hboth : isOk ss ∧ Clear.EVMState.sload ss.evm q
+      = Clear.EVMState.sload (arrIdxGuardStateDyn array index s₀).evm q := by
+    by_cases hflag : (arrIdxGuardStateDyn array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      exact ⟨panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp),
+        panic_error_0x32_sload hgcok (Spec_ok_unfold hgcok hssnf hsp)⟩
+    · have hss : ss = arrIdxGuardStateDyn array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, rfl⟩
+  subst heq
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk (isOk_arrIdxResultStateDyn hboth.1),
+    sload_arrIdxResultStateDyn hboth.1, hboth.2, arrIdxGuardStateDyn_evm hok]
 
 end
 

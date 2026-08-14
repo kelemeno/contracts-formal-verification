@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7746411058724286464
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
@@ -121,6 +122,28 @@ lemma switch_4762420646048873450_frame {v : Identifier} {s₀ s₉ : State}
     have e1 : s₁[v]!! = s₀[v]!! :=
       block_7746411058724286464_frame hok h1nf hL5648 (Spec_ok_unfold hok h1nf h₁)
     rw [e2, e1]
+
+
+/-- **STORAGE FRAME.**  The parity switch reads siblings and hashes; no slot changes. -/
+lemma switch_4762420646048873450_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_switch_4762420646048873450 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, hbrEven, hbrOdd⟩ := h
+  by_cases hc : s₀["split_expr_6"]!! = 0
+  · rw [hbrEven hc] at hnf ⊢
+    have hins : isOk (s₀⟦"expr" ↦ 0⟧) := isOk_insert.mpr hok
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hs3 : isOk s₃ :=
+      switch_4354665484259437184_isOk hins h3nf (Spec_ok_unfold hins h3nf h₃)
+    rw [fun_efficientHash_sload hs3 (Spec_ok_unfold hs3 hnf h₄),
+      switch_4354665484259437184_sload hins h3nf (Spec_ok_unfold hins h3nf h₃)]
+    simp only [evm_insert]
+  · rw [hbrOdd hc] at hnf ⊢
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      block_7746411058724286464_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    rw [block_896716371604423710_sload hs1 hnf (Spec_ok_unfold hs1 hnf h₂),
+      block_7746411058724286464_sload hok h1nf (Spec_ok_unfold hok h1nf h₁)]
 
 end
 
