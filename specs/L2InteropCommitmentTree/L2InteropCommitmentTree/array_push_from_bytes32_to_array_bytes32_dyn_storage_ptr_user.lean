@@ -2,6 +2,9 @@ import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakDeterminism
 import specs.KeccakDistinct
+import specs.KeccakFuel
+import specs.KeccakInjective
+import specs.KeccakLowSlot
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
@@ -452,6 +455,85 @@ lemma array_push_val {array value0 : Literal} {s₀ s₉ : State} {act : Account
   subst heq
   rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs3ok]
   exact hw
+
+/-- The keccak window at the state the element write starts from.  The push's only step
+before it is an `sstore`, which is neither `keccak_range` nor `keccak_map`. -/
+lemma pushSt_config {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm) :
+    Clear.KeccakLowSlot.RangeInWindow (pushSt s₀ array value0).evm ∧
+      Clear.KeccakLowSlot.CachedInWindow (pushSt s₀ array value0).evm := by
+  rw [pushSt_evm hok]
+  exact ⟨Clear.StorageFrame.rangeInWindow_sstore hR,
+    Clear.StorageFrame.cachedInWindow_sstore hC⟩
+
+/-- Fuel at the same state.  The length write costs at most one unit, which is why a caller
+has to budget for the WRITES on a path and not only for its hashes. -/
+lemma pushSt_fuel {array value0 : Literal} {s₀ : State} {n : ℕ} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (n + 1)) :
+    Clear.KeccakFuel.Fuel (pushSt s₀ array value0).evm n := by
+  rw [pushSt_evm hok]
+  exact Clear.KeccakFuel.Fuel.sstore _ _ hf
+
+/-- **THE ELEMENT SLOT IS NOT THE LENGTH SLOT** -- derived, not assumed.
+
+`array_push_length` takes this separation as a hypothesis, which is right for that lemma:
+it keeps it free of the keccak configuration.  But a caller pushing onto a LITERAL slot can
+discharge it outright, and this is how.  The element lives at `keccak(array) + oldLen`; the
+window puts every hash above the low range and stops the index from wrapping back into it;
+and `Fuel` is what says the hash drew a fresh slot at all rather than hitting the collision
+fallback -- a fact about a state no caller can name, which is exactly why it has to arrive
+as a propagated invariant. -/
+lemma push_element_ne_length_slot {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
+    (hlow : array.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 2) :
+    (Clear.KeccakDeterminism.keccakOut
+        ((pushSt s₀ array value0).evm.mstore 0 array) 0 32).1
+      + Clear.EVMState.sload s₀.evm array ≠ array := by
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := array) hRs
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := array) hCs
+  have hfm : Clear.KeccakFuel.Fuel ((pushSt s₀ array value0).evm.mstore 0 array) 1 :=
+    Clear.KeccakFuel.Fuel.mstore 0 array (pushSt_fuel (n := 1) hok hf)
+  obtain ⟨r, σ', hsome⟩ := Clear.KeccakFuel.keccak256_some_of_fuel (p := 0) (q := 32) hfm
+  have hko : Clear.KeccakDeterminism.keccakOut
+      ((pushSt s₀ array value0).evm.mstore 0 array) 0 32 = (r, σ') := by
+    unfold Clear.KeccakDeterminism.keccakOut
+    rw [hsome]
+  rw [hko]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hidx hlow
+
+/-- **PUSHING ONTO A LITERAL SLOT INCREMENTS ITS LENGTH** -- with no hypothesis about any
+state the caller cannot name.
+
+`array_push_length` takes the keccak separation as a hypothesis, deliberately, so that it
+stays clear of the keccak configuration.  This is its corollary for the case the tree
+actually uses: the array's slot is a compile-time constant, so it is a LOW slot, and the
+separation follows from the window plus one unit of fuel.
+
+Everything here is about `s₀`: the account exists, the length fits and does not wrap, the
+slot and the current length are below `2 ^ 32`, the keccak window holds, and the pool has
+two entries left -- one for the write and one for the hash.  That last one is the part worth
+noticing: a caller has to budget fuel for the WRITES on a path, not only for its hashes. -/
+lemma array_push_length_of_low_slot {array value0 : Literal} {s₀ s₉ : State} {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hnw : (Clear.EVMState.sload s₀.evm array).val + 1 < UInt256.size)
+    (hlow : array.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 2)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm array = Clear.EVMState.sload s₀.evm array + 1 := by
+  refine array_push_length hok hnf hacc hfits hnw ?_ h
+  have hne := push_element_ne_length_slot (array := array) (value0 := value0) hok hlow hidx hR hC hf
+  rw [pushSt_evm hok] at hne
+  exact fun hc => hne hc.symm
 
 end
 
