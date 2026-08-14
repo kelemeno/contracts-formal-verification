@@ -107,6 +107,64 @@ theorem Fuel.keccakOut {σ : EVMState} {p q : UInt256} {n : ℕ}
 theorem Fuel.mstore {σ : EVMState} (a v : UInt256) {n : ℕ} (h : Fuel σ n) :
     Fuel (σ.mstore a v) n := h
 
+/-- **A STORAGE WRITE COSTS AT MOST ONE UNIT OF FUEL.**
+
+`sstore` leaves `keccak_range` and `keccak_map` alone but adds the written slot to
+`used_range`, so the UNUSED portion can shrink -- by exactly the occurrences of that slot in
+the range, which `Nodup` caps at one.  That is the same place `Nodup` is load-bearing for
+`keccakOut`, and the bound is genuinely false without it.
+
+Note the `none` branch: with no account at `code_owner` the write is the IDENTITY, and
+`used_range` does not grow at all, so a bound that assumed growth would be wrong there.
+
+This is what lets `Fuel` cross a write-heavy compiled path.  An array push writes the length,
+the inner length and the element, and each has to be paid for before the next hash can be
+known to draw a fresh slot rather than hit the collision fallback. -/
+theorem Fuel.sstore {σ : EVMState} (p v : UInt256) {n : ℕ}
+    (h : Fuel σ (n + 1)) : Fuel (σ.sstore p v) n := by
+  obtain ⟨hlen, hnd⟩ := h
+  have hnd' : (unusedList σ).Nodup := unusedList_nodup hnd
+  -- at most one entry is retired, because the range has no duplicates
+  have hcnt : ((unusedList σ).filter (fun x => decide (x = p))).length ≤ 1 := by
+    have hfnd : ((unusedList σ).filter (fun x => decide (x = p))).Nodup := hnd'.filter _
+    have hall : ∀ x ∈ (unusedList σ).filter (fun x => decide (x = p)), x = p := by
+      intro x hx
+      simpa using (List.mem_filter.mp hx).2
+    rcases hfl : (unusedList σ).filter (fun x => decide (x = p)) with _ | ⟨a, t⟩
+    · simp
+    · rcases t with _ | ⟨b, t'⟩
+      · simp
+      · exfalso
+        have ha : a = p := hall a (by rw [hfl]; simp)
+        have hb : b = p := hall b (by rw [hfl]; simp)
+        rw [hfl] at hfnd
+        exact (List.nodup_cons.mp hfnd).1 (by simp [ha, hb])
+  have hsplit : ((unusedList σ).filter (fun x => decide (x = p))).length
+      + ((unusedList σ).filter (fun x => !decide (x = p))).length = (unusedList σ).length := by
+    rw [← List.length_append]
+    exact (List.filter_append_perm (fun x => decide (x = p)) (unusedList σ)).length_eq
+  unfold EVMState.sstore
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none =>
+    -- the write is the identity here, so nothing is spent
+    exact ⟨Nat.le_of_succ_le hlen, hnd⟩
+  | some act =>
+    refine ⟨?_, hnd⟩
+    rw [unusedList_eq_filter]
+    show n ≤ (σ.keccak_range.filter
+      (fun x => !decide (x ∈ ({p} ∪ σ.used_range : Finset UInt256)))).length
+    have hEq : σ.keccak_range.filter
+          (fun x => !decide (x ∈ ({p} ∪ σ.used_range : Finset UInt256)))
+        = (unusedList σ).filter (fun x => !decide (x = p)) := by
+      rw [unusedList_eq_filter, List.filter_filter]
+      congr 1
+      funext x
+      by_cases hx : x = p
+      · subst hx; simp
+      · by_cases hu2 : x ∈ σ.used_range <;> simp [hx, hu2, Finset.mem_union]
+    rw [hEq]
+    omega
+
 /-- **AN ACCESSOR STEP COSTS AT MOST ONE UNIT.** -/
 theorem Fuel.accOut {σ : EVMState} {key base : UInt256} {n : ℕ}
     (h : Fuel σ (n + 1)) : Fuel (accOut σ key base).2 n :=
