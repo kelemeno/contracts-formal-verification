@@ -42,10 +42,10 @@ for f in files:
     # a file's namespace is every `namespace` line, in order
     ns = '.'.join(m.group(1) for m in re.finditer(r'^namespace\s+([\w.]+)', text, re.M))
     names = [m.group(1) for m in
-             re.finditer(r'^(?:@\[[^\]]*\]\s*)?(?:lemma|theorem)\s+([\w.]+)', text, re.M)]
+             re.finditer(r"^(?:@\[[^\]]*\]\s*)?(?:lemma|theorem)\s+([\w.'?!]+)", text, re.M)]
     # `private` declarations are not addressable from the probe
     priv = set(m.group(1) for m in
-               re.finditer(r'^private\s+(?:lemma|theorem)\s+([\w.]+)', text, re.M))
+               re.finditer(r"^private\s+(?:lemma|theorem)\s+([\w.'?!]+)", text, re.M))
     names = [n for n in names if n not in priv]
     if not names:
         continue
