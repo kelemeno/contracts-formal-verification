@@ -2525,3 +2525,37 @@ What remains for the length lemma is therefore composition rather than any missi
 ingredient: walking `s₉` back to `s₀` through the six layers, discharging each separation
 from `array` being a literal low slot plus the propagated window and fuel.  That is
 mechanical but long, and `fun_pushNewLeaf` above it still states nothing a caller can use.
+
+
+### Part H addendum 7 — the plain push is callable from `s₀` alone (2026-08-14)
+
+Addendum 4 recorded the deployed `array.push` as fully specified, with one caveat: the
+keccak separation was a HYPOTHESIS, "discharged at the use site by the low-slot result".
+It is now discharged IN the corpus, for the case the tree actually uses.
+
+| lemma | separation |
+| --- | --- |
+| `array_push_length_of_low_slot` | derived |
+| `array_push_sload_frame_of_low_slot` | derived (both of them) |
+| `array_push_val` | never needed one — it is about the element slot itself |
+
+Every hypothesis of these is about `s₀`: the account exists, the length fits and does not
+wrap, the array's slot and its current length are below `2 ^ 32`, the keccak window holds,
+and the pool has two entries left. The general versions keep their hypothesis form, which is
+right — it is what keeps them clear of the keccak configuration.
+
+**What the fuel hypothesis is for, and why it cannot be dropped.** The separation needs "this
+hash drew a fresh slot rather than hitting the collision fallback". That is a fact about the
+state *at the hash*, which is existentially bound inside the specification chain — so it
+cannot be assumed by a caller who knows only `s₀`, and it cannot be derived from the window
+either. It has to arrive as a propagated invariant, and `specs/KeccakFuel.lean`'s `Fuel` is
+that invariant. Two lemmas added today complete the route: `Fuel.sstore` (a storage write
+costs at most one unit, capped by `Nodup`) and `keccak256_some_of_fuel` (fuel implies the
+hash succeeds).
+
+Worth stating plainly because it is easy to get wrong: **a caller budgets fuel for the WRITES
+on a path, not only for its hashes.** The plain push needs `Fuel s₀.evm 2` — one unit for the
+length `sstore`, one for the element-address hash.
+
+The levels push has the same route available layer by layer; what remains there is the
+composition, which is long rather than blocked.
