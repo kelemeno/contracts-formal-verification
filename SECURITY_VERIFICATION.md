@@ -2559,3 +2559,43 @@ length `sstore`, one for the element-address hash.
 
 The levels push has the same route available layer by layer; what remains there is the
 composition, which is long rather than blocked.
+
+
+### Part H addendum 8 — the route to "one push, one leaf" (2026-08-14)
+
+`fun_pushNewLeaf` is the tree's entry point and still states nothing a caller can use. This
+records exactly what stands between the corpus and its first real property, because the
+answer got much shorter today and the remaining step has a trap in it.
+
+**What is already in place.** On the common path — tree neither full nor empty — the
+function's chain collapses: both branch guards have identity lemmas, and the counter step is
+now fully specified (`increment_uint256_val` and `fun_uncheckedInc_val` for the values,
+`increment_uint256_sload` and `fun_uncheckedInc_sload` for the frames, all unconditional
+because a panic writes memory and reverts rather than touching storage). The leaf count is
+read at slot 1, incremented under a CHECKED increment, and stored back.
+
+**What is missing** is a storage frame for `fun_updateLeaf`, and under it one for the fold
+loop `for_5363593723278629209`. Three steps, in this order:
+
+1. `block_8439353917263816235_val` — `ABody_..._writes_one_slot` already produces the written
+   slot as a witness, but nothing says what that slot IS. The equation comes from the index
+   accessor's `_val`.
+2. `ABody_..._preserves_low` — one iteration preserves every slot below `2 ^ 32`, from (1)
+   plus the low-slot separation. The window comes from `ABody_..._config`; the
+   hash-succeeded fact comes from `Fuel` via `keccak256_some_of_fuel`.
+3. The `AFor` conjunct lifting (2) over the loop.
+
+**The trap is in (3), and it is worth stating before anyone attempts it.** The natural
+formulation ties the fuel budget to the tree's level count in storage — and that is
+CIRCULAR, because the bound would then depend on a storage value whose preservation is the
+very thing being proved. The fix is to tie it to the loop's TRIP COUNT, which `AFor` already
+exposes as `∃ k`, and to quantify over the budget so the recursive instance can be applied
+at a smaller one.
+
+**And the fuel hypothesis is load-bearing, not bureaucratic.** Without enough pool a hash can
+hit the collision fallback; the write then lands at `0 + index`, which may well be a low
+slot, and the frame is genuinely FALSE. It is a real precondition about the machine state,
+not an artefact of the proof.
+
+Once (1)–(3) land, "pushing a leaf increments the leaf count" follows from pieces that all
+exist today.
