@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakFuel
 import specs.KeccakLowSlot
 
 
@@ -152,6 +153,34 @@ lemma panic_error_0x32_account {addr : Address} {s₀ s₉ : State} (hok : isOk 
     Clear.StorageFrame.lookupAccount_mstore, Clear.StorageFrame.execution_env_mstore,
     hfdef, Clear.evm_initcall hok]
   exact ⟨rfl, rfl⟩
+
+/-- **FUEL FRAME.**  A panic spends no pool: it writes memory and reverts, and neither
+touches `keccak_range` or `used_range`.  So a caller's hash budget survives the branch it
+hopes never to take. -/
+lemma panic_error_0x32_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_panic_error_0x32 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  unfold A_panic_error_0x32 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 50⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  simp only [evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hcok, Clear.evm_setEvm_of_isOk hbok]
+  refine Clear.KeccakFuel.Fuel.evm_revert 0 36 ?_
+  rw [hbdef, Clear.evm_setEvm_of_isOk haok]
+  refine Clear.KeccakFuel.Fuel.mstore 4 50 ?_
+  rw [hadef, Clear.evm_setEvm_of_isOk hmok]
+  refine Clear.KeccakFuel.Fuel.mstore 0 _ ?_
+  rw [hfdef, Clear.evm_initcall hok]
+  exact hf
 
 end
 

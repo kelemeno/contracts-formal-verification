@@ -5,6 +5,7 @@ import specs.KeccakFresh
 import specs.KeccakSlotSep
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
+import specs.KeccakFuel
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2600721580863995212
@@ -524,6 +525,55 @@ lemma storage_array_index_access_bytes32_dyn_ptr_account
   obtain ⟨hacc', henv'⟩ := (account_arrIdxResultState (addr := addr) hboth.1)
   rw [hacc', henv', hboth.2.1, hboth.2.2, arrIdxGuardState_evm hok]
   exact ⟨rfl, rfl⟩
+
+/-- **FUEL FRAME.**  The accessor hashes once, so it costs at most one unit of pool; the
+out-of-bounds branch panics, which costs nothing.  Unconditional, like `_sload` and
+`_config`, and for the same reason -- a revert is a flag here, not a rollback.
+
+This is what lets a caller's hash budget reach a LATER hash on the same path.  Without it
+the low-slot separations stop being dischargeable after the first accessor call. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_fuel
+    {slot offset : Identifier} {array index : Literal} {k : ℕ} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hgce : (arrIdxGuardState array index s₀).evm = s₀.evm := arrIdxGuardState_evm hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches leave at least `k + 1` units: the panic spends nothing, the identity
+  -- branch is the caller's own state
+  have hboth : isOk ss ∧ Clear.KeccakFuel.Fuel ss.evm (k + 1) := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      exact ⟨panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp),
+        panic_error_0x32_fuel hgcok (by rw [hgce]; exact hf)
+          (Spec_ok_unfold hgcok hssnf hsp)⟩
+    · have hss : ss = arrIdxGuardState array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, by rw [hgce]; exact hf⟩
+  obtain ⟨hssok, hfss⟩ := hboth
+  subst heq
+  have hrsok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hrsok]
+  unfold arrIdxResultState
+  have hmok : isOk (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hssok
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hssok]
+  exact Clear.KeccakFuel.Fuel.keccakOut (Clear.KeccakFuel.Fuel.mstore 0 _ hfss)
 
 end
 

@@ -195,6 +195,17 @@ theorem Fuel.sstore {σ : EVMState} (p v : UInt256) {n : ℕ}
     rw [hEq]
     omega
 
+/-- Returning costs no fuel: it writes return data into the machine state and touches
+neither the range nor `used_range`. -/
+theorem Fuel.evm_return {σ : EVMState} (p n : UInt256) {k : ℕ} (h : Fuel σ k) :
+    Fuel (σ.evm_return p n) k := h
+
+/-- **NOR DOES REVERTING.**  `evm_revert` is `evm_return` plus the `reverted` flag, so a
+panicking branch spends nothing -- which is what makes the fuel frames unconditional across
+the guarded helpers, exactly as the storage frames are. -/
+theorem Fuel.evm_revert {σ : EVMState} (p n : UInt256) {k : ℕ} (h : Fuel σ k) :
+    Fuel (σ.evm_revert p n) k := h
+
 /-- **AN ACCESSOR STEP COSTS AT MOST ONE UNIT.** -/
 theorem Fuel.accOut {σ : EVMState} {key base : UInt256} {n : ℕ}
     (h : Fuel σ (n + 1)) : Fuel (accOut σ key base).2 n :=
