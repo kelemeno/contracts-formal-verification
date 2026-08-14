@@ -308,6 +308,18 @@ lemma lookup_initcall_fst3 {s : State} {u v w : Ast.Identifier} {x y z : UInt256
   · exact absurd h (by simp [isOk])
 
 
+
+/-- Reviving an `Ok` state does not change its evm.
+
+The hypothesis is NOT removable, and the reason is worth knowing: `State.evm` of a
+`Checkpoint` is `default`, not the jump's own evm.  So reviving a checkpoint turns
+`default` into the real machine state, and the unconditional version of this lemma is
+FALSE.  More generally, `.evm` of a non-`Ok` state carries no information, so any evm or
+storage fact has to travel with an `isOk`. -/
+lemma evm_reviveJump_of_isOk {t : State} (hok : isOk t) : (🧟 t).evm = t.evm := by
+  rw [revive_of_ok hok]
+
+
 end
 
 end Clear

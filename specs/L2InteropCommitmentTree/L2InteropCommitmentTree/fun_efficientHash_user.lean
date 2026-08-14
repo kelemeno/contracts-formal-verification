@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 import specs.KeccakDeterminism
 import specs.KeccakPrimOps
@@ -11,7 +12,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear Clear.KeccakPrimOps Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear Clear.StorageFrame Clear.KeccakPrimOps Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
 /-- The MERKLE PAIR HASH: `keccak256(lhs ‖ rhs)` over the two scratch words.
 
@@ -130,6 +131,40 @@ lemma fun_efficientHash_frame {var_result : Identifier} {var_lhs var_rhs : Liter
     apply hnf
     simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
+
+/-- **STORAGE FRAME.**  Hashing writes MEMORY and the keccak cache; storage is untouched,
+so every slot reads back the same across the call.
+
+Each intermediate state is `set` and given its own `isOk` BEFORE any rewriting.  Unfolding
+`State.setEvm` / `State.evm` instead turns the goal into nested raw `match`es that no lemma
+applies to -- the definitions have simp lemmas (`evm_setEvm_of_isOk`, `evm_multifill`,
+`evm_setStore`) precisely so they never have to be unfolded. -/
+lemma fun_efficientHash_sload {var_result : Identifier} {var_lhs var_rhs q : UInt256}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_fun_efficientHash at h
+    subst h
+    set f := (Ok evm store)☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧ with hfdef
+    have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk (by simp [isOk])
+    set a := f🇪⟦EVMState.mstore f.evm 0 var_lhs⟧ with hadef
+    have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hfok
+    set b := a🇪⟦EVMState.mstore a.evm 32 var_rhs⟧ with hbdef
+    have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+    have hrok : isOk (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1) := by
+      apply isOk_multifill
+      rw [primCall_keccakOut]
+      simpa only [isOk_setEvm] using hbok
+    rw [evm_insert, evm_setStore, revive_of_ok hrok, evm_multifill, primCall_keccakOut,
+      Clear.evm_setEvm_of_isOk hbok, Clear.StorageFrame.sload_keccakOut,
+      hbdef, Clear.evm_setEvm_of_isOk haok, Clear.StorageFrame.sload_mstore,
+      hadef, Clear.evm_setEvm_of_isOk hfok, Clear.StorageFrame.sload_mstore, hfdef]
+    simp only [State.initcall, evm_multifill, evm_setStore]
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
 
 end
 
