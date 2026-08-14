@@ -45,6 +45,26 @@ lemma fun_uncheckedInc_not_break {var : Identifier} {var_number : Literal} {s₀
     (h : A_fun_uncheckedInc var var_number s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (fun_uncheckedInc_isOk hnf h)
 
+/-- **THE UNCHECKED INCREMENT RETURNS `n + 1` -- WITH NO GUARD AT ALL.**
+
+Worth stating beside `increment_uint256_val`, because the contract uses the two for
+different counters and the asymmetry is real: the LEAF count goes through the checked
+increment, which panics at `2^256 - 1`; the LEVEL count goes through this one, which does
+not check anything.  Here that is sound only because the level count is bounded by the
+tree's height, not because the function protects it.
+
+There is no overflow hypothesis because there is no overflow BRANCH -- at `2^256 - 1` this
+wraps to `0` and says so.  Any argument that it does not is an argument about the caller. -/
+lemma fun_uncheckedInc_val {var : Identifier} {var_number : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (h : A_fun_uncheckedInc var var_number s₀ s₉) :
+    s₉[var]!! = var_number + 1 := by
+  subst h
+  have hf0 : isOk (s₀☎️⟦["var_number"],[var_number]⟧) := isOk_initcall_of_isOk hok
+  have hfok : isOk ((s₀☎️⟦["var_number"],[var_number]⟧)⟦"var" ↦ var_number + 1⟧) :=
+    isOk_insert.mpr hf0
+  rw [lookup_insert' (isOk_setStore_of_isOk (by rw [revive_of_ok hfok]; exact hfok)),
+    lookup_insert' hf0]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
