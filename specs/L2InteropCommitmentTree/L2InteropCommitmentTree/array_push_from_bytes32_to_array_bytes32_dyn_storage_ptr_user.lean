@@ -186,6 +186,17 @@ lemma pushSt_array {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
   rw [Clear.lookup_setEvm (isOk_pushInc hok)]
   exact pushInc_array hok
 
+/-- The value argument survives to the element write: nothing between the call and the
+write rebinds `value0`, so what is stored is the caller's own argument. -/
+lemma pushSt_value0 {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushSt s₀ array value0)["value0"]!! = value0 := by
+  unfold pushSt
+  rw [Clear.lookup_setEvm (isOk_pushInc hok)]
+  unfold pushInc pushGc
+  rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+    lookup_insert_of_ne (by decide)]
+  exact Clear.lookup_initcall_snd hok (by decide)
+
 lemma pushSt_oldLen {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
     (pushSt s₀ array value0)["oldLen"]!! = Clear.EVMState.sload s₀.evm array := by
   unfold pushSt
@@ -373,6 +384,74 @@ lemma array_push_sload_frame {array value0 : Literal} {q : UInt256} {s₀ s₉ :
     pushSt_evm hok]
   exact Clear.KeccakDistinct.sload_sstore_of_ne s₀.evm hqa
 
+
+/-- **THE ELEMENT YOU PUSHED IS THE ELEMENT THAT IS THERE.**
+
+The value lands at the slot of index `oldLen` -- `keccak(array) + oldLen` over the evm the
+element write sees -- and it is `value0`, the caller's argument, not something derived from
+it.  With `array_push_length` (the length went up by one) and `array_push_sload_frame`
+(nothing else moved) this completes the push: after it, `array[oldLen] = value0` and the
+array is one longer.
+
+`hnw` is the no-wrap side condition; `hacc` is the EVM well-formedness the storage model
+needs for a write to read back, and the ACCOUNT FRAME is what carries it from `s₀` through
+the length write and the address computation to the element write. -/
+lemma array_push_val {array value0 : Literal} {s₀ s₉ : State} {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hnw : (Clear.EVMState.sload s₀.evm array).val + 1 < UInt256.size)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm
+        ((Clear.KeccakDeterminism.keccakOut ((Clear.EVMState.sstore s₀.evm array
+            (Clear.EVMState.sload s₀.evm array + 1)).mstore 0 array) 0 32).1
+          + Clear.EVMState.sload s₀.evm array)
+      = value0 := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have ha₂ := Spec_ok_unfold hstok h2nf h₂
+  have hs2ok : isOk s₂ := storage_array_index_access_bytes32_dyn_ptr_isOk h2nf ha₂
+  have ha₃ := Spec_ok_unfold hs2ok h3nf h₃
+  have hs3ok : isOk s₃ := update_storage_value_bytes32_to_bytes32_isOk h3nf ha₃
+  -- the account, carried from `s₀` through the length write and the accessor
+  have hacc1 : Clear.EVMState.lookupAccount (pushSt s₀ array value0).evm
+      (pushSt s₀ array value0).evm.execution_env.code_owner
+        = some (act.updateStorage array (Clear.EVMState.sload s₀.evm array + 1)) := by
+    rw [pushSt_evm hok]
+    exact Clear.StorageFrame.lookupAccount_sstore_self hacc
+  obtain ⟨haccS, henvS⟩ := storage_array_index_access_bytes32_dyn_ptr_account
+    (addr := (pushSt s₀ array value0).evm.execution_env.code_owner) hstok h2nf ha₂
+  have hacc2 : Clear.EVMState.lookupAccount s₂.evm s₂.evm.execution_env.code_owner
+      = some (act.updateStorage array (Clear.EVMState.sload s₀.evm array + 1)) := by
+    rw [henvS, haccS]; exact hacc1
+  -- the write's arguments: word-aligned, and the value is the caller's
+  have hoff : s₂["offset"]!! = 0 :=
+    storage_array_index_access_bytes32_dyn_ptr_offset hstok h2nf (by decide) ha₂
+  have hval : s₂["value0"]!! = value0 := by
+    rw [storage_array_index_access_bytes32_dyn_ptr_frame hstok h2nf (by decide) (by decide) ha₂]
+    exact pushSt_value0 hok
+  -- and the slot, in closed form
+  have hlt : Clear.EVMState.sload s₀.evm array
+      < Clear.EVMState.sload (pushSt s₀ array value0).evm array := by
+    rw [pushSt_evm hok]
+    exact Clear.StorageFrame.sload_lt_after_push hacc hnw
+  have hslot : s₂["slot"]!!
+      = (Clear.KeccakDeterminism.keccakOut
+            (((pushSt s₀ array value0).evm).mstore 0 array) 0 32).1
+        + Clear.EVMState.sload s₀.evm array :=
+    storage_array_index_access_bytes32_dyn_ptr_val hstok h2nf (by decide) hlt ha₂
+  rw [pushSt_evm (array := array) (value0 := value0) hok] at hslot
+  have hw := update_storage_value_bytes32_to_bytes32_val hs2ok h3nf hacc2 hoff ha₃
+  rw [hslot, hval] at hw
+  subst heq
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs3ok]
+  exact hw
 
 end
 
