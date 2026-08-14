@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.StateOk
 import specs.KeccakDeterminism
 import specs.KeccakPrimOps
@@ -12,7 +13,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear Clear.StorageFrame Clear.KeccakPrimOps Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear Clear.StorageFrame Clear.KeccakLowSlot Clear.KeccakPrimOps Clear.KeccakDeterminism EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
 /-- The MERKLE PAIR HASH: `keccak256(lhs ‖ rhs)` over the two scratch words.
 
@@ -163,6 +164,53 @@ lemma fun_efficientHash_sload {var_result : Identifier} {var_lhs var_rhs q : UIn
       hbdef, Clear.evm_setEvm_of_isOk haok, Clear.StorageFrame.sload_mstore,
       hadef, Clear.evm_setEvm_of_isOk hfok, Clear.StorageFrame.sload_mstore, hfdef]
     simp only [State.initcall, evm_multifill, evm_setStore]
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+
+/-- **CONFIG FRAME.**  The keccak window survives the call.
+
+A low-slot argument (`keccak256_add_ne_lowSlot_of_config`) needs `RangeInWindow` and
+`CachedInWindow` AT THE STATE WHERE THE HASH HAPPENS, but a caller can only supply them for
+its own `s₀`.  This carries them across: two `mstore`s (which touch neither field) and one
+hash step (for which `KeccakLowSlot` already has the propagation). -/
+lemma fun_efficientHash_config {var_result : Identifier} {var_lhs var_rhs : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_fun_efficientHash at h
+    subst h
+    set f := (Ok evm store)☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧ with hfdef
+    have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk (by simp [isOk])
+    set a := f🇪⟦EVMState.mstore f.evm 0 var_lhs⟧ with hadef
+    have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hfok
+    set b := a🇪⟦EVMState.mstore a.evm 32 var_rhs⟧ with hbdef
+    have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+    have hrok : isOk (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1) := by
+      apply isOk_multifill
+      rw [primCall_keccakOut]
+      simpa only [isOk_setEvm] using hbok
+    -- the evm the result carries is the post-hash one
+    have hev : (((🧟 (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1))🏪⟦Ok evm store⟧)⟦var_result ↦
+        (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1)["var_result"]!!⟧).evm
+        = (keccakOut b.evm 0 64).2 := by
+      rw [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrok, evm_multifill,
+        primCall_keccakOut, Clear.evm_setEvm_of_isOk hbok]
+    rw [hev]
+    -- and b.evm is two mstores over the caller's
+    have hbe : b.evm = EVMState.mstore (EVMState.mstore (Ok evm store).evm 0 var_lhs) 32 var_rhs := by
+      rw [hbdef, Clear.evm_setEvm_of_isOk haok, hadef, Clear.evm_setEvm_of_isOk hfok, hfdef,
+        Clear.evm_initcall (by simp [isOk])]
+    have hRb : RangeInWindow b.evm := by
+      rw [hbe]; exact rangeInWindow_mstore (rangeInWindow_mstore hR)
+    have hCb : CachedInWindow b.evm := by
+      rw [hbe]; exact cachedInWindow_mstore (cachedInWindow_mstore hC)
+    exact ⟨rangeInWindow_keccakOut hRb, cachedInWindow_keccakOut hRb hCb⟩
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
 

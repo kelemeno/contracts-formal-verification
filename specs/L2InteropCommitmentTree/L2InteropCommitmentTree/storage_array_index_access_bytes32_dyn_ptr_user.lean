@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -14,7 +15,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- The state the bounds guard sees: parameters bound, length loaded, comparison made. -/
 def arrIdxGuardState (array index : Literal) (s₀ : State) : State :=
@@ -282,6 +283,57 @@ lemma storage_array_index_access_bytes32_dyn_ptr_sload
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk (isOk_arrIdxResultState hboth.1),
     sload_arrIdxResultState hboth.1, hboth.2, arrIdxGuardState_evm hok]
+
+
+/-- **CONFIG FRAME.**  The accessor's `mstore` + hash leave the keccak window intact, on
+BOTH branches -- the bounds panic reverts, which does not touch it either. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_config
+    {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hgce : (arrIdxGuardState array index s₀).evm = s₀.evm := arrIdxGuardState_evm hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches keep the window
+  have hboth : isOk ss ∧ RangeInWindow ss.evm ∧ CachedInWindow ss.evm := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      refine ⟨panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp), ?_⟩
+      exact panic_error_0x32_config hgcok (by rw [hgce]; exact hR) (by rw [hgce]; exact hC)
+        (Spec_ok_unfold hgcok hssnf hsp)
+    · have hss : ss = arrIdxGuardState array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, by rw [hgce]; exact hR, by rw [hgce]; exact hC⟩
+  obtain ⟨hssok, hRss, hCss⟩ := hboth
+  subst heq
+  have hrsok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  have hev : ((🧟 (arrIdxResultState ss))🏪⟦s₀⟧⟦offset ↦ (arrIdxResultState ss)["offset"]!!⟧⟦slot
+      ↦ (arrIdxResultState ss)["slot"]!!⟧).evm
+      = (keccakOut (EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2 := by
+    simp only [evm_insert, evm_setStore]
+    rw [Clear.evm_reviveJump_of_isOk hrsok]
+    unfold arrIdxResultState
+    have hmok : isOk (ss🇪⟦EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+      simp only [isOk_setEvm]; exact hssok
+    simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+    rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hssok]
+  rw [hev]
+  have hRm : RangeInWindow (EVMState.mstore ss.evm 0 (ss["array"]!!)) := rangeInWindow_mstore hRss
+  have hCm : CachedInWindow (EVMState.mstore ss.evm 0 (ss["array"]!!)) := cachedInWindow_mstore hCss
+  exact ⟨rangeInWindow_keccakOut hRm, cachedInWindow_keccakOut hRm hCm⟩
 
 end
 

@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakLowSlot
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x32_gen
@@ -10,7 +11,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities 
 
 /-- Solidity's `Panic(uint256)` revert with code `0x32` (array index out of bounds):
 
@@ -88,6 +89,37 @@ lemma panic_error_0x32_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
     Clear.StorageFrame.sload_evm_revert, hbdef, Clear.evm_setEvm_of_isOk haok,
     Clear.StorageFrame.sload_mstore, hadef, Clear.evm_setEvm_of_isOk hmok,
     Clear.StorageFrame.sload_mstore, hfdef, Clear.evm_initcall hok]
+
+
+/-- **CONFIG FRAME.**  A panic writes memory and reverts; the keccak window is untouched. -/
+lemma panic_error_0x32_config {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_panic_error_0x32 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  unfold A_panic_error_0x32 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 50⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  have hev : ((🧟 (b🇪⟦EVMState.evm_revert b.evm 0 36⟧))🏪⟦s₀⟧).evm
+      = EVMState.evm_revert b.evm 0 36 := by
+    rw [evm_setStore, Clear.evm_reviveJump_of_isOk hcok, Clear.evm_setEvm_of_isOk hbok]
+  rw [hev]
+  have hfe : f.evm = s₀.evm := by rw [hfdef]; exact Clear.evm_initcall hok
+  have hbe : b.evm = EVMState.mstore (EVMState.mstore s₀.evm 0 (m["split_expr_0"]!!)) 4 50 := by
+    rw [hbdef, Clear.evm_setEvm_of_isOk haok, hadef, Clear.evm_setEvm_of_isOk hmok, hfe]
+  have hRb : RangeInWindow b.evm := by
+    rw [hbe]; exact rangeInWindow_mstore (rangeInWindow_mstore hR)
+  have hCb : CachedInWindow b.evm := by
+    rw [hbe]; exact cachedInWindow_mstore (cachedInWindow_mstore hC)
+  exact ⟨rangeInWindow_evm_revert hRb, cachedInWindow_evm_revert hCb⟩
 
 end
 

@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakDeterminism
+import specs.KeccakLowSlot
 
 /-! # What does NOT touch storage
 
@@ -20,7 +21,7 @@ DOES write storage) this is everything needed to carry a slot's value across a c
 
 namespace Clear.StorageFrame
 
-open Clear Clear.KeccakDeterminism
+open Clear Clear.KeccakDeterminism Clear.KeccakLowSlot
 
 /-- `mstore` writes MEMORY.  Storage is untouched, so any `sload` reads back the same. -/
 @[simp] theorem sload_mstore (σ : EVMState) (a v q : UInt256) :
@@ -88,5 +89,40 @@ survives both branches. -/
   -- it is definitionally `sload` of the returned state
   show (σ.evm_return p n).sload q = σ.sload q
   exact sload_evm_return σ p n q
+
+
+/-! ## The keccak CONFIGURATION also survives the writes
+
+`RangeInWindow` and `CachedInWindow` quantify over `keccak_range` and `keccak_map`.  A
+memory write, a storage write and a revert touch none of those, so the configuration a
+low-slot argument depends on is carried across every step of a compiled body -- exactly as
+`sload` is above.  `KeccakLowSlot` already covers the hash step itself
+(`rangeInWindow_keccakOut`, `cachedInWindow_keccakOut`). -/
+
+theorem rangeInWindow_mstore {σ : EVMState} {a v : UInt256} (h : RangeInWindow σ) :
+    RangeInWindow (σ.mstore a v) := h
+
+theorem cachedInWindow_mstore {σ : EVMState} {a v : UInt256} (h : CachedInWindow σ) :
+    CachedInWindow (σ.mstore a v) := h
+
+theorem rangeInWindow_sstore {σ : EVMState} {p v : UInt256} (h : RangeInWindow σ) :
+    RangeInWindow (σ.sstore p v) := by
+  unfold RangeInWindow EVMState.sstore at *
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simpa only [hacc] using h
+  | some act => simpa only [hacc] using h
+
+theorem cachedInWindow_sstore {σ : EVMState} {p v : UInt256} (h : CachedInWindow σ) :
+    CachedInWindow (σ.sstore p v) := by
+  unfold CachedInWindow EVMState.sstore at *
+  cases hacc : σ.lookupAccount σ.execution_env.code_owner with
+  | none => simpa only [hacc] using h
+  | some act => simpa only [hacc] using h
+
+theorem rangeInWindow_evm_revert {σ : EVMState} {p n : UInt256} (h : RangeInWindow σ) :
+    RangeInWindow (σ.evm_revert p n) := h
+
+theorem cachedInWindow_evm_revert {σ : EVMState} {p n : UInt256} (h : CachedInWindow σ) :
+    CachedInWindow (σ.evm_revert p n) := h
 
 end Clear.StorageFrame
