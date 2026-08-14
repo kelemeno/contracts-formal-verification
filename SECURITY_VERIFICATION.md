@@ -2436,3 +2436,45 @@ per-push fact is now available to them, but the loop-level argument — that pus
 level `i` exactly while `oldMaxNodeNumber ≠ maxNodeNumber` keeps every level big enough —
 is still to be made. `fun_pushNewLeaf`'s own spec remains `abs_of_concrete` + `isOk` +
 `not_break`, i.e. it describes the code but states nothing a caller can use.
+
+
+### Part H addendum 5 — a vacuous frame, and the checker that now catches it (2026-08-14)
+
+Worth recording plainly because it is a failure of the corpus's own quality controls, not a
+gap in coverage.
+
+Three storage frames for the levels-push path — both of its loops and the zero-fill wrapper
+— were committed carrying the separation hypothesis
+
+    ∀ j : UInt256, q ≠ base + j
+
+Over a full word that hypothesis is **unsatisfiable**: instantiate at `j = q - base` and it
+says `q ≠ q`. The lemmas were therefore provable, axiom-clean, sorry-free, and **useless** —
+no caller could ever discharge the hypothesis, so nothing could be built on them.
+
+None of the six existing checkers would have flagged this. It is not a stub, not an alias,
+its postcondition is not `True`, and it binds its concrete spec correctly. The corpus's
+known contentless-spec failure modes are all about a postcondition that says nothing; this
+is the dual — a *hypothesis that cannot hold*, which makes the implication vacuous from the
+other side.
+
+All three now bound the quantifier by the loop's trip count:
+
+    ∃ n : ℕ, ∀ q, (∀ j : ℕ, j < n → q ≠ base + (j : UInt256)) → sload s₉ q = sload s₀ q
+
+The existential is the honest shape: `n` is data the loop determines, not something a caller
+knows in advance. A caller receives it and then shows `q` avoids those `n` slots, which the
+keccak low-slot result discharges once `n` is bounded — a real side condition, and true of
+any real tree.
+
+`scripts/vacuity-check.sh` was added to catch the shape by pattern, and is self-tested both
+ways (clean over `specs/`, and it does flag the construct it was written for). Two of its
+own bugs are recorded in its header, both instances of a pattern this project keeps hitting:
+the bound in `KeccakSlotSep.Separated` is written on `i.val` rather than `i`, so the first
+version reported that file as a finding of its own making.
+
+**The general lesson for anyone extending this corpus**: a new relational spec should be
+checked for SATISFIABILITY, not only for provability. Deriving `False` from its hypotheses
+is one `example` and would have caught this before it was committed. And a vacuity bug
+propagates to every consumer that restates the hypothesis — fixing the two loops left the
+wrapper still vacuous, and it was found only by grepping for the shape afterwards.
