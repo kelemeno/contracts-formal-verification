@@ -399,6 +399,38 @@ lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_cached
     Clear.KeccakDeterminism.keccakOut_of_cached hc₁]
   exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hc₁ hc₂ hne hk₁ hk₂
 
+
+/-- **THE FRESH-MINT FORM.**  Same conclusion as `_slot_ne_cached`, but stated where the
+fold can actually discharge it.
+
+The accessor's own hash may be a MINT (the first time that level array is hashed in this
+call), so its value is not in the cache BEFORE the call and the cached form does not apply.
+It is in the cache AFTER (`keccakOut_caches_of_clean`), and the other value is still there
+because the cache only grows -- so both are cached at the POST-hash state, and the
+inequality `cached_off_ne_off` proves there is an inequality between two `UInt256`s, which
+holds everywhere.
+
+That is the whole trick: state the hypotheses at the post-hash state and the fresh/cached
+asymmetry disappears. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_post
+    {slot offset : Identifier} {array index r₂ k₂ : Literal} {I₂ : List UInt256}
+    {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (hlt : index < Clear.EVMState.sload s₀.evm array)
+    (hclean : (keccakOut ((s₀.evm).mstore 0 array) 0 32).2.hash_collision = false)
+    (hsep : Clear.KeccakSlotSep.Separated (keccakOut ((s₀.evm).mstore 0 array) 0 32).2)
+    (hinj : Clear.KeccakFresh.CacheInj (keccakOut ((s₀.evm).mstore 0 array) 0 32).2)
+    (hc₂ : Finmap.lookup I₂ (keccakOut ((s₀.evm).mstore 0 array) 0 32).2.keccak_map
+             = some r₂)
+    (hne : EVMState.mkInterval ((s₀.evm).mstore 0 array).machine_state 0 32 ≠ I₂)
+    (hk₁ : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hk₂ : k₂.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ r₂ + k₂ := by
+  have hc₁ := Clear.KeccakDeterminism.keccakOut_caches_of_clean hclean
+  rw [storage_array_index_access_bytes32_dyn_ptr_val hok hnf hso hlt h]
+  exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hc₁ hc₂ hne hk₁ hk₂
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
