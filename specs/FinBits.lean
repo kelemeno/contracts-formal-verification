@@ -97,5 +97,41 @@ theorem shiftRight_one_le {x y : UInt256} (h : x ≤ y) :
   rw [hx, hy]
   exact Nat.div_le_div_right h
 
+/-! ### The `offset = 0` field mask
+
+`update_storage_value_bytes32_to_bytes32` patches a FIELD of a packed slot: it builds a
+mask from `offset`, clears that field, and ORs the shifted value in.  Every caller on the
+array-push path passes `offset = 0` -- a `bytes32` occupies a whole word -- and there the
+mask machinery collapses to "store `value`".  These four are what collapses it.
+
+`UInt256.lnot` is ARITHMETIC in Clear (`size - 1 - a`), not a bitwise primitive, which is
+why the mask lemma is a subtraction argument rather than a bit-by-bit one. -/
+
+@[simp] theorem shiftLeft_zero (x : UInt256) : Fin.shiftLeft x 0 = x := by
+  simp only [Fin.shiftLeft]
+  apply Fin.ext
+  simp only [Fin.val_zero, Nat.shiftLeft_zero]
+  exact Nat.mod_eq_of_lt x.isLt
+
+/-- Shifting ZERO, as opposed to shifting BY zero: `shl(k, 0) = 0`.  Both directions come
+up in the mask -- `shiftBits := shl(3, offset)` needs this one, the mask itself needs
+`shiftLeft_zero`. -/
+@[simp] theorem zero_shiftLeft (n : UInt256) : Fin.shiftLeft 0 n = 0 := by
+  apply Fin.ext
+  simp [Fin.shiftLeft]
+
+@[simp] theorem land_zero (x : UInt256) : Fin.land x 0 = 0 := by
+  apply Fin.ext
+  simp [Fin.land, Nat.land, Nat.bitwise_zero_right]
+
+@[simp] theorem zero_lor (x : UInt256) : Fin.lor 0 x = x := by
+  apply Fin.ext
+  simp [Fin.lor, Nat.lor, Nat.bitwise_zero_left, Nat.mod_eq_of_lt x.isLt]
+
+/-- The full-word mask is zero: `not (not 0) = 0`, so the old word is cleared outright. -/
+theorem lnot_lnot_zero : UInt256.lnot (UInt256.lnot 0) = 0 := by
+  simp only [UInt256.lnot]
+  apply Fin.ext
+  simp [UInt256.size]
 
 end Clear.FinBits
