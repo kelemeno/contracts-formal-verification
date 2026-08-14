@@ -117,3 +117,26 @@ Status of the per-contract sweep over CONTENTFUL specs:
 So the blocked contracts are not merely missing proofs — their specs cannot even be
 CHECKED for existence, because the modules they import do not elaborate. Regenerating
 those with a fixed generator is a prerequisite for any integrity claim about them.
+
+## Stub CONTAMINATION: "no sorry in this file" is not enough (2026-08-14)
+
+Sweeping InteropHandler's 164 genuinely-closed specs (sorry-free, not aliases) found **2
+that still carry `sorryAx`**, because they COMPOSE THROUGH stubs:
+
+| closed spec                          | tainted by                                            |
+|--------------------------------------|-------------------------------------------------------|
+| `if_8907015681698142673`             | `block_3609567697964190809`, `abi_encode_bytes32_bytes_bytes` |
+| `fun_requireExecutionAllowed`        | `fun_parseEvmV1`, `fun_formatEvmV1`, `abi_encode_bytes32_bytes_bytes` |
+
+So a spec can be hand-written, sorry-free, build green, and still prove nothing — the
+`sorry` is one import away. `grep -c sorry` on the file says 0; `#print axioms` on the
+constant says `sorryAx`.
+
+`scripts/constants-check.sh` is the check that distinguishes them, and it is the reason to
+prefer it over any file-level scan. `scripts/chain-check.sh` answers the same shape of
+question for ALIASES (which are sound, so it is about readability); this one is about
+soundness.
+
+No audited result is affected: `audit-count.sh` reports 210 results, 200 clean and 10 on
+the declared keccak axioms, with zero `sorryAx`. But `fun_requireExecutionAllowed` is an
+access-control guard, so it is worth knowing it is not currently proved.
