@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.KeccakLowSlot
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7746411058724286464
@@ -18,7 +19,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The parity dispatch** — one level of the Merkle fold, choosing the sibling's side.
 
@@ -144,6 +145,31 @@ lemma switch_4762420646048873450_sload {q : UInt256} {s₀ s₉ : State} (hok : 
       block_7746411058724286464_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
     rw [block_896716371604423710_sload hs1 hnf (Spec_ok_unfold hs1 hnf h₂),
       block_7746411058724286464_sload hok h1nf (Spec_ok_unfold hok h1nf h₁)]
+
+
+/-- **CONFIG FRAME.**  The parity switch, both branches. -/
+lemma switch_4762420646048873450_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_switch_4762420646048873450 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, hbrEven, hbrOdd⟩ := h
+  by_cases hc : s₀["split_expr_6"]!! = 0
+  · rw [hbrEven hc] at hnf ⊢
+    have hins : isOk (s₀⟦"expr" ↦ 0⟧) := isOk_insert.mpr hok
+    have hinse : (s₀⟦"expr" ↦ 0⟧).evm = s₀.evm := by simp only [evm_insert]
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hs3 : isOk s₃ :=
+      switch_4354665484259437184_isOk hins h3nf (Spec_ok_unfold hins h3nf h₃)
+    obtain ⟨hR3, hC3⟩ := switch_4354665484259437184_config hins h3nf
+      (by rw [hinse]; exact hR) (by rw [hinse]; exact hC) (Spec_ok_unfold hins h3nf h₃)
+    exact fun_efficientHash_config hs3 hR3 hC3 (Spec_ok_unfold hs3 hnf h₄)
+  · rw [hbrOdd hc] at hnf ⊢
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      block_7746411058724286464_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    obtain ⟨hR1, hC1⟩ := block_7746411058724286464_config hok h1nf hR hC
+      (Spec_ok_unfold hok h1nf h₁)
+    exact block_896716371604423710_config hs1 hnf hR1 hC1 (Spec_ok_unfold hs1 hnf h₂)
 
 end
 

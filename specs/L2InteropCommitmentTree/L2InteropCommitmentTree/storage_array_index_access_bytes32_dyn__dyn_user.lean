@@ -3,6 +3,7 @@ import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
 import specs.StorageFrame
+import specs.KeccakLowSlot
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2600721580863995212
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x32
@@ -14,7 +15,7 @@ namespace generated.L2InteropCommitmentTree.L2InteropCommitmentTree
 
 section
 
-open Clear Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot Clear.KeccakDeterminism Clear.KeccakPrimOps EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities L2InteropCommitmentTree.Common generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- The state the bounds guard sees: parameters bound, length loaded, comparison made. -/
 def arrIdxGuardStateDyn (array index : Literal) (s₀ : State) : State :=
@@ -282,6 +283,84 @@ lemma storage_array_index_access_bytes32_dyn__dyn_sload
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk (isOk_arrIdxResultStateDyn hboth.1),
     sload_arrIdxResultStateDyn hboth.1, hboth.2, arrIdxGuardStateDyn_evm hok]
+
+
+/-- **CONFIG FRAME.**  The accessor's `mstore` + hash leave the keccak window intact, on
+BOTH branches -- the bounds panic reverts, which does not touch it either. -/
+lemma storage_array_index_access_bytes32_dyn__dyn_config
+    {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_storage_array_index_access_bytes32_dyn__dyn slot offset array index s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardStateDyn array index s₀) := by
+    unfold arrIdxGuardStateDyn; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultStateDyn]
+    exact hoo
+  have hgce : (arrIdxGuardStateDyn array index s₀).evm = s₀.evm := arrIdxGuardStateDyn_evm hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches keep the window
+  have hboth : isOk ss ∧ RangeInWindow ss.evm ∧ CachedInWindow ss.evm := by
+    by_cases hflag : (arrIdxGuardStateDyn array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      refine ⟨panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp), ?_⟩
+      exact panic_error_0x32_config hgcok (by rw [hgce]; exact hR) (by rw [hgce]; exact hC)
+        (Spec_ok_unfold hgcok hssnf hsp)
+    · have hss : ss = arrIdxGuardStateDyn array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, by rw [hgce]; exact hR, by rw [hgce]; exact hC⟩
+  obtain ⟨hssok, hRss, hCss⟩ := hboth
+  subst heq
+  have hrsok : isOk (arrIdxResultStateDyn ss) := isOk_arrIdxResultStateDyn hssok
+  have hev : ((🧟 (arrIdxResultStateDyn ss))🏪⟦s₀⟧⟦offset ↦ (arrIdxResultStateDyn ss)["offset"]!!⟧⟦slot
+      ↦ (arrIdxResultStateDyn ss)["slot"]!!⟧).evm
+      = (keccakOut (EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2 := by
+    simp only [evm_insert, evm_setStore]
+    rw [Clear.evm_reviveJump_of_isOk hrsok]
+    unfold arrIdxResultStateDyn
+    have hmok : isOk (ss🇪⟦EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+      simp only [isOk_setEvm]; exact hssok
+    simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+    rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hssok]
+  rw [hev]
+  have hRm : RangeInWindow (EVMState.mstore ss.evm 0 (ss["array"]!!)) := rangeInWindow_mstore hRss
+  have hCm : CachedInWindow (EVMState.mstore ss.evm 0 (ss["array"]!!)) := cachedInWindow_mstore hCss
+  exact ⟨rangeInWindow_keccakOut hRm, cachedInWindow_keccakOut hRm hCm⟩
+
+/-- **THE ACCESSOR NEVER RETURNS A LOW SLOT.**
+
+`_val` says the slot is `keccak(array) + index`; `KeccakLowSlot` says a freshly minted
+keccak value plus a small offset is never a low slot.  Joining them is what turns "the
+fold writes SOME slot" into "the fold does not write slot `c`" -- and `c` is what a caller
+can name: the level count lives at a literal low slot.
+
+The side conditions are real and belong to the caller, not to this lemma:
+  * `hR`/`hC`  the keccak window, which the config frames carry to here;
+  * `hclean`   the hash step did not exhaust the pool (no collision flag);
+  * `hj`       the index is below `2 ^ 32` -- true of any real tree, not provable here;
+  * `hc`       the target slot is below `2 ^ 32`, which a literal slot number is. -/
+lemma storage_array_index_access_bytes32_dyn__dyn_slot_ne_low
+    {slot offset : Identifier} {array index c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (hlt : index < Clear.EVMState.sload s₀.evm array)
+    (hR : RangeInWindow ((s₀.evm).mstore 0 array))
+    (hC : CachedInWindow ((s₀.evm).mstore 0 array))
+    (hclean : (keccakOut ((s₀.evm).mstore 0 array) 0 32).2.hash_collision = false)
+    (hj : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn__dyn slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  rw [storage_array_index_access_bytes32_dyn__dyn_val hok hnf hso hlt h]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config index c hR hC
+    (Clear.KeccakDeterminism.keccakOut_some_of_clean hclean) hj hcl
 
 end
 

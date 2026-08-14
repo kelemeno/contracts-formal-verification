@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.KeccakLowSlot
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
@@ -13,7 +14,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The odd-index sibling read**: the node at `index - 1` on level `i`.
 
@@ -136,6 +137,36 @@ lemma block_3834594906904189566_sload {q : UInt256} {s₀ s₉ : State} (hok : i
   rw [storage_array_index_access_bytes32_dyn__dyn_sload hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃),
     checked_sub_uint256_sload hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂),
     storage_array_index_access_bytes32_dyn__dyn_sload hok h1nf (Spec_ok_unfold hok h1nf h₁)]
+
+
+/-- **CONFIG FRAME.**  The sibling load hashes twice and reads; the window survives. -/
+lemma block_3834594906904189566_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_block_3834594906904189566 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+      (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ :=
+    storage_array_index_access_bytes32_dyn__dyn_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_sub_uint256_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ :=
+    storage_array_index_access_bytes32_dyn__dyn_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  obtain ⟨hR1, hC1⟩ := storage_array_index_access_bytes32_dyn__dyn_config hok h1nf hR hC
+    (Spec_ok_unfold hok h1nf h₁)
+  obtain ⟨hR2, hC2⟩ := checked_sub_uint256_config hs1 h2nf hR1 hC1 (Spec_ok_unfold hs1 h2nf h₂)
+  obtain ⟨hR3, hC3⟩ := storage_array_index_access_bytes32_dyn__dyn_config hs2 h3nf hR2 hC2
+    (Spec_ok_unfold hs2 h3nf h₃)
+  have hldok : isOk (s₃⟦"split_expr_7" ↦ Clear.EVMState.sload s₃.evm (s₃["_7"]!!)⟧) :=
+    isOk_insert.mpr hs3
+  rw [extract_from_storage_value_dynamict_bytes32_evm hldok (Spec_ok_unfold hldok hnf h₄)]
+  simp only [evm_insert]
+  exact ⟨hR3, hC3⟩
 
 end
 

@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.KeccakLowSlot
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.update_storage_value_bytes32_to_bytes32
@@ -11,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The node write**, generic-tree variant:
 `update_storage_value_bytes32_to_bytes32(_18, _19, var_currentHash)`.
@@ -61,6 +62,17 @@ lemma block_7643149059429413085_sload {q : UInt256} {s₀ s₉ : State} (hok : i
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact update_storage_value_bytes32_to_bytes32_sload_frame hok hnf hq
+    (Spec_ok_unfold hok hnf hs)
+
+
+/-- **CONFIG FRAME.**  One storage write; the window is untouched. -/
+lemma block_7643149059429413085_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_block_7643149059429413085 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact update_storage_value_bytes32_to_bytes32_config hok hnf hR hC
     (Spec_ok_unfold hok hnf hs)
 
 end

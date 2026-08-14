@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.KeccakLowSlot
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
@@ -11,7 +12,7 @@ namespace L2InteropCommitmentTree.Common
 
 section
 
-open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
+open Clear Clear.StorageFrame Clear.KeccakLowSlot EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemmas OutOfFuelLemmas Abstraction YulNotation PrimOps ReasoningPrinciple Utilities generated.L2InteropCommitmentTree L2InteropCommitmentTree
 
 /-- **The hash step**: `var_currentHash := fun_efficientHash(split_expr_8, var_currentHash)`.
 
@@ -58,6 +59,16 @@ lemma block_896716371604423710_sload {q : UInt256} {s₀ s₉ : State} (hok : is
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact fun_efficientHash_sload hok (Spec_ok_unfold hok hnf hs)
+
+
+/-- **CONFIG FRAME.**  One hash. -/
+lemma block_896716371604423710_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (h : A_block_896716371604423710 s₀ s₉) :
+    RangeInWindow s₉.evm ∧ CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact fun_efficientHash_config hok hR hC (Spec_ok_unfold hok hnf hs)
 
 end
 
