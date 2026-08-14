@@ -2254,3 +2254,52 @@ Named errors recovered from bare selectors along the way: `ManagerBundleHashesNo
 
 One documented weak point: `switch_8539157929318587848` (EnumerableSet.add) states its default
 branch existentially — control flow and return value, not the destination of the write.
+
+## Part H — The fold bridge: what the deployed Merkle loop is now proved to do (2026-08-14)
+
+`FullMerkle.updateLeaf`'s loop is compiled into four Yul copies (a literal-slot pair and a
+generic-slot pair, each in two accessor variants).  All four now carry the same results.
+
+**The loop invariant is RELATIONAL.**  `AFor` used to say only "the exit flag is zero" — a
+fact about the final state that never has to look inside the body.  It now says:
+
+    (exit flag zero)
+  ∧ (isOk s₉ → ¬ (s₉[var_i] < sload s₉.evm <levels slot>))
+  ∧ ∃ k, s₉[var_index] = idxAt (s₀[var_index]) k
+       ∧ s₉[var_i]     = lvlAt (s₀[var_i])     k
+
+`idxAt`/`lvlAt` are the ABSTRACT fold's own two sequences (specs/FoldRightPeel.lean), so the
+second half of this is the bridge: the deployed loop walks the same path the specification
+walks, index and level advancing together, for the same number of steps.  The middle
+conjunct says WHY it stopped, in terms of the source rather than a compiled temporary.
+
+**What that cost, and what it bought.**  A relational postcondition forces a FRAME LAYER:
+every step of the body must be shown not to disturb the variables the invariant mentions.
+Three layers were built, each complete from the leaves to the loop body:
+
+  variable frames   a call cannot disturb its caller's locals (Clear.lookup_setStore)
+  storage frames    `ABody_..._writes_one_slot`: ∃ w, ∀ q ≠ w, sload s₉ q = sload s₀ q
+  config frames     `ABody_..._config`: the keccak window survives an iteration
+
+and on top of them:
+
+  `storage_array_..._slot_ne_low`   the accessor's slot is `keccak(array) + index`, hence
+                                    never a low slot — AXIOM-CLEAN, resting on the keccak
+                                    model's configuration rather than on injectivity
+  `ABody_..._index_le_max`          the fold preserves `index ≤ maxNodeNumber`
+
+**The one open link.**  "The level count survives the fold" needs the accessor's bounds
+hypothesis `hlt` at every level.  Its arithmetic half is proved (above).  Its remaining half
+is `maxNodeNumber < _nodes[i].length` — a structural invariant of the tree's REPRESENTATION,
+maintained by `pushNewLeaf`, not established by the fold.  It needs its own spec work on how
+the nested dynamic arrays are laid out.
+
+**Three source facts this rests on**, pinned by `scripts/check-source-invariants.sh` so a
+contract edit cannot silently invalidate the Lean: `updateLeaf`'s entry guard, that index and
+bound are halved together, and that `pushNewLeaf` grows each level with the tree.
+
+**Verification note.**  Everything above was checked with `scripts/constants-check.sh`, which
+looks the CONSTANTS up rather than building their modules.  That distinction is not
+pedantic: lake reported modules OK several times this session while the file did not compile
+(a stale olean), and one spec had been broken and green since 2026-08-13 for exactly that
+reason.  A module build is not evidence that a lemma exists.
