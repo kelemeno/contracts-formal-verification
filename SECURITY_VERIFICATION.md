@@ -2331,3 +2331,26 @@ Nothing here needs new mathematics; it needs the hypotheses stated at the right 
 mistake to avoid is assuming the fold's hashes are always cache hits: the FIRST hash of a
 level array in a given call is a mint, and a lemma that silently assumes otherwise would be
 unusable exactly where it is needed.
+
+### Part H addendum 2 — the guard reaches the loop (2026-08-14)
+
+`fun_updateLeaf_5205` and the three steps between its guard and its loop were ALIASES, which
+is why the fold's bounds hypothesis appeared to need an invented invariant. Converted:
+
+    fun_updateLeaf_5205        sload(1) → checked_sub → guard → leaf write → var_i := 0 → fold
+    if_4451958921457272093     (if var_index ≤ var_maxNodeNumber then s₀ else revert) = s₉
+    block_8102603259148870207  the leaf write; frame: only _1.._4, var_currentHash, var_i move
+    block_5752024616743232143  var_i := 0; frame: only var_i moves
+
+So `var_index ≤ var_maxNodeNumber` is established by the contract's own guard, survives the
+two intervening blocks by their frames, and holds at the loop's first iteration — and
+`ABody_..._index_le_max` carries it to every later one. The arithmetic half of `hlt` is
+therefore complete, from the contract's guard to the fold's accessor.
+
+**What is genuinely left**: `maxNodeNumber_i < _nodes[i].length` at each level. This is not
+assembly — it is a fact about how `bytes32[][] _nodes` is LAID OUT IN STORAGE, maintained by
+`pushNewLeaf`, and nothing in the corpus models that layout yet. `IMTAbstract` describes the
+abstract leaf set (a `Finset AbsLeaf`), not this. Defining that predicate, and proving
+`pushNewLeaf` maintains it, is the remaining work; every separation lemma it will need
+(`_slot_ne_low`, `_slot_ne_cached`, `_slot_ne_post`, `acc_window_ne_of_array_ne`) and every
+config frame that carries their hypotheses is already proved and axiom-clean.
