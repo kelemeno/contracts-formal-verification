@@ -40,6 +40,15 @@ lemma block_896716371604423710_not_break {s₀ s₉ : State} (hok : isOk s₀) (
     (h : A_block_896716371604423710 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_896716371604423710_isOk hok hnf h)
 
+
+/-- **FRAME.**  One hash into `var_currentHash`; nothing else moves. -/
+lemma block_896716371604423710_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ "var_currentHash")
+    (h : A_block_896716371604423710 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact fun_efficientHash_frame hok hnf hv (Spec_ok_unfold hok hnf hs)
+
 end
 
 end L2InteropCommitmentTree.Common

@@ -42,6 +42,15 @@ lemma block_7643149059429413085_not_break {s₀ s₉ : State} (hok : isOk s₀) 
     (h : A_block_7643149059429413085 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_7643149059429413085_isOk hok hnf h)
 
+
+/-- **TOTAL FRAME.**  The block is one call to the storage writer, so it too leaves every
+local alone: the new node goes to storage, not to a variable. -/
+lemma block_7643149059429413085_frame {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_block_7643149059429413085 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact update_storage_value_bytes32_to_bytes32_frame hok hnf (Spec_ok_unfold hok hnf hs)
+
 end
 
 end L2InteropCommitmentTree.Common

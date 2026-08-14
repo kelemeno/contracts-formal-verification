@@ -79,6 +79,49 @@ lemma switch_4762420646048873450_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_switch_4762420646048873450 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (switch_4762420646048873450_isOk hok hnf h)
 
+
+/-- **FRAME.**  The parity switch folds one level into `var_currentHash` and touches
+nothing else -- in particular not `var_index` or `var_i`.  Generic-slot copy, so the
+output list carries the extra `split_expr_12` the zero-hash branch computes. -/
+lemma switch_4762420646048873450_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["_6", "_7", "split_expr_7", "_8", "_9", "split_expr_8", "split_expr_9",
+      "var_currentHash", "_10", "_11", "split_expr_10", "_12", "_13", "split_expr_11",
+      "split_expr_12", "_14", "_15", "split_expr_13", "expr"] : List Identifier))
+    (h : A_switch_4762420646048873450 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h6, h7, hsub, h8, h9, hld, hout, hcur, h10, h11, hadd, h12, h13, hld11,
+    hdd, h14, h15, hld13, hexpr⟩ := hv
+  have hL5648 : v ∉ (["_6", "_7", "split_expr_7", "_8", "_9", "split_expr_8",
+      "split_expr_9"] : List Identifier) := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+    exact ⟨h6, h7, hsub, h8, h9, hld, hout⟩
+  have hL2003 : v ∉ (["_10", "_11", "split_expr_10", "_12", "_13", "split_expr_11",
+      "split_expr_12", "_14", "_15", "split_expr_13", "expr"] : List Identifier) := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+    exact ⟨h10, h11, hadd, h12, h13, hld11, hdd, h14, h15, hld13, hexpr⟩
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, hbrEven, hbrOdd⟩ := h
+  by_cases hc : s₀["split_expr_6"]!! = 0
+  · rw [hbrEven hc] at hnf ⊢
+    have hins : isOk (s₀⟦"expr" ↦ 0⟧) := isOk_insert.mpr hok
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hs3 : isOk s₃ :=
+      switch_4354665484259437184_isOk hins h3nf (Spec_ok_unfold hins h3nf h₃)
+    have e4 : s₄[v]!! = s₃[v]!! :=
+      fun_efficientHash_frame hs3 hnf hcur (Spec_ok_unfold hs3 hnf h₄)
+    have e3 : s₃[v]!! = (s₀⟦"expr" ↦ 0⟧)[v]!! :=
+      switch_4354665484259437184_frame hins h3nf hL2003 (Spec_ok_unfold hins h3nf h₃)
+    rw [e4, e3, lookup_insert_of_ne hexpr]
+  · rw [hbrOdd hc] at hnf ⊢
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      block_7746411058724286464_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    have e2 : s₂[v]!! = s₁[v]!! :=
+      block_896716371604423710_frame hs1 hnf hcur (Spec_ok_unfold hs1 hnf h₂)
+    have e1 : s₁[v]!! = s₀[v]!! :=
+      block_7746411058724286464_frame hok h1nf hL5648 (Spec_ok_unfold hok h1nf h₁)
+    rw [e2, e1]
+
 end
 
 end L2InteropCommitmentTree.Common
