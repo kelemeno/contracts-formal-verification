@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakDistinct
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7182708311549001418
@@ -71,6 +72,47 @@ lemma update_storage_value_bytes32_to_bytes32_frame {slot offset value : Literal
     apply hnf
     simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [Clear.lookup_setStore hrev hok]
+
+
+/-- **STORAGE FRAME.**  The writer touches exactly the slot it was handed: every other
+slot reads back unchanged.
+
+This is the "no clobber" fact.  The variable frame above says the call leaves the caller's
+LOCALS alone; this says it leaves the caller's STORAGE alone apart from one slot -- which
+is what any argument that a tree write did not disturb some other structure has to rest
+on, and what pinning the fold's step count will need (the level counter must survive the
+node writes). -/
+lemma update_storage_value_bytes32_to_bytes32_sload_frame {slot offset value : Literal}
+    {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hq : q ≠ slot)
+    (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  subst heq
+  have hfok : isOk (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧) :=
+    isOk_initcall_of_isOk hok
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have ha₁ := Spec_ok_unfold hfok h1nf h₁
+  have hs1 : isOk s₁ := L2InteropCommitmentTree.Common.block_7182708311549001418_isOk hfok ha₁
+  have ha₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := L2InteropCommitmentTree.Common.block_8692170500034331446_isOk hs1 ha₂
+  -- the slot the write lands on is the caller's argument, unchanged by the mask block
+  have hslot : s₁["slot"]!! = slot := by
+    rw [L2InteropCommitmentTree.Common.block_7182708311549001418_frame (by decide) ha₁]
+    exact Clear.lookup_initcall_fst3 hok
+  have e2 : Clear.EVMState.sload s₂.evm q = Clear.EVMState.sload s₁.evm q :=
+    L2InteropCommitmentTree.Common.block_8692170500034331446_sload hs1
+      (by rw [hslot]; exact hq) ha₂
+  have e1 : s₁.evm = (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧).evm :=
+    L2InteropCommitmentTree.Common.block_7182708311549001418_evm ha₁
+  rw [evm_setStore, revive_of_ok hs2, e2, e1]
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, evm_multifill, evm_setStore]
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
 
 end
 

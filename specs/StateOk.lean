@@ -296,6 +296,18 @@ lemma not_isLeave_of_isBreak {s : State} (h : isBreak s) : ¬ isLeave s := by
     · exact absurd h (by simp [State.isBreak])
 
 
+
+/-- First of THREE parameters -- inserted last, so outermost.  `update_storage_value`
+takes `(slot, offset, value)` and the slot is what a storage-effect proof has to recover. -/
+lemma lookup_initcall_fst3 {s : State} {u v w : Ast.Identifier} {x y z : UInt256}
+    (h : isOk s) : (s☎️⟦[u, v, w],[x, y, z]⟧)[u]!! = x := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    rw [lookup_insert' (by simp only [isOk_insert]; exact isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+
 end
 
 end Clear

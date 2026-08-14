@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7182708311549001418_gen
@@ -48,6 +49,29 @@ lemma block_7182708311549001418_isOk {s₀ s₉ : State} (hok : isOk s₀)
 lemma block_7182708311549001418_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_block_7182708311549001418 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_7182708311549001418_isOk hok h)
+
+
+/-- **No storage effect.**  The mask block only computes: every step is an insert or a
+multifill, so the evm passes through untouched. -/
+lemma block_7182708311549001418_evm {s₀ s₉ : State}
+    (h : A_block_7182708311549001418 s₀ s₉) : s₉.evm = s₀.evm := by
+  unfold A_block_7182708311549001418 at h
+  subst h
+  simp only [evm_insert, evm_multifill]
+
+/-- **FRAME.**  The mask block writes only its own temporaries -- `slot` in particular
+survives it, which is what says the write below lands where the CALLER asked. -/
+lemma block_7182708311549001418_frame {v : Identifier} {s₀ s₉ : State}
+    (hv : v ∉ (["_1", "shiftBits", "split_expr_0", "split_expr_1", "split_expr_2"]
+      : List Identifier))
+    (h : A_block_7182708311549001418 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h1, hsb, h0, he1, he2⟩ := hv
+  unfold A_block_7182708311549001418 at h
+  subst h
+  simp only [multifill_cons, multifill_nil]
+  rw [lookup_insert_of_ne he2, lookup_insert_of_ne he1, lookup_insert_of_ne h0,
+    lookup_insert_of_ne hsb, lookup_insert_of_ne h1]
 
 end
 

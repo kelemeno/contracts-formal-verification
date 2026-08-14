@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakDistinct
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_8692170500034331446_gen
@@ -48,6 +50,38 @@ lemma block_8692170500034331446_isOk {s₀ s₉ : State} (hok : isOk s₀)
 lemma block_8692170500034331446_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_block_8692170500034331446 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_8692170500034331446_isOk hok h)
+
+
+/-- Reading a slot back across a `setEvm` that stored to a DIFFERENT slot.
+
+Stated generally on purpose: the block's state term is the `let`-chain zeta-expanded, far
+too large to write down, so the `isOk` side condition cannot be `have`d with its type.
+Applying a general lemma with `exact` lets unification determine that term first and only
+then elaborates the side condition -- which is the way round that works. -/
+private lemma sload_setEvm_sstore {t : State} {σ : EVM} {k v q : UInt256}
+    (hok : isOk t) (hq : q ≠ k) :
+    Clear.EVMState.sload (t🇪⟦Clear.EVMState.sstore σ k v⟧).evm q
+      = Clear.EVMState.sload σ q := by
+  rw [Clear.evm_setEvm_of_isOk hok]
+  exact Clear.KeccakDistinct.sload_sstore_of_ne σ hq
+
+/-- **The write, and only the write.**  This block ends in one `sstore` at the caller's
+`slot`, so every OTHER slot reads back unchanged.
+
+`Clear.KeccakDistinct.sload_sstore_of_ne` is the non-aliasing primitive; what this adds is
+that the slot written is exactly `s₀["slot"]` -- the block's own temporaries are skipped by
+name to get there. -/
+lemma block_8692170500034331446_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hq : q ≠ s₀["slot"]!!) (h : A_block_8692170500034331446 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  unfold A_block_8692170500034331446 at h
+  subst h
+  have n5 : ("slot" : Identifier) ≠ "split_expr_5" := by decide
+  have n4 : ("slot" : Identifier) ≠ "split_expr_4" := by decide
+  have n3 : ("slot" : Identifier) ≠ "split_expr_3" := by decide
+  simp only [multifill_cons, multifill_nil, evm_insert]
+  rw [lookup_insert_of_ne n5, lookup_insert_of_ne n4, lookup_insert_of_ne n3]
+  exact sload_setEvm_sstore (by simp only [isOk_insert]; exact hok) hq
 
 end
 
