@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -68,6 +69,29 @@ lemma extract_from_storage_value_dynamict_bytes32_frame {value : Identifier}
     apply hnf
     simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
+
+/-- **EVM FRAME.**  Shifting a loaded word is pure; the machine state passes through. -/
+lemma extract_from_storage_value_dynamict_bytes32_evm {value : Identifier}
+    {slot_value offset : Literal} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_extract_from_storage_value_dynamict_bytes32 value slot_value offset s₀ s₉) :
+    s₉.evm = s₀.evm := by
+  unfold A_extract_from_storage_value_dynamict_bytes32 at h
+  subst h
+  have hf : isOk (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧) :=
+    isOk_initcall_of_isOk hok
+  have hm : isOk (Clear.State.multifill ["value"]
+      [Fin.shiftRight ((Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧))["slot_value"]!!)
+       ((Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧))["split_expr_0"]!!)]
+      (Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧))) :=
+    isOk_multifill (isOk_multifill hf)
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hm]
+  simp only [evm_multifill]
+  exact Clear.evm_initcall hok
 
 end
 

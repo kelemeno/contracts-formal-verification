@@ -65,4 +65,28 @@ three. -/
       simp only [Option.some.injEq, Prod.mk.injEq] at hk
       rw [← hk.2]
 
+
+/-- Returning does not write storage: it only sets return data in the machine state. -/
+@[simp] theorem sload_evm_return (σ : EVMState) (p n q : UInt256) :
+    (σ.evm_return p n).sload q = σ.sload q := by
+  unfold EVMState.evm_return EVMState.sload EVMState.lookupAccount
+  rfl
+
+/-- **Nor does REVERTING.**  `evm_revert` is `evm_return` plus `reverted := true`, and
+neither touches `account_map`.
+
+Worth stating plainly because it is the opposite of the EVM's real semantics, where a
+revert undoes storage writes.  Clear's `EVMState` models a revert as a FLAG: the state
+carries `reverted = true` and its storage is whatever it was.  So a proof may carry a slot
+value across a reverting call -- and, conversely, must never read this as "the write was
+undone".  What it buys here is that a bounds-check panic needs no special case: `sload`
+survives both branches. -/
+@[simp] theorem sload_evm_revert (σ : EVMState) (p n q : UInt256) :
+    (σ.evm_revert p n).sload q = σ.sload q := by
+  unfold EVMState.evm_revert
+  -- `{… with reverted := true}` leaves account_map and execution_env alone, so `sload` of
+  -- it is definitionally `sload` of the returned state
+  show (σ.evm_return p n).sload q = σ.sload q
+  exact sload_evm_return σ p n q
+
 end Clear.StorageFrame

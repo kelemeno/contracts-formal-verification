@@ -320,6 +320,18 @@ lemma evm_reviveJump_of_isOk {t : State} (hok : isOk t) : (🧟 t).evm = t.evm :
   rw [revive_of_ok hok]
 
 
+
+/-- A call's `initcall` does not change the evm: it swaps in a FRESH varstore and keeps the
+caller's machine state.  (`setStore` keeps the left state's evm, and `multifill` only binds
+variables.) -/
+lemma evm_initcall {s : State} {params : List Ast.Identifier} {args : List UInt256}
+    (h : isOk s) : (s☎️⟦params, args⟧).evm = s.evm := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, evm_multifill, evm_setStore]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+
 end
 
 end Clear

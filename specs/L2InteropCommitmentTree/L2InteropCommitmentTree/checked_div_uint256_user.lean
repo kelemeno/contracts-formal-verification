@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -84,6 +85,21 @@ lemma checked_div_uint256_frame {r x} {v : Identifier} {s₀ s₉ : State} (hok 
 lemma checked_div_uint256_not_break {r x} {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_checked_div_uint256 r x s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (checked_div_uint256_isOk hok h)
+
+
+/-- **EVM FRAME.**  Pure arithmetic: the machine state passes through untouched, so a
+storage OR memory fact crosses this call unchanged. -/
+lemma checked_div_uint256_evm {r x} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_checked_div_uint256 r x s₀ s₉) : s₉.evm = s₀.evm := by
+  unfold A_checked_div_uint256 at h
+  subst h
+  have hf := cdiv_frame_isOk (x := x) hok
+  have hres : isOk (multifill ["r"] [Fin.shiftRight ((s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!!) 1]
+      (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)) := isOk_multifill hf
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hres]
+  simp only [evm_multifill, evm_insert]
+  exact Clear.evm_initcall hok
 
 end
 

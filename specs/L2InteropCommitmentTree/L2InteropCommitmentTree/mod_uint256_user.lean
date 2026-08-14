@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -79,6 +80,20 @@ lemma mod_uint256_frame {r x} {v : Identifier} {s₀ s₉ : State} (hok : isOk s
   have hres : isOk (multifill ["r"] [Fin.land ((s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!!) 1]
       (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)) := isOk_multifill hf
   rw [lookup_insert_of_ne hv, revive_of_ok hres, Clear.lookup_setStore hres hok]
+
+
+/-- **EVM FRAME.**  Pure arithmetic; the machine state passes through untouched. -/
+lemma mod_uint256_evm {r x} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_mod_uint256 r x s₀ s₉) : s₉.evm = s₀.evm := by
+  unfold A_mod_uint256 at h
+  subst h
+  have hf := mod_frame_isOk (x := x) hok
+  have hres : isOk (multifill ["r"] [Fin.land ((s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)["x"]!!) 1]
+      (s₀☎️⟦["x"], [x]⟧⟦"_1" ↦ 0⟧)) := isOk_multifill hf
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hres]
+  simp only [evm_multifill, evm_insert]
+  exact Clear.evm_initcall hok
 
 end
 
