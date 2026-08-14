@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakDeterminism
 import specs.KeccakPrimOps
@@ -211,6 +212,47 @@ lemma fun_efficientHash_config {var_result : Identifier} {var_lhs var_rhs : Lite
     have hCb : CachedInWindow b.evm := by
       rw [hbe]; exact cachedInWindow_mstore (cachedInWindow_mstore hC)
     exact ⟨rangeInWindow_keccakOut hRb, cachedInWindow_keccakOut hRb hCb⟩
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+/-- **FUEL FRAME.**  The deployed hash costs exactly one unit: two memory writes, which are
+free, and one `keccak256`.
+
+This is the per-iteration cost that makes the fold's budget linear in its trip count -- one
+unit here, one at the element accessor, and nothing for the arithmetic. -/
+lemma fun_efficientHash_fuel {var_result : Identifier} {var_lhs var_rhs : Literal} {k : ℕ}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) :
+    Clear.KeccakFuel.Fuel s₉.evm k := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_fun_efficientHash at h
+    subst h
+    set f := (Ok evm store)☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧ with hfdef
+    have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk (by simp [isOk])
+    set a := f🇪⟦EVMState.mstore f.evm 0 var_lhs⟧ with hadef
+    have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hfok
+    set b := a🇪⟦EVMState.mstore a.evm 32 var_rhs⟧ with hbdef
+    have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+    have hrok : isOk (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1) := by
+      apply isOk_multifill
+      rw [primCall_keccakOut]
+      simpa only [isOk_setEvm] using hbok
+    have hev : (((🧟 (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1))🏪⟦Ok evm store⟧)⟦var_result ↦
+        (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1)["var_result"]!!⟧).evm
+        = (keccakOut b.evm 0 64).2 := by
+      rw [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrok, evm_multifill,
+        primCall_keccakOut, Clear.evm_setEvm_of_isOk hbok]
+    rw [hev]
+    have hbe : b.evm = EVMState.mstore (EVMState.mstore (Ok evm store).evm 0 var_lhs) 32 var_rhs := by
+      rw [hbdef, Clear.evm_setEvm_of_isOk haok, hadef, Clear.evm_setEvm_of_isOk hfok, hfdef,
+        Clear.evm_initcall (by simp [isOk])]
+    refine Clear.KeccakFuel.Fuel.keccakOut ?_
+    rw [hbe]
+    exact Clear.KeccakFuel.Fuel.mstore 32 var_rhs (Clear.KeccakFuel.Fuel.mstore 0 var_lhs hf)
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
 
