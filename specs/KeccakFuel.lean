@@ -107,6 +107,36 @@ theorem Fuel.keccakOut {σ : EVMState} {p q : UInt256} {n : ℕ}
 theorem Fuel.mstore {σ : EVMState} (a v : UInt256) {n : ℕ} (h : Fuel σ n) :
     Fuel (σ.mstore a v) n := h
 
+/-- **FUEL MAKES A HASH SUCCEED.**
+
+The bridge from the fuel invariant to the low-slot lemmas, which all want
+`σ.keccak256 p n = some (r, σ')` -- that the hash drew a fresh slot rather than falling back
+to the collision case.  A cache HIT succeeds outright; a MISS succeeds exactly when the
+unused portion is non-empty, which is what one unit of fuel buys.
+
+This is what makes the separations dischargeable along a compiled path: the hashing states
+are existentially bound, so "this hash did not collide" cannot be assumed there -- it has to
+arrive as `Fuel`, carried from `s₀` through the writes and hashes in between. -/
+theorem keccak256_some_of_fuel {σ : EVMState} {p q : UInt256} {n : ℕ}
+    (h : Fuel σ (n + 1)) : ∃ r σ', σ.keccak256 p q = some (r, σ') := by
+  unfold EVMState.keccak256
+  cases hl : Finmap.lookup (mkInterval σ.machine_state p q) σ.keccak_map with
+  | some v => exact ⟨v, σ, by simp [hl]⟩
+  | none =>
+    obtain ⟨hlen, hnd⟩ := h
+    obtain ⟨used, unused, hpart⟩ :
+        ∃ used unused, List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range
+          = (used, unused) := ⟨_, _, rfl⟩
+    have hul : unusedList σ = unused := by unfold unusedList; rw [hpart]
+    cases unused with
+    | nil => rw [hul] at hlen; simp at hlen
+    | cons r rs =>
+      -- name the post-state rather than leaving it a metavariable: `simp` cannot close
+      -- `some (r, X) = some (r, ?σ')` while the witness is still unknown
+      exact ⟨r, {σ with keccak_map := σ.keccak_map.insert (mkInterval σ.machine_state p q) r,
+                        keccak_range := rs,
+                        used_range := {r} ∪ σ.used_range}, by simp only [hl, hpart]⟩
+
 /-- **A STORAGE WRITE COSTS AT MOST ONE UNIT OF FUEL.**
 
 `sstore` leaves `keccak_range` and `keccak_map` alone but adds the written slot to
