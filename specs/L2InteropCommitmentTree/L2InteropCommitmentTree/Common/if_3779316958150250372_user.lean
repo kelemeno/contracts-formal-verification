@@ -129,7 +129,7 @@ lemma if_3779316958150250372_config {s₀ s₉ : State} (hok : isOk s₀) (hnf :
         (Clear.KeccakDeterminism.keccakOut
           (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
       simp only [isOk_setEvm]; exact hok
-    obtain ⟨-, -, -, hcfg⟩ :=
+    obtain ⟨-, -, -, hcfg, -⟩ :=
       Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
     rw [hgt hg]
     refine hcfg ⟨?_, ?_⟩
@@ -145,6 +145,31 @@ lemma if_3779316958150250372_config {s₀ s₉ : State} (hok : isOk s₀) (hnf :
         exact Clear.StorageFrame.rangeInWindow_mstore hR
       · rw [Clear.evm_setEvm_of_isOk hok]
         exact Clear.StorageFrame.cachedInWindow_mstore hC
+
+/-- **VARIABLE FRAME.**  The zero-fill introduces `data`, `_1` and `start` and rebinds
+nothing else, so a caller's `slot` and `value0` come through it untouched. -/
+lemma if_3779316958150250372_frame {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["data", "_1", "start"] : List Identifier))
+    (h : A_if_3779316958150250372 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨hd, h1, hs⟩ := hv
+  obtain ⟨ss, hspec, hle, hgt⟩ := h
+  by_cases hg : s₀["oldLen_1"]!! ≤ 1
+  · rw [hle hg]
+  · have hssnf : ¬ ❓ ss := by rw [hgt hg] at hnf; exact hnf
+    simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
+    have hmok : isOk (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    have hkok : isOk ((s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧)🇪⟦
+        (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    obtain ⟨-, -, -, -, hvars⟩ :=
+      Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
+    -- the loop's frame skips `start`; the remaining inserts come off outermost first
+    rw [hgt hg, hvars v hs, lookup_insert_of_ne hs, lookup_insert_of_ne h1,
+      lookup_insert_of_ne hd, Clear.lookup_setEvm hmok, Clear.lookup_setEvm hok]
 
 end
 
