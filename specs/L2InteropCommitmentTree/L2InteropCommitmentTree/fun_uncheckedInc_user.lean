@@ -65,6 +65,21 @@ lemma fun_uncheckedInc_val {var : Identifier} {var_number : Literal} {s₀ s₉ 
   rw [lookup_insert' (isOk_setStore_of_isOk (by rw [revive_of_ok hfok]; exact hfok)),
     lookup_insert' hf0]
 
+/-- **STORAGE FRAME.**  The unchecked increment writes no storage at all -- it reads a
+parameter, adds one, and returns.  Needed to carry the tree's LEAF count across the level
+counter's increment. -/
+lemma fun_uncheckedInc_sload {var : Identifier} {var_number : Literal} {q : UInt256}
+    {s₀ s₉ : State} (hok : isOk s₀) (h : A_fun_uncheckedInc var var_number s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  subst h
+  have hf0 : isOk (s₀☎️⟦["var_number"],[var_number]⟧) := isOk_initcall_of_isOk hok
+  have hfok : isOk ((s₀☎️⟦["var_number"],[var_number]⟧)⟦"var" ↦ var_number + 1⟧) :=
+    isOk_insert.mpr hf0
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hfok]
+  simp only [evm_insert]
+  rw [Clear.evm_initcall hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

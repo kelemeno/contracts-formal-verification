@@ -93,6 +93,38 @@ lemma increment_uint256_val {ret : Identifier} {value : Literal} {s₀ s₉ : St
   rw [lookup_insert' (isOk_setStore_of_isOk (by rw [revive_of_ok hrok]; exact hrok)),
     lookup_insert' hfok, hvalue]
 
+/-- **STORAGE FRAME.**  The checked increment writes no storage on either branch -- it
+compares, adds and returns, and its panic writes memory and reverts.  UNCONDITIONAL, so the
+tree's leaf count can be carried across the counter's own increment without splitting on
+whether the overflow guard fired. -/
+lemma increment_uint256_sload {ret : Identifier} {value : Literal} {q : UInt256}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_increment_uint256 ret value s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["value"],[value]⟧) := isOk_initcall_of_isOk hok
+  have hfok : isOk ((s₀☎️⟦["value"],[value]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧) :=
+    isOk_insert.mpr hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  have hsok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_isOk hfok hssnf
+      (Spec_ok_unfold hfok hssnf hg)
+  have hguard := L2InteropCommitmentTree.Common.if_2896693009130145472_sload (q := q)
+    hfok hssnf (Spec_ok_unfold hfok hssnf hg)
+  subst heq
+  have hrok : isOk (ss⟦"ret" ↦ ss["value"]!! + 1⟧) := isOk_insert.mpr hsok
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hrok]
+  simp only [evm_insert]
+  rw [hguard]
+  simp only [evm_insert]
+  exact Clear.evm_initcall hok ▸ rfl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

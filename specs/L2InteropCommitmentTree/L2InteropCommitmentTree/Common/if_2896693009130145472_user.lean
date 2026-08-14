@@ -59,6 +59,20 @@ lemma if_2896693009130145472_id_of_ne {s₀ s₉ : State}
   obtain ⟨_, _, _, hid⟩ := h
   exact hid hne
 
+/-- **STORAGE FRAME.**  Neither branch writes storage: off the overflow path the guard is
+the identity, and on it the panic writes memory and reverts -- which in this model sets a
+flag and leaves `account_map` alone.  So this is UNCONDITIONAL, and a caller carrying a slot
+across the checked increment needs no case analysis on whether the guard fired. -/
+lemma if_2896693009130145472_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_2896693009130145472 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨sp, hsp, hfire, hid⟩ := h
+  by_cases hg : s₀["value"]!! = s₀["split_expr_0"]!!
+  · have hpnf : ¬ ❓ sp := by rw [hfire hg] at hnf; exact hnf
+    rw [hfire hg]
+    exact panic_error_0x11_sload hok (Spec_ok_unfold hok hpnf hsp)
+  · rw [hid hg]
+
 end
 
 end L2InteropCommitmentTree.Common
