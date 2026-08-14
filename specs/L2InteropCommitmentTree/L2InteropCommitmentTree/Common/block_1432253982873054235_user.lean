@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -66,6 +67,15 @@ lemma block_1432253982873054235_frame {v : Identifier} {s₀ s₉ : State}
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact fun_efficientHash_frame hok hnf hv (Spec_ok_unfold hok hnf hs)
+
+
+/-- **STORAGE FRAME.**  One hash; storage untouched. -/
+lemma block_1432253982873054235_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_block_1432253982873054235 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact fun_efficientHash_sload hok (Spec_ok_unfold hok hnf hs)
 
 end
 
