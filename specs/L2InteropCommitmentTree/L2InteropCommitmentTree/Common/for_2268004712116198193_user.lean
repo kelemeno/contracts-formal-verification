@@ -163,6 +163,101 @@ lemma ALeave_for_2268004712116198193 : ∀ s₀ s₂, isOk s₀ → isLeave s₂
   · exact absurd h2 (by simp [State.isLeave])
   · exact absurd hs (by simp)
 
+
+/-- **The body does not touch the level counter.**  `var_i` is read (to index the level
+arrays) but never assigned inside the body -- the increment is the loop's POST, not its
+body -- so a loop invariant mentioning `var_i` survives one iteration.
+
+The break case is impossible here: `isOk s₉` says the body ran to the end, and a break
+would have propagated a `Break` checkpoint all the way to `s₉`. -/
+lemma ABody_for_2268004712116198193_var_i {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : ABody_for_2268004712116198193 s₀ s₉) : s₉["var_i"]!! = s₀["var_i"]!! := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardState s₀) := by
+    unfold rootGuardState; simp only [isOk_insert]; exact hok
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf : (rootGuardState s₀)["split_expr_4"]!! = 0
+  · -- the guard broke, so the break propagates to s₅ and contradicts `isOk s₉`
+    exfalso
+    have e1 : s₁ = 💔(rootGuardState s₀) := hg.1 hf
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardState s₀ := hg.2 hf
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_8961670722464898128_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_5022472617119597648_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e5 : s₅["var_i"]!! = s₄["var_i"]!! :=
+      block_2896862189596047701_frame hs4 h5nf (Spec_ok_unfold hs4 h5nf h₅)
+    have e4 : s₄["var_i"]!! = s₃["var_i"]!! :=
+      block_5022472617119597648_frame hs3 h4nf (by decide) (Spec_ok_unfold hs3 h4nf h₄)
+    have e3 : s₃["var_i"]!! = s₂["var_i"]!! :=
+      switch_8961670722464898128_frame hs2 h3nf (by decide) (Spec_ok_unfold hs2 h3nf h₃)
+    have e2 : s₂["var_i"]!! = s₁["var_i"]!! :=
+      mod_uint256_frame hs1 (by decide) (Spec_ok_unfold hs1 h2nf h₂)
+    rw [e5, e4, e3, e2, e1]
+    unfold rootGuardState
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+
+/-- **The body climbs exactly one level.**  `var_index` ends at `index >>> 1`.
+
+Every step is accounted for: the guard and the parity `mod` do not touch it, the parity
+switch folds into `var_currentHash` only, the parent-advance block halves it exactly once,
+and the storage write touches no local at all. -/
+lemma ABody_for_2268004712116198193_index {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : ABody_for_2268004712116198193 s₀ s₉) :
+    s₉["var_index"]!! = Fin.shiftRight (s₀["var_index"]!!) 1 := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardState s₀) := by
+    unfold rootGuardState; simp only [isOk_insert]; exact hok
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf : (rootGuardState s₀)["split_expr_4"]!! = 0
+  · -- the guard broke, so the break propagates to s₅ and contradicts `isOk s₉`
+    exfalso
+    have e1 : s₁ = 💔(rootGuardState s₀) := hg.1 hf
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardState s₀ := hg.2 hf
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_8961670722464898128_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_5022472617119597648_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e5 : s₅["var_index"]!! = s₄["var_index"]!! :=
+      block_2896862189596047701_frame hs4 h5nf (Spec_ok_unfold hs4 h5nf h₅)
+    have e4 : s₄["var_index"]!! = Fin.shiftRight (s₃["var_index"]!!) 1 :=
+      block_5022472617119597648_index hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e3 : s₃["var_index"]!! = s₂["var_index"]!! :=
+      switch_8961670722464898128_frame hs2 h3nf (by decide) (Spec_ok_unfold hs2 h3nf h₃)
+    have e2 : s₂["var_index"]!! = s₁["var_index"]!! :=
+      mod_uint256_frame hs1 (by decide) (Spec_ok_unfold hs1 h2nf h₂)
+    rw [e5, e4, e3, e2, e1]
+    unfold rootGuardState
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+
 end
 
 end L2InteropCommitmentTree.Common

@@ -208,6 +208,33 @@ lemma lookup_setStore {s s' : State} {v : Ast.Identifier} (hs : isOk s) (hs' : i
   · exact absurd hs (by simp [isOk])
   · exact absurd hs (by simp [isOk])
 
+
+/-- Converse of `isJump_Break_of_isBreak`: carrying a `Break` jump IS being a break.
+
+Needed wherever a break is propagated FORWARDS through a chain of `Spec`s (which
+preserves `isJump`) and then has to contradict an `isOk` at the end. -/
+lemma isBreak_of_isJump_Break {s : State} {evm : EVM} {store : VarStore}
+    (h : isJump (.Break evm store) s) : isBreak s := by
+  rcases s with _ | _ | c
+  · exact absurd h (by simp [isJump])
+  · exact absurd h (by simp [isJump])
+  · rcases c with _ | _ | _
+    · exact absurd h (by simp [isJump])
+    · simp [isBreak]
+    · exact absurd h (by simp [isJump])
+
+
+
+/-- An `Ok` state is not out of fuel.  Clear has the converse-ish directions but not this
+one, and it is needed wherever a caller supplies `isOk s₉` (as a loop's closure
+obligations do) but a chain lemma wants `¬ ❓ s₉`. -/
+lemma not_isOutOfFuel_of_isOk {s : State} (h : isOk s) : ¬ ❓ s := by
+  rcases s with ⟨e, st⟩ | _ | _
+  · simp [State.isOutOfFuel]
+  · exact absurd h (by simp [isOk])
+  · simp [State.isOutOfFuel]
+
+
 end
 
 end Clear

@@ -68,6 +68,47 @@ lemma block_5648918763415424361_not_break {s₀ s₉ : State} (hok : isOk s₀) 
     (h : A_block_5648918763415424361 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_5648918763415424361_isOk hok hnf h)
 
+
+/-- **FRAME.**  The sibling-load block writes only its own temporaries, so anything else
+-- `var_index`, `var_i`, `var_currentHash` -- crosses it untouched.
+
+The output list is given as a membership hypothesis so a use site discharges it with
+`by decide` rather than seven separate `≠`s. -/
+lemma block_5648918763415424361_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["_5", "_6", "split_expr_6", "_7", "_8", "split_expr_7", "split_expr_8"]
+      : List Identifier))
+    (h : A_block_5648918763415424361 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h5, h6, hsub, h7, h8, hld, hout⟩ := hv
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+      (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_sub_uint256_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  have hldok : isOk (s₃⟦"split_expr_7" ↦ Clear.EVMState.sload s₃.evm (s₃["_7"]!!)⟧) :=
+    isOk_insert.mpr hs3
+  have e4 : s₄[v]!! = (s₃⟦"split_expr_7" ↦ Clear.EVMState.sload s₃.evm (s₃["_7"]!!)⟧)[v]!! :=
+    extract_from_storage_value_dynamict_bytes32_frame hldok hnf hout
+      (Spec_ok_unfold hldok hnf h₄)
+  have e3 : s₃[v]!! = s₂[v]!! :=
+    storage_array_index_access_bytes32_dyn_ptr_frame hs2 h3nf h7 h8
+      (Spec_ok_unfold hs2 h3nf h₃)
+  have e2 : s₂[v]!! = s₁[v]!! :=
+    checked_sub_uint256_frame hs1 h2nf hsub (Spec_ok_unfold hs1 h2nf h₂)
+  have e1 : s₁[v]!! = s₀[v]!! :=
+    storage_array_index_access_bytes32_dyn_ptr_frame hok h1nf h5 h6
+      (Spec_ok_unfold hok h1nf h₁)
+  rw [e4, lookup_insert_of_ne hld, e3, e2, e1]
+
 end
 
 end L2InteropCommitmentTree.Common

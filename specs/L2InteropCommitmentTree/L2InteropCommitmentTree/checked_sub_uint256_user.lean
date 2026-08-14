@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_1169358955168516216
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
@@ -101,6 +102,20 @@ lemma checked_sub_uint256_not_break {diff : Identifier} {x : Literal} {s₀ s₉
     (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_checked_sub_uint256 diff x s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (checked_sub_uint256_isOk hok hnf h)
+
+
+/-- **FRAME.**  Only `diff` moves. -/
+lemma checked_sub_uint256_frame {diff : Identifier} {x : Literal} {v : Identifier}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ diff)
+    (h : A_checked_sub_uint256 diff x s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨ss, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 ss) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
 
 end
 

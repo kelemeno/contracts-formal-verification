@@ -106,6 +106,31 @@ lemma fun_efficientHash_val {var_result : Identifier} {var_lhs var_rhs : Literal
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
 
+
+/-- **FRAME.**  Only `var_result` moves: the hash is written to one variable and the
+scratch it uses is MEMORY, which is not a local at all. -/
+lemma fun_efficientHash_frame {var_result : Identifier} {var_lhs var_rhs : Literal}
+    {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ var_result)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  unfold A_fun_efficientHash at h
+  subst h
+  have hrev : isOk (🧟 (multifill ["var_result"]
+      (primCall ((s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧)🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧).evm 32 var_rhs⟧)
+        .Keccak256 [0, 64]).2
+      (primCall ((s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧)🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧🇪⟦EVMState.mstore
+          (s₀☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧).evm 0 var_lhs⟧).evm 32 var_rhs⟧)
+        .Keccak256 [0, 64]).1)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

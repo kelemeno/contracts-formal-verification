@@ -47,6 +47,28 @@ lemma extract_from_storage_value_dynamict_bytes32_not_break {value : Identifier}
     (hnf : ¬ ❓ s₉) (h : A_extract_from_storage_value_dynamict_bytes32 value slot_value offset s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (extract_from_storage_value_dynamict_bytes32_isOk hnf h)
 
+
+/-- **FRAME.**  Only `value` moves. -/
+lemma extract_from_storage_value_dynamict_bytes32_frame {value : Identifier}
+    {slot_value offset : Literal} {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ value)
+    (h : A_extract_from_storage_value_dynamict_bytes32 value slot_value offset s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  unfold A_extract_from_storage_value_dynamict_bytes32 at h
+  subst h
+  have hrev : isOk (🧟 (Clear.State.multifill ["value"]
+      [Fin.shiftRight ((Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧))["slot_value"]!!)
+       ((Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧))["split_expr_0"]!!)]
+      (Clear.State.multifill ["split_expr_0"] [Fin.shiftLeft offset 3]
+        (s₀☎️⟦["slot_value", "offset"],[slot_value, offset]⟧)))) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

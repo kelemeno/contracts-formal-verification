@@ -58,6 +58,15 @@ lemma block_1432253982873054235_val {s₀ s₉ : State} (hok : isOk s₀) (hok9 
   rw [heq] at hok9 ⊢
   exact fun_efficientHash_val hok hok9 (Spec_ok_unfold hok (by rw [heq] at hnf; exact hnf) hs)
 
+
+/-- **FRAME.**  One hash into `var_currentHash`; nothing else moves. -/
+lemma block_1432253982873054235_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ "var_currentHash")
+    (h : A_block_1432253982873054235 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact fun_efficientHash_frame hok hnf hv (Spec_ok_unfold hok hnf hs)
+
 end
 
 end L2InteropCommitmentTree.Common
