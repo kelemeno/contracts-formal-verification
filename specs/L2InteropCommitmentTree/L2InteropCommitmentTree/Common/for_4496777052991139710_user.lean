@@ -1,5 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakDistinct
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -31,7 +33,9 @@ def AFor_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["start"]!! < (Ok evm store)["_1"]!!)) ∧
   isOk s₉ ∧
   (∀ q : UInt256, (∀ j : UInt256, q ≠ s₀["start"]!! + j) →
-    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q)
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
+  ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
 
 /-- Loop body: zero one storage slot — `sstore(start, 0)`. -/
 def ABody_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
@@ -59,7 +63,7 @@ lemma for_4496777052991139710_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_4496777052991139710 (👌 s₀) = 0 → AFor_for_4496777052991139710 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_4496777052991139710 ACond_for_4496777052991139710 at *
-  refine ⟨?_, hok, ?_⟩
+  refine ⟨?_, hok, ?_, fun h => h⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -81,7 +85,20 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
       have hAF := Spec_ok_unfold (P := AFor_for_4496777052991139710) (s := s₄) (s' := s₅)
         hok4 h5 hspec
-      refine ⟨hAF.1, hAF.2.1, ?_⟩
+      -- the write is an `sstore`, which is not `keccak_range`/`keccak_map`
+      have hev4 : s₄.evm = Clear.EVMState.sstore (Ok e0 st0 : State).evm
+          ((Ok e0 st0 : State)["start"]!!) 0 := by
+        rw [h4]
+        simp only [evm_insert]
+        rw [hb, Clear.evm_setEvm_of_isOk (by simp [isOk])]
+      refine ⟨hAF.1, hAF.2.1, ?_, ?_⟩
+      swap
+      · -- the window: this iteration's write is an `sstore`, and the recursive call
+        -- carries the property the rest of the way
+        rintro ⟨hR, hC⟩
+        refine hAF.2.2.2 ⟨?_, ?_⟩
+        · rw [hev4]; exact Clear.StorageFrame.rangeInWindow_sstore hR
+        · rw [hev4]; exact Clear.StorageFrame.cachedInWindow_sstore hC
       intro q hq
       -- the body's `setEvm` leaves the varstore alone, so the cursor is the caller's
       have hstart2 : (Ok e2 st2 : State)["start"]!! = (Ok e0 st0 : State)["start"]!! := by
@@ -90,7 +107,7 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         rw [h4, lookup_insert' (by simp [isOk]), hstart2]
       -- the recursive call's separation hypothesis, shifted by one iteration
       have e54 : Clear.EVMState.sload s₅.evm q = Clear.EVMState.sload s₄.evm q := by
-        refine hAF.2.2 q ?_
+        refine hAF.2.2.1 q ?_
         intro j
         rw [hstart4, add_assoc]
         exact hq (1 + j)

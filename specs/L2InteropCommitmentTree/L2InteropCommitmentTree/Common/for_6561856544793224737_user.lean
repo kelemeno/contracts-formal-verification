@@ -1,5 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakDistinct
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -30,7 +32,9 @@ def AFor_for_6561856544793224737 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["i"]!! < (1 : UInt256))) ∧
   isOk s₉ ∧
   (∀ q : UInt256, (∀ j : UInt256, q ≠ s₀["dstSlot"]!! + j) →
-    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q)
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
+  ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
 
 /-- Loop body: read one word from `srcPtr` and store it at `dstSlot + i`.
 
@@ -67,7 +71,7 @@ lemma for_6561856544793224737_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_6561856544793224737 : ∀ s₀, isOk s₀ → ACond_for_6561856544793224737 (👌 s₀) = 0 → AFor_for_6561856544793224737 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_6561856544793224737 ACond_for_6561856544793224737 at *
-  refine ⟨?_, hok, ?_⟩
+  refine ⟨?_, hok, ?_, fun h => h⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -87,7 +91,22 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
       have hAF := Spec_ok_unfold (P := AFor_for_6561856544793224737) (s := s₄) (s' := s₅)
         hok4 h5 hspec
-      refine ⟨hAF.1, hAF.2.1, ?_⟩
+      -- the write is an `sstore`; WHICH slot and value do not matter to the window, and
+      -- naming them would mean writing a type full of unsynthesisable placeholders
+      have hev4 : ∃ p v, s₄.evm = Clear.EVMState.sstore (Ok e0 st0 : State).evm p v := by
+        -- rewrite the GOAL down to an sstore first; `rfl` then fixes `p`/`v`.  Opening
+        -- with `refine ⟨_, _, ?_⟩` forces them before anything determines them
+        rw [h4]
+        simp only [evm_insert]
+        rw [hb, Clear.evm_setEvm_of_isOk (by simp only [isOk_insert]; exact h0)]
+        exact ⟨_, _, rfl⟩
+      refine ⟨hAF.1, hAF.2.1, ?_, ?_⟩
+      swap
+      · rintro ⟨hR, hC⟩
+        obtain ⟨p, v, hp⟩ := hev4
+        refine hAF.2.2.2 ⟨?_, ?_⟩
+        · rw [hp]; exact Clear.StorageFrame.rangeInWindow_sstore hR
+        · rw [hp]; exact Clear.StorageFrame.cachedInWindow_sstore hC
       intro q hq
       -- `dstSlot` is the write BASE and the loop never rebinds it, so the caller's
       -- separation hypothesis transfers to the recursive call unchanged
@@ -99,7 +118,7 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hd4 : s₄["dstSlot"]!! = (Ok e0 st0 : State)["dstSlot"]!! := by
         rw [h4, lookup_insert_of_ne (by decide), hd2]
       have e54 : Clear.EVMState.sload s₅.evm q = Clear.EVMState.sload s₄.evm q := by
-        refine hAF.2.2 q ?_
+        refine hAF.2.2.1 q ?_
         intro j
         rw [hd4]
         exact hq j
