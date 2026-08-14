@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.KeccakDistinct
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
@@ -85,7 +86,7 @@ lemma if_3779316958150250372_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
           (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
       -- `isOk_setEvm` strips BOTH wrappers, so the base obligation is `s₀`, not `hmok`
       simp only [isOk_setEvm]; exact hok
-    obtain ⟨-, -, hframe⟩ :=
+    obtain ⟨-, -, hframe, -⟩ :=
       Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
     -- the cursor's start value, and the loop's storage, both in closed form over `s₀`
     rw [lookup_insert' (isOk_insert.mpr (isOk_insert.mpr hkok)),
@@ -104,6 +105,44 @@ lemma if_3779316958150250372_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
       Clear.StorageFrame.sload_mstore] at hf
     rw [hgt hg]
     exact hf
+
+/-- **CONFIG FRAME.**  A memory write, a hash, and a run of `sstore`s -- none of which is
+`keccak_range` or `keccak_map`, so the window comes through.  The loop's own config
+conjunct carries it across the iterations. -/
+lemma if_3779316958150250372_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_3779316958150250372 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨ss, hspec, hle, hgt⟩ := h
+  by_cases hg : s₀["oldLen_1"]!! ≤ 1
+  · rw [hle hg]
+    exact ⟨hR, hC⟩
+  · have hssnf : ¬ ❓ ss := by rw [hgt hg] at hnf; exact hnf
+    simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
+    have hmok : isOk (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    have hkok : isOk ((s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧)🇪⟦
+        (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    obtain ⟨-, -, -, hcfg⟩ :=
+      Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
+    rw [hgt hg]
+    refine hcfg ⟨?_, ?_⟩
+    · simp only [evm_insert]
+      rw [Clear.evm_setEvm_of_isOk hmok]
+      refine Clear.KeccakLowSlot.rangeInWindow_keccakOut ?_
+      rw [Clear.evm_setEvm_of_isOk hok]
+      exact Clear.StorageFrame.rangeInWindow_mstore hR
+    · simp only [evm_insert]
+      rw [Clear.evm_setEvm_of_isOk hmok]
+      refine Clear.KeccakLowSlot.cachedInWindow_keccakOut ?_ ?_
+      · rw [Clear.evm_setEvm_of_isOk hok]
+        exact Clear.StorageFrame.rangeInWindow_mstore hR
+      · rw [Clear.evm_setEvm_of_isOk hok]
+        exact Clear.StorageFrame.cachedInWindow_mstore hC
 
 end
 
