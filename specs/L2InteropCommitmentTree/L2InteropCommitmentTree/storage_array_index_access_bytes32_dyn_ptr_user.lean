@@ -431,6 +431,43 @@ lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_post
   rw [storage_array_index_access_bytes32_dyn_ptr_val hok hnf hso hlt h]
   exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hc₁ hc₂ hne hk₁ hk₂
 
+/-- The offset output is `0` on BOTH branches -- it is a literal in the code, not something
+computed from the index -- so unlike `_val` this needs no bounds hypothesis. -/
+lemma arrIdxResultState_offset {ss : State} (h : isOk ss) :
+    (arrIdxResultState ss)["offset"]!! = 0 := by
+  unfold arrIdxResultState
+  refine lookup_insert' ?_
+  simp only [isOk_insert, primCall_keccakOut]
+  exact isOk_multifill (by simpa [isOk_setEvm] using h)
+
+/-- **THE ELEMENT IS WORD-ALIGNED.**  `offset = 0`: a `bytes32` fills its slot, so the
+writer's mask collapses and the element is stored outright.  This is what connects the
+accessor to `update_storage_value_bytes32_to_bytes32_val`. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_offset
+    {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[offset]!! = 0 := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2600721580863995212_isOk hgcok hssnf
+      (Spec_ok_unfold hgcok hssnf hg)
+  have hrok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  have hrev : isOk (🧟(arrIdxResultState ss)) := by rw [revive_of_ok hrok]; exact hrok
+  subst heq
+  rw [lookup_insert_of_ne (Ne.symm hso), lookup_insert' (isOk_setStore_of_isOk hrev)]
+  exact arrIdxResultState_offset hssok
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
