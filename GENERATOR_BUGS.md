@@ -126,7 +126,7 @@ that still carry `sorryAx`**, because they COMPOSE THROUGH stubs:
 | closed spec                   | specs beneath | stubs beneath | status |
 |-------------------------------|---------------|---------------|--------|
 | `if_8907015681698142673`      | 10            | was 8         | **DECONTAMINATED** 2026-08-14 |
-| `fun_requireExecutionAllowed` | 79            | 41 remain     | still `sorryAx` |
+| `fun_requireExecutionAllowed` | 79            | 0             | **DECONTAMINATED** 2026-08-14 |
 
 (An earlier version of this table listed only the DIRECT imports and so understated both.
 The taint is transitive, which is the whole point -- counting direct dependencies is the
@@ -162,6 +162,7 @@ access-control guard, so it is worth knowing it is not currently proved.
 | L2InteropHandler        | 8            | 0       |                                         |
 | AtomicFlowManager (64), L2AssetRouter (5) | — | ?  | UNCHECKABLE: generated modules do not elaborate |
 
-So stub contamination is confined to InteropHandler, and to two specs there. Two contracts
+Both are now decontaminated (45 stubs converted to aliases in total), so NO closed spec in
+any buildable contract rests on a `sorry`. Two contracts
 cannot be checked at all until the generator output compiles -- that is 69 closed specs
 whose soundness is currently unknown, not known-good.
