@@ -82,4 +82,20 @@ theorem shiftLeft_five_val (i : UInt256) (h : 32 * i.val < UInt256.size) :
   rw [show i.val * 2 ^ 5 = 32 * i.val by ring]
   exact Nat.mod_eq_of_lt h
 
+
+/-- **Halving is monotone.**  `x ≤ y → x >>> 1 ≤ y >>> 1`.
+
+This is what carries `index ≤ maxNodeNumber` across one level of the fold: `FullMerkle`'s
+`updateLeaf` halves BOTH each iteration (`_index /= 2; maxNodeNumber /= 2`), so the
+relation the entry guard establishes survives to the next level -- and with it the
+accessor's bounds hypothesis. -/
+theorem shiftRight_one_le {x y : UInt256} (h : x ≤ y) :
+    Fin.shiftRight x 1 ≤ Fin.shiftRight y 1 := by
+  have hx := shiftRight_one_val x
+  have hy := shiftRight_one_val y
+  simp only [Fin.le_def] at h ⊢
+  rw [hx, hy]
+  exact Nat.div_le_div_right h
+
+
 end Clear.FinBits

@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
+import specs.FinBits
 import specs.StorageFrame
 import specs.KeccakLowSlot
 import specs.FoldRightPeel
@@ -446,6 +447,65 @@ lemma ABody_for_2268004712116198193_config {s₀ s₉ : State} (hok : isOk s₀)
     obtain ⟨hR4, hC4⟩ := block_5022472617119597648_config hs3 h4nf hR3 hC3
       (Spec_ok_unfold hs3 h4nf h₄)
     exact block_2896862189596047701_config hs4 h5nf hR4 hC4 (Spec_ok_unfold hs4 h5nf h₅)
+
+
+/-- **The bound halves across the body**, like the index. -/
+lemma ABody_for_2268004712116198193_max {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : ABody_for_2268004712116198193 s₀ s₉) :
+    s₉["var_maxNodeNumber"]!! = Fin.shiftRight (s₀["var_maxNodeNumber"]!!) 1 := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardState s₀) := by
+    unfold rootGuardState; simp only [isOk_insert]; exact hok
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf : (rootGuardState s₀)["split_expr_4"]!! = 0
+  · exfalso
+    have e1 : s₁ = 💔(rootGuardState s₀) := hg.1 hf
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardState s₀ := hg.2 hf
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_8961670722464898128_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_5022472617119597648_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e5 : s₅["var_maxNodeNumber"]!! = s₄["var_maxNodeNumber"]!! :=
+      block_2896862189596047701_frame hs4 h5nf (Spec_ok_unfold hs4 h5nf h₅)
+    have e4 : s₄["var_maxNodeNumber"]!! = Fin.shiftRight (s₃["var_maxNodeNumber"]!!) 1 :=
+      block_5022472617119597648_max hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have e3 : s₃["var_maxNodeNumber"]!! = s₂["var_maxNodeNumber"]!! :=
+      switch_8961670722464898128_frame hs2 h3nf (by decide) (Spec_ok_unfold hs2 h3nf h₃)
+    have e2 : s₂["var_maxNodeNumber"]!! = s₁["var_maxNodeNumber"]!! :=
+      mod_uint256_frame hs1 (by decide) (Spec_ok_unfold hs1 h2nf h₂)
+    rw [e5, e4, e3, e2, e1]
+    unfold rootGuardState
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+
+/-- **THE FOLD PRESERVES `index ≤ maxNodeNumber`.**
+
+`FullMerkle.updateLeaf` establishes this with an entry guard and then halves BOTH each
+iteration; `Clear.FinBits.shiftRight_one_le` says halving is monotone, so the relation
+survives every level.  This is the arithmetic half of what discharges the accessor's
+bounds hypothesis -- see scripts/check-source-invariants.sh, which pins the three source
+facts this reads off. -/
+lemma ABody_for_2268004712116198193_index_le_max {s₀ s₉ : State}
+    (hok : isOk s₀) (hok9 : isOk s₉)
+    (hle : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!)
+    (h : ABody_for_2268004712116198193 s₀ s₉) :
+    s₉["var_index"]!! ≤ s₉["var_maxNodeNumber"]!! := by
+  rw [ABody_for_2268004712116198193_index hok hok9 h,
+    ABody_for_2268004712116198193_max hok hok9 h]
+  exact Clear.FinBits.shiftRight_one_le hle
 
 end
 
