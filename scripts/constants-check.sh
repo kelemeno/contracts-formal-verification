@@ -44,6 +44,11 @@ for f in files:
     if not os.path.isfile(f):
         continue
     text = open(f).read()
+    # strip block comments and line comments FIRST: a docstring containing the words
+    # "lemma below carries real content" was matched as a declaration named `below`,
+    # and the probe then reported a constant that never existed as MISSING
+    text = re.sub(r'/-.*?-/', '', text, flags=re.S)
+    text = re.sub(r'^\s*--.*$', '', text, flags=re.M)
     mod = f[:-len('.lean')].replace('/', '.')
     # a file's namespace is every `namespace` line, in order
     ns = '.'.join(m.group(1) for m in re.finditer(r'^namespace\s+([\w.]+)', text, re.M))
