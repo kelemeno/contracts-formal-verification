@@ -214,4 +214,22 @@ theorem sload_sstore_self {σ : EVMState} {p v : UInt256} {act : Account}
     exact (beq_iff_eq _ _).mp hv |>.symm
   · simp only [hv, if_false]
 
+
+/-- **AFTER A PUSH, THE INDEX FITS.**  The old length is strictly below the new one, so the
+accessor call that computes the new element's address has its bounds hypothesis satisfied.
+
+`array.push` writes `oldLen + 1` to the length slot and then addresses element `oldLen`;
+the address computation bounds-checks against the length it just wrote.  Needs no-wrap,
+which the push's own `2 ^ 64` guard supplies. -/
+theorem sload_lt_after_push {σ : EVMState} {array : UInt256} {act : Account}
+    (hacc : σ.lookupAccount σ.execution_env.code_owner = some act)
+    (hfits : (σ.sload array).val + 1 < UInt256.size) :
+    σ.sload array < (σ.sstore array (σ.sload array + 1)).sload array := by
+  rw [sload_sstore_self hacc]
+  have h1 : ((1 : UInt256)).val = 1 := by decide
+  have hval : ((σ.sload array) + 1).val = (σ.sload array).val + 1 := by
+    rw [Fin.val_add, h1, Nat.mod_eq_of_lt hfits]
+  simp only [Fin.lt_def, hval]
+  omega
+
 end Clear.StorageFrame
