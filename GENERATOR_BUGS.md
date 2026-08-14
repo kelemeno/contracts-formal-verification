@@ -123,10 +123,19 @@ those with a fixed generator is a prerequisite for any integrity claim about the
 Sweeping InteropHandler's 164 genuinely-closed specs (sorry-free, not aliases) found **2
 that still carry `sorryAx`**, because they COMPOSE THROUGH stubs:
 
-| closed spec                          | tainted by                                            |
-|--------------------------------------|-------------------------------------------------------|
-| `if_8907015681698142673`             | `block_3609567697964190809`, `abi_encode_bytes32_bytes_bytes` |
-| `fun_requireExecutionAllowed`        | `fun_parseEvmV1`, `fun_formatEvmV1`, `abi_encode_bytes32_bytes_bytes` |
+| closed spec                   | specs beneath | stubs beneath | status |
+|-------------------------------|---------------|---------------|--------|
+| `if_8907015681698142673`      | 10            | was 8         | **DECONTAMINATED** 2026-08-14 |
+| `fun_requireExecutionAllowed` | 79            | 41 remain     | still `sorryAx` |
+
+(An earlier version of this table listed only the DIRECT imports and so understated both.
+The taint is transitive, which is the whole point -- counting direct dependencies is the
+same mistake as trusting `grep -c sorry` on the file.)
+
+Decontamination is cheap and sound: turn `A_x := sorry` into `A_x := x_concrete_of_code.1`.
+An alias IS the concrete VC, so `abs_of_concrete` becomes `intro h; simpa [A_x] using h` and
+the `sorryAx` disappears. It buys soundness, not readability -- the spec still says nothing
+a human can read, and closing it properly is separate work.
 
 So a spec can be hand-written, sorry-free, build green, and still prove nothing — the
 `sorry` is one import away. `grep -c sorry` on the file says 0; `#print axioms` on the
