@@ -93,3 +93,27 @@ periodic fresh-compile audits).
 
 Audit recipe: `lake env lean` every hand-written spec fresh (scripted loop; exit
 codes); diff callee-name sets between failing patterns and goals to classify.
+
+## They also block the CONSTANTS sweep (2026-08-14)
+
+`scripts/constants-check.sh` verifies that a spec's lemmas actually exist, by looking the
+constants up in a probe module rather than trusting `lake build` (which can replay a stale
+olean and report OK for a file that does not compile — see the note at the top of that
+script). The probe imports every spec it checks, so ONE unbuildable generated module takes
+the whole sweep down with it.
+
+Status of the per-contract sweep over CONTENTFUL specs:
+
+| contract                  | constants | result                                        |
+|---------------------------|-----------|-----------------------------------------------|
+| L2InteropCommitmentTree + abstract root | 784 | 753 verified, 0 missing (8 axiom-bearing = the KeccakInjective base) |
+| L1Nullifier               | 47        | clean                                         |
+| L1AssetRouter             | 22        | clean                                         |
+| L2InteropHandler          | 53        | clean                                         |
+| L2AssetRouter             | —         | BLOCKED by bugs 1 and 2 above                 |
+| AtomicFlowManager         | —         | BLOCKED by bug 4 (`EVMCleanup_bool'`)         |
+| InteropHandler            | —         | not attempted (316 contentful specs; sweep in chunks) |
+
+So the blocked contracts are not merely missing proofs — their specs cannot even be
+CHECKED for existence, because the modules they import do not elaborate. Regenerating
+those with a fixed generator is a prerequisite for any integrity claim about them.
