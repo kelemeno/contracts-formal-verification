@@ -182,6 +182,28 @@ lemma panic_error_0x32_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀)
   rw [hfdef, Clear.evm_initcall hok]
   exact hf
 
+/-- **VARIABLE FRAME.**  A panic restores the caller's varstore -- `setStore` keeps the
+callee's evm but the CALLER's bindings -- so every variable reads back unchanged across it.
+
+That is what makes the accessor's "the slot is not a low slot" provable without the bounds
+check: on the panic branch the index argument is still the caller's, so the address the
+accessor computes is keccak-derived with the same small offset as on the passing branch. -/
+lemma panic_error_0x32_frame {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x32 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  unfold A_panic_error_0x32 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 50⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  exact Clear.lookup_setStore (by rw [revive_of_ok hcok]; exact hcok) hok
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
