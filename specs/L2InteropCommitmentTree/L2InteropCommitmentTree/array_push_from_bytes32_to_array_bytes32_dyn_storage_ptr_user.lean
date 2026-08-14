@@ -109,6 +109,158 @@ lemma array_push_flag {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
     array_push_pre_array (array := array) (value0 := value0) hok]
   simp [hfits]
 
+/-! ### The push in closed form
+
+Off the panic path every intermediate state of the push is a function of `s₀` alone: the
+callee's evm is the caller's, and the array argument reads back as the literal passed in.
+Naming those states is what lets the length and element lemmas be stated -- and proved --
+without re-deriving the guard each time. -/
+
+/-- The callee frame after the length read and the overflow guard. -/
+def pushGc (s₀ : State) (array value0 : Literal) : State :=
+  ((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+      Clear.EVMState.sload s₀.evm array⟧)⟦"split_expr_0" ↦
+    (decide (Clear.EVMState.sload s₀.evm array < 18446744073709551616)).toUInt256⟧
+
+/-- ... after the new length is computed, before it is stored. -/
+def pushInc (s₀ : State) (array value0 : Literal) : State :=
+  (pushGc s₀ array value0)⟦"split_expr_1" ↦ Clear.EVMState.sload s₀.evm array + 1⟧
+
+/-- The state the element write starts from: the length slot ALREADY carries `oldLen + 1`,
+because the deployed code stores the length before computing the element's address. -/
+def pushSt (s₀ : State) (array value0 : Literal) : State :=
+  (pushInc s₀ array value0)🇪⟦Clear.EVMState.sstore s₀.evm array
+    (Clear.EVMState.sload s₀.evm array + 1)⟧
+
+lemma isOk_pushGc {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (pushGc s₀ array value0) :=
+  isOk_insert.mpr (isOk_insert.mpr (isOk_initcall_of_isOk hok))
+
+lemma isOk_pushInc {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (pushInc s₀ array value0) :=
+  isOk_insert.mpr (isOk_pushGc hok)
+
+lemma isOk_pushSt {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (pushSt s₀ array value0) := by
+  unfold pushSt
+  rw [isOk_setEvm]
+  exact isOk_pushInc hok
+
+lemma pushGc_evm {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushGc s₀ array value0).evm = s₀.evm := by
+  unfold pushGc
+  simp only [evm_insert]
+  exact Clear.evm_initcall hok
+
+lemma pushGc_oldLen {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushGc s₀ array value0)["oldLen"]!! = Clear.EVMState.sload s₀.evm array := by
+  unfold pushGc
+  rw [lookup_insert_of_ne (by decide)]
+  exact lookup_insert' (isOk_initcall_of_isOk hok)
+
+/-- The guard flag, in closed form: nonzero exactly when the length fits. -/
+lemma pushGc_flag {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616) :
+    (pushGc s₀ array value0)["split_expr_0"]!! ≠ 0 := by
+  unfold pushGc
+  rw [lookup_insert' (isOk_insert.mpr (isOk_initcall_of_isOk hok))]
+  simp [hfits]
+
+lemma pushInc_array {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushInc s₀ array value0)["array"]!! = array := by
+  unfold pushInc pushGc
+  rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+    lookup_insert_of_ne (by decide)]
+  exact Clear.lookup_initcall_fst hok
+
+lemma pushInc_split1 {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushInc s₀ array value0)["split_expr_1"]!! = Clear.EVMState.sload s₀.evm array + 1 := by
+  unfold pushInc
+  exact lookup_insert' (isOk_pushGc hok)
+
+lemma pushSt_array {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushSt s₀ array value0)["array"]!! = array := by
+  unfold pushSt
+  rw [Clear.lookup_setEvm (isOk_pushInc hok)]
+  exact pushInc_array hok
+
+lemma pushSt_oldLen {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushSt s₀ array value0)["oldLen"]!! = Clear.EVMState.sload s₀.evm array := by
+  unfold pushSt
+  rw [Clear.lookup_setEvm (isOk_pushInc hok)]
+  unfold pushInc
+  rw [lookup_insert_of_ne (by decide)]
+  exact pushGc_oldLen hok
+
+/-- **THE LENGTH IS ALREADY INCREMENTED** when the element's address is computed. -/
+lemma pushSt_evm {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (pushSt s₀ array value0).evm
+      = Clear.EVMState.sstore s₀.evm array (Clear.EVMState.sload s₀.evm array + 1) := by
+  unfold pushSt
+  exact Clear.evm_setEvm_of_isOk (isOk_pushInc hok)
+
+
+/-- **THE PUSH IN NORMAL FORM.**  Off the panic path the guard vanishes and the two
+remaining calls -- the index accessor and the element write -- both start from `pushSt`,
+which is closed over `s₀`.  Everything a caller wants to know about a push (the length
+went up by one, the element landed at index `oldLen`, nothing else moved) is a statement
+about this shape, so it is worth extracting once. -/
+lemma array_push_normal {array value0 : Literal} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    ∃ s₂, Spec (A_storage_array_index_access_bytes32_dyn_ptr "slot" "offset"
+        array (Clear.EVMState.sload s₀.evm array)) (pushSt s₀ array value0) s₂ ∧
+      ∃ s₃, Spec (A_update_storage_value_bytes32_to_bytes32
+          (s₂["slot"]!!) (s₂["offset"]!!) (s₂["value0"]!!)) s₂ s₃ ∧
+        s₉ = 🧟s₃🏪⟦s₀⟧ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "value0"],[array, value0]⟧) := isOk_initcall_of_isOk hok
+  -- the spec writes the guard state over the CALLEE's evm; under `hok` that is `s₀`'s
+  have hgceq : ((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+        Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+          ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧)⟦"split_expr_0" ↦
+      (decide (((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+          Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+            ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧)["oldLen"]!!
+        < 18446744073709551616)).toUInt256⟧ = pushGc s₀ array value0 := by
+    rw [Clear.evm_initcall hok, Clear.lookup_initcall_fst hok, lookup_insert' hf]
+    rfl
+  rw [hgceq] at h₁
+  -- fuel travels backwards along the call chain
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := by
+    intro hoo
+    apply h2nf
+    apply Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂
+    simpa only [isOutOfFuel_setEvm', isOutOfFuel_insert'] using hoo
+  have hs1 : s₁ = pushGc s₀ array value0 :=
+    L2InteropCommitmentTree.Common.if_4590714779410500988_id_of_ne (pushGc_flag hok hfits)
+      (Spec_ok_unfold (isOk_pushGc hok) h1nf h₁)
+  subst hs1
+  have hsteq : ((pushGc s₀ array value0)⟦"split_expr_1" ↦
+        (pushGc s₀ array value0)["oldLen"]!! + 1⟧)🇪⟦
+      Clear.EVMState.sstore (pushGc s₀ array value0).evm
+        (((pushGc s₀ array value0)⟦"split_expr_1" ↦
+          (pushGc s₀ array value0)["oldLen"]!! + 1⟧)["array"]!!)
+        (((pushGc s₀ array value0)⟦"split_expr_1" ↦
+          (pushGc s₀ array value0)["oldLen"]!! + 1⟧)["split_expr_1"]!!)⟧
+      = pushSt s₀ array value0 := by
+    rw [pushGc_oldLen hok, pushGc_evm hok]
+    show ((pushInc s₀ array value0)🇪⟦Clear.EVMState.sstore s₀.evm
+      ((pushInc s₀ array value0)["array"]!!)
+      ((pushInc s₀ array value0)["split_expr_1"]!!)⟧) = _
+    rw [pushInc_array hok, pushInc_split1 hok]
+    rfl
+  rw [hsteq, pushSt_array hok, pushSt_oldLen hok] at h₂
+  exact ⟨s₂, h₂, s₃, h₃, heq⟩
+
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
