@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakPrimOps
+import specs.KeccakDeterminism
+import specs.StateOk
 import specs.StateOk
 
 
@@ -45,6 +49,54 @@ lemma array_dataslot_array_bytes32_dyn_storage_ptr_isOk {data : Identifier} {ptr
 lemma array_dataslot_array_bytes32_dyn_storage_ptr_not_break {data : Identifier} {ptr : Literal} {s₀ s₉ : State} (hnf : ¬ ❓ s₉)
     (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (array_dataslot_array_bytes32_dyn_storage_ptr_isOk hnf h)
+
+/-- **STORAGE FRAME.**  The data-slot helper hashes the array's slot to find where its
+elements start; it `mstore`s and hashes and writes NO storage, so every slot reads back
+unchanged.  There is no second branch here -- unlike the index accessor, this one has no
+bounds check to fail. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_sload {data : Identifier}
+    {ptr : Literal} {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil, evm_insert, evm_setStore]
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [Clear.evm_reviveJump_of_isOk hXok]
+  simp only [evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.StorageFrame.sload_keccakOut, hmdef,
+    Clear.evm_setEvm_of_isOk hfok, Clear.StorageFrame.sload_mstore, hfdef,
+    Clear.evm_initcall hok]
+
+/-- **ACCOUNT FRAME.**  Same chain: hashing and a memory write leave the account map and
+the execution environment alone. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_account {data : Identifier}
+    {ptr : Literal} {addr : Address} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    Clear.EVMState.lookupAccount s₉.evm addr = Clear.EVMState.lookupAccount s₀.evm addr ∧
+      s₉.evm.execution_env = s₀.evm.execution_env := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil,
+    evm_insert, evm_setStore]
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [Clear.evm_reviveJump_of_isOk hXok]
+  simp only [evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.StorageFrame.lookupAccount_keccakOut,
+    Clear.StorageFrame.execution_env_keccakOut, hmdef, Clear.evm_setEvm_of_isOk hfok,
+    Clear.StorageFrame.lookupAccount_mstore, Clear.StorageFrame.execution_env_mstore,
+    hfdef, Clear.evm_initcall hok]
+  exact ⟨rfl, rfl⟩
 
 end
 
