@@ -49,6 +49,21 @@ lemma if_8492884752647891302_abs_of_concrete {s₀ s₉ : State} :
     rw [if_neg hg] at heq
     exact heq.symm
 
+
+/-- **NO LEVEL GROWTH: the state is unchanged.**
+
+The level-growing loop runs only when the new index is non-zero (`split_expr_4` is
+`decide (_1 = 0)`).  For the very first leaf the branch is the identity, so the level arrays
+are untouched and `TreeLayout.LevelsSized` is preserved.
+
+The other path runs `for_2693611967757691411`, which is where the arrays actually grow --
+that is the part still to be proved. -/
+lemma if_8492884752647891302_id_of_ne {s₀ s₉ : State}
+    (hne : s₀["split_expr_4"]!! ≠ 0)
+    (h : A_if_8492884752647891302 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨_, _, _, _, _, hneg⟩ := h
+  exact hneg hne
+
 end
 
 end L2InteropCommitmentTree.Common

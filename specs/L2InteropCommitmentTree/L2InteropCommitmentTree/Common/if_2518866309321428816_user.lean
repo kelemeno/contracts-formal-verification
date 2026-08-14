@@ -54,6 +54,20 @@ lemma if_2518866309321428816_abs_of_concrete {s₀ s₉ : State} :
     rw [if_neg hg] at heq
     exact heq.symm
 
+
+/-- **NO HEIGHT GROWTH: the state is unchanged.**
+
+`pushNewLeaf` grows the tree's height only when the new index exactly fills the current
+capacity (`index == 1 << height`).  Off that path this branch is the identity, so every
+level array keeps its length -- `TreeLayout.LevelsSized` is preserved for free.
+
+That is the common case: one leaf in `2 ^ height` triggers growth. -/
+lemma if_2518866309321428816_id_of_ne {s₀ s₉ : State}
+    (hne : s₀["_1"]!! ≠ s₀["split_expr_1"]!!)
+    (h : A_if_2518866309321428816 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨_, _, _, _, _, _, _, hneg⟩ := h
+  exact hneg hne
+
 end
 
 end L2InteropCommitmentTree.Common
