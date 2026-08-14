@@ -121,6 +121,38 @@ lemma panic_error_0x32_config {s₀ s₉ : State} (hok : isOk s₀)
     rw [hbe]; exact cachedInWindow_mstore (cachedInWindow_mstore hC)
   exact ⟨rangeInWindow_evm_revert hRb, cachedInWindow_evm_revert hCb⟩
 
+/-- **ACCOUNT FRAME.**  A panic writes memory and reverts, so the account map and the
+execution environment come through untouched -- which is what keeps a "the write reads
+back" hypothesis alive across a call that MIGHT panic.
+
+Same chain as `_sload`; the storage-vs-account difference is only which frame lemma
+retires each step. -/
+lemma panic_error_0x32_account {addr : Address} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_panic_error_0x32 s₀ s₉) :
+    Clear.EVMState.lookupAccount s₉.evm addr = Clear.EVMState.lookupAccount s₀.evm addr ∧
+      s₉.evm.execution_env = s₀.evm.execution_env := by
+  unfold A_panic_error_0x32 at h
+  subst h
+  set f := s₀☎️⟦[],[]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := multifill ["split_expr_0"] [Fin.shiftLeft 1313373041 224] f with hmdef
+  have hmok : isOk m := by rw [hmdef]; exact isOk_multifill hfok
+  set a := m🇪⟦EVMState.mstore f.evm 0 (m["split_expr_0"]!!)⟧ with hadef
+  have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hmok
+  set b := a🇪⟦EVMState.mstore a.evm 4 50⟧ with hbdef
+  have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+  have hcok : isOk (b🇪⟦EVMState.evm_revert b.evm 0 36⟧) := by
+    simpa only [isOk_setEvm] using hbok
+  simp only [evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hcok, Clear.evm_setEvm_of_isOk hbok,
+    Clear.StorageFrame.lookupAccount_evm_revert,
+    Clear.StorageFrame.execution_env_evm_revert, hbdef,
+    Clear.evm_setEvm_of_isOk haok, Clear.StorageFrame.lookupAccount_mstore,
+    Clear.StorageFrame.execution_env_mstore, hadef, Clear.evm_setEvm_of_isOk hmok,
+    Clear.StorageFrame.lookupAccount_mstore, Clear.StorageFrame.execution_env_mstore,
+    hfdef, Clear.evm_initcall hok]
+  exact ⟨rfl, rfl⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

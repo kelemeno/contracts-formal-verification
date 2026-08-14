@@ -468,6 +468,63 @@ lemma storage_array_index_access_bytes32_dyn_ptr_offset
   rw [lookup_insert_of_ne (Ne.symm hso), lookup_insert' (isOk_setStore_of_isOk hrev)]
   exact arrIdxResultState_offset hssok
 
+private lemma account_arrIdxResultState {ss : State} {addr : Address} (hok : isOk ss) :
+    Clear.EVMState.lookupAccount (arrIdxResultState ss).evm addr
+        = Clear.EVMState.lookupAccount ss.evm addr ∧
+      (arrIdxResultState ss).evm.execution_env = ss.evm.execution_env := by
+  unfold arrIdxResultState
+  set M := ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧ with hM
+  have hmok : isOk M := by rw [hM]; simp only [isOk_setEvm]; exact hok
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.StorageFrame.lookupAccount_keccakOut,
+    Clear.StorageFrame.execution_env_keccakOut, hM, Clear.evm_setEvm_of_isOk hok,
+    Clear.StorageFrame.lookupAccount_mstore, Clear.StorageFrame.execution_env_mstore]
+  exact ⟨rfl, rfl⟩
+
+/-- **ACCOUNT FRAME.**  The accessor computes an address: it `mstore`s and hashes, and on
+the out-of-bounds path it panics and reverts.  None of that removes the contract's account
+or changes which address is `code_owner`.
+
+UNCONDITIONAL, like `_sload`, and for the same reason: a revert is a flag in this model,
+so both branches preserve the account.  This is what carries `sload_sstore_self`'s
+hypothesis from before the accessor call to after it. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_account
+    {slot offset : Identifier} {array index : Literal} {addr : Address} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    Clear.EVMState.lookupAccount s₉.evm addr = Clear.EVMState.lookupAccount s₀.evm addr ∧
+      s₉.evm.execution_env = s₀.evm.execution_env := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  have hboth : isOk ss ∧
+      (Clear.EVMState.lookupAccount ss.evm addr
+          = Clear.EVMState.lookupAccount (arrIdxGuardState array index s₀).evm addr ∧
+        ss.evm.execution_env = (arrIdxGuardState array index s₀).evm.execution_env) := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      exact ⟨panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp),
+        panic_error_0x32_account hgcok (Spec_ok_unfold hgcok hssnf hsp)⟩
+    · have hss : ss = arrIdxGuardState array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, rfl, rfl⟩
+  subst heq
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk (isOk_arrIdxResultState hboth.1)]
+  obtain ⟨hacc', henv'⟩ := (account_arrIdxResultState (addr := addr) hboth.1)
+  rw [hacc', henv', hboth.2.1, hboth.2.2, arrIdxGuardState_evm hok]
+  exact ⟨rfl, rfl⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
