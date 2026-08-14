@@ -31,9 +31,8 @@ thread it through unchanged, and it is sound trivially: the bound is a literal. 
 def AFor_for_6561856544793224737 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["i"]!! < (1 : UInt256))) ∧
   isOk s₉ ∧
-  (∃ n : ℕ, ∀ q : UInt256,
-    (∀ j : ℕ, j < n → q ≠ s₀["dstSlot"]!! + (s₀["i"]!!) + (j : UInt256)) →
-      Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
+  (∀ q : UInt256, (∀ p : UInt256, p < 1 → q ≠ s₀["dstSlot"]!! + p) →
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
   ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
     Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
 
@@ -80,7 +79,7 @@ lemma AZero_for_6561856544793224737 : ∀ s₀, isOk s₀ → ACond_for_65618565
     simp only [State.mkOk] at hcond
     simp [fromBool, Bool.toUInt256, hlt] at hcond
   · -- zero iterations write nothing
-    exact ⟨0, fun _ _ => rfl⟩
+    exact fun _ _ => rfl
 
 lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_6561856544793224737 s₀ = 0 → ABody_for_6561856544793224737 s₀ s₂ → APost_for_6561856544793224737 s₂ s₄ → Spec AFor_for_6561856544793224737 s₄ s₅ → AFor_for_6561856544793224737 s₀ s₅ := by
   intro s₀ s₂ s₄ s₅ h0 h2 h5 _hcond hbody hpost hspec
@@ -107,8 +106,6 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         refine hAF.2.2.2 ⟨?_, ?_⟩
         · rw [hp]; exact Clear.StorageFrame.rangeInWindow_sstore hR
         · rw [hp]; exact Clear.StorageFrame.cachedInWindow_sstore hC
-      obtain ⟨n, hrec⟩ := hAF.2.2.1
-      refine ⟨n + 1, ?_⟩
       intro q hq
       -- `dstSlot` is the write BASE and the loop never rebinds it; only the cursor moves,
       -- so the recursive call's base is this one shifted by exactly one iteration
@@ -119,23 +116,17 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
           lookup_insert_of_ne (by decide)]
       have hd4 : s₄["dstSlot"]!! = (Ok e0 st0 : State)["dstSlot"]!! := by
         rw [h4, lookup_insert_of_ne (by decide), hd2]
-      have hi2 : (Ok e2 st2 : State)["i"]!! = (Ok e0 st0 : State)["i"]!! := by
-        rw [hb]
-        rw [Clear.lookup_setEvm (by simp only [isOk_insert]; exact h0)]
-        rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
-          lookup_insert_of_ne (by decide)]
-      have hi4 : s₄["i"]!! = (Ok e0 st0 : State)["i"]!! + 1 := by
-        -- `Ok e2 st2` has no inserts left to strip, so `h2` is the isOk directly
-        rw [h4, lookup_insert' h2, hi2]
+      -- the guard held, so this iteration's cursor is below the literal bound
+      have hi0 : (Ok e0 st0 : State)["i"]!! < 1 := by
+        by_contra hcon
+        exact _hcond (by simp [ACond_for_6561856544793224737, fromBool, hcon])
+      -- the write BASE never moves, so the caller's hypothesis passes to the recursive
+      -- call unchanged -- no shift, unlike the zero-fill loop whose base IS the cursor
       have e54 : Clear.EVMState.sload s₅.evm q = Clear.EVMState.sload s₄.evm q := by
-        refine hrec q ?_
-        intro j hj
-        rw [hd4, hi4]
-        intro hcon
-        apply hq (j + 1) (by omega)
-        rw [hcon]
-        push_cast
-        ring
+        refine hAF.2.2.1 q ?_
+        intro p hp
+        rw [hd4]
+        exact hq p hp
       have e42 : Clear.EVMState.sload s₄.evm q
           = Clear.EVMState.sload (Ok e2 st2 : State).evm q := by
         rw [h4]; simp only [evm_insert]
@@ -147,7 +138,8 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         rw [lookup_insert' (by simp only [isOk_insert]; exact h0), lookup_insert_of_ne (by decide),
           lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
           lookup_insert_of_ne (by decide)]
-        simpa using hq 0 (by omega)
+        -- the written slot is `dstSlot + i`, and the guard put `i` below the bound
+        exact hq _ hi0
       rw [e54, e42, e20]
     · exact absurd h2 (by simp [isOk])
     · exact absurd h2 (by simp [isOk])
