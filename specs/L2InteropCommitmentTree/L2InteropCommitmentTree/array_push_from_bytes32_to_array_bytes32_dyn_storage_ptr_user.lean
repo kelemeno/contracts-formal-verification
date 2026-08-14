@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakDeterminism
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
@@ -259,6 +260,66 @@ lemma array_push_normal {array value0 : Literal} {s₀ s₉ : State} (hok : isOk
     rfl
   rw [hsteq, pushSt_array hok, pushSt_oldLen hok] at h₂
   exact ⟨s₂, h₂, s₃, h₃, heq⟩
+
+
+/-- **THE PUSH INCREMENTS THE LENGTH -- AND ONLY BY ONE.**
+
+The tree's `nodes[level]` arrays grow one leaf at a time, and the fold's step count is
+pinned to those lengths, so "a push adds exactly one" is the fact that keeps a level's
+length in step with the number of insertions.  Anything weaker (the length merely grew)
+would let a level run ahead of its siblings.
+
+Three side conditions, all real and all the caller's:
+  * `hfits`  the array is shorter than `2 ^ 64`, so the guard does not panic;
+  * `hnw`    the increment does not wrap the word -- implied by `hfits` in any real tree,
+             but a separate arithmetic fact and stated as one;
+  * `hsep`   the element's slot is not the length slot.  In closed form this is
+             `array ≠ keccak(array) + oldLen`, which the keccak low-slot separation
+             discharges for a literal `array`; taking it as a hypothesis keeps this lemma
+             free of the keccak configuration.
+
+`hacc` is the EVM well-formedness the storage model needs for a write to read back. -/
+lemma array_push_length {array value0 : Literal} {s₀ s₉ : State} {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hnw : (Clear.EVMState.sload s₀.evm array).val + 1 < UInt256.size)
+    (hsep : array ≠ (Clear.KeccakDeterminism.keccakOut ((Clear.EVMState.sstore s₀.evm array
+          (Clear.EVMState.sload s₀.evm array + 1)).mstore 0 array) 0 32).1
+        + Clear.EVMState.sload s₀.evm array)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm array = Clear.EVMState.sload s₀.evm array + 1 := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have ha₂ := Spec_ok_unfold hstok h2nf h₂
+  have hs2ok : isOk s₂ := storage_array_index_access_bytes32_dyn_ptr_isOk h2nf ha₂
+  have ha₃ := Spec_ok_unfold hs2ok h3nf h₃
+  -- the bounds check sees the NEW length, which is why index `oldLen` is admitted
+  have hlt : Clear.EVMState.sload s₀.evm array
+      < Clear.EVMState.sload (pushSt s₀ array value0).evm array := by
+    rw [pushSt_evm hok]
+    exact Clear.StorageFrame.sload_lt_after_push hacc hnw
+  have hslot : s₂["slot"]!!
+      = (Clear.KeccakDeterminism.keccakOut (((pushSt s₀ array value0).evm).mstore 0 array) 0 32).1
+        + Clear.EVMState.sload s₀.evm array :=
+    storage_array_index_access_bytes32_dyn_ptr_val hstok h2nf (by decide) hlt ha₂
+  rw [pushSt_evm (array := array) (value0 := value0) hok] at hslot
+  have hq : array ≠ s₂["slot"]!! := by rw [hslot]; exact hsep
+  have hs3ok : isOk s₃ := update_storage_value_bytes32_to_bytes32_isOk h3nf ha₃
+  -- walk the length slot back: element write misses it, accessor writes nothing,
+  -- and the `sstore` reads back
+  subst heq
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs3ok,
+    update_storage_value_bytes32_to_bytes32_sload_frame hs2ok h3nf hq ha₃,
+    storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf ha₂,
+    pushSt_evm hok]
+  exact Clear.StorageFrame.sload_sstore_self hacc
 
 
 end
