@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -121,6 +122,38 @@ lemma array_dataslot_array_bytes32_dyn_storage_ptr_val {data : Identifier} {ptr 
     lookup_insert' (by simp only [isOk_setEvm]; exact hmok),
     hmdef, Clear.evm_setEvm_of_isOk hfok, hfdef, Clear.evm_initcall hok,
     Clear.lookup_initcall_one hok]
+
+/-- **CONFIG FRAME.**  The data-slot helper's `mstore` and hash leave the keccak window
+intact.  This is what lets a caller keep the low-slot separation hypotheses alive across
+the call -- and, unlike the storage frame, it is what the NEXT hash in a chain needs, since
+a keccak result depends on the whole evm rather than on any one slot. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_config {data : Identifier}
+    {ptr : Literal} {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  have hme : m.evm = Clear.EVMState.mstore s₀.evm 0 (f["ptr"]!!) := by
+    rw [hmdef, Clear.evm_setEvm_of_isOk hfok, hfdef, Clear.evm_initcall hok]
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil,
+    evm_insert, evm_setStore]
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [Clear.evm_reviveJump_of_isOk hXok]
+  simp only [evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok]
+  have hRm : Clear.KeccakLowSlot.RangeInWindow m.evm := by
+    rw [hme]; exact Clear.StorageFrame.rangeInWindow_mstore hR
+  have hCm : Clear.KeccakLowSlot.CachedInWindow m.evm := by
+    rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC
+  exact ⟨Clear.KeccakLowSlot.rangeInWindow_keccakOut hRm,
+    Clear.KeccakLowSlot.cachedInWindow_keccakOut hRm hCm⟩
 
 end
 

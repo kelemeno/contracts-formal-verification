@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakLowSlot
 import specs.RevertModel
 import specs.StateOk
 
@@ -118,6 +119,32 @@ lemma if_228369243124659344_account {addr : Address} {s₀ s₉ : State} (hok : 
         evm_tower1, Clear.StorageFrame.lookupAccount_mstore,
         Clear.StorageFrame.execution_env_mstore]
       exact ⟨rfl, rfl⟩
+    · exact absurd hok (by simp [isOk])
+    · exact absurd hok (by simp [isOk])
+
+/-- **CONFIG FRAME.**  Two memory writes and a revert; none of them is `keccak_range` or
+`keccak_map`, so the window survives both branches. -/
+lemma if_228369243124659344_config {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_228369243124659344 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  by_cases hg : s₀["offset"]!! = 0
+  · rw [h.1 hg]
+    exact ⟨hR, hC⟩
+  · rcases s₀ with ⟨evm, store⟩ | _ | _
+    · rw [h.2 hg, evm_tower3]
+      refine ⟨Clear.StorageFrame.rangeInWindow_evm_revert ?_,
+        Clear.StorageFrame.cachedInWindow_evm_revert ?_⟩
+      · rw [evm_tower2]
+        refine Clear.StorageFrame.rangeInWindow_mstore ?_
+        rw [evm_tower1]
+        exact Clear.StorageFrame.rangeInWindow_mstore hR
+      · rw [evm_tower2]
+        refine Clear.StorageFrame.cachedInWindow_mstore ?_
+        rw [evm_tower1]
+        exact Clear.StorageFrame.cachedInWindow_mstore hC
     · exact absurd hok (by simp [isOk])
     · exact absurd hok (by simp [isOk])
 
