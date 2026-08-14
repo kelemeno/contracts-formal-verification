@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
@@ -71,6 +72,21 @@ lemma array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_isOk {array value
 lemma array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_not_break {array value0 : Literal} {s₀ s₉ : State} (hnf : ¬ ❓ s₉)
     (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_isOk hnf h)
+
+
+/-- The callee state after `initcall` and the length read -- `Ok`, and its evm is the
+caller's, which is what puts the push's hypotheses in closed form over `s₀`. -/
+lemma array_push_pre_evm {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    ((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+      Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+        ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧).evm = s₀.evm := by
+  simp only [evm_insert]
+  exact Clear.evm_initcall hok
+
+/-- The array argument, read back inside the callee. -/
+lemma array_push_pre_array {array value0 : Literal} {s₀ : State} (hok : isOk s₀) :
+    (s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!! = array :=
+  Clear.lookup_initcall_fst hok
 
 end
 
