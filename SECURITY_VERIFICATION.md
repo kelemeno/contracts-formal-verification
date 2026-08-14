@@ -2514,5 +2514,14 @@ contract reasoning, and one detail makes it easy to get wrong: on the `none` bra
 `sstore` — no account at `code_owner` — the write is the IDENTITY and `used_range` does not
 grow at all, so a bound that assumes growth is false there.
 
-Until that lands, the levels push has a complete and usable frame layer but no end-to-end
-length result, and `fun_pushNewLeaf` above it still states nothing a caller can use.
+**UPDATE, same day: `Fuel.sstore` is proved.**  The write costs at most one unit of pool,
+capped by the `Nodup` half of `Fuel`; the `none` branch is the identity and costs nothing.
+It is axiom-clean and free of `Classical.choice`.  So the propagation chain is now complete
+— `Fuel` crosses hashes (`Fuel.keccakOut`), memory writes (`Fuel.mstore`) and storage writes
+(`Fuel.sstore`) — and a caller can supply `Fuel s₀.evm k` for the `k` hashes on the path and
+have it survive to each one.
+
+What remains for the length lemma is therefore composition rather than any missing
+ingredient: walking `s₉` back to `s₀` through the six layers, discharging each separation
+from `array` being a literal low slot plus the propagated window and fuel.  That is
+mechanical but long, and `fun_pushNewLeaf` above it still states nothing a caller can use.
