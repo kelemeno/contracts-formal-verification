@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_1667634760212566376_gen
@@ -36,6 +38,12 @@ lemma block_1667634760212566376_isOk {s₀ s₉ : State} (hok : isOk s₀)
 lemma block_1667634760212566376_not_break {s₀ s₉ : State} (hok : isOk s₀)
     (h : A_block_1667634760212566376 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_1667634760212566376_isOk hok h)
+
+
+/-- **FRAME.**  Only `var_i` moves. -/
+lemma block_1667634760212566376_frame {v : Identifier} {s₀ s₉ : State} (hv : v ≠ "var_i")
+    (h : A_block_1667634760212566376 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  rw [h, lookup_insert_of_ne hv]
 
 end
 

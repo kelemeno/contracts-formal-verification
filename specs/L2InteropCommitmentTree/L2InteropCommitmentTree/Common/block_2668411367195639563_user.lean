@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
@@ -72,6 +73,36 @@ lemma block_2668411367195639563_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf 
 lemma block_2668411367195639563_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_block_2668411367195639563 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_2668411367195639563_isOk hok hnf h)
+
+
+/-- **FRAME.**  The leaf write moves `_1`.._5` and `var_currentHash`; the index and the
+bound cross it untouched, so the guard's fact reaches the fold. -/
+lemma block_2668411367195639563_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["_1", "_2", "_3", "_4", "_5", "var_currentHash"] : List Identifier))
+    (h : A_block_2668411367195639563 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨h1, h2, h3, h4, h5, hcur⟩ := hv
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel hs₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel hs₂ hoo)
+  have hok1 : isOk s₁ :=
+    storage_array_index_access_bytes32_dyn_ptr_5303_isOk h1nf (Spec_ok_unfold haok h1nf hs₁)
+  have hok2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hok1 h2nf hs₂)
+  rw [lookup_insert_of_ne hcur,
+    update_storage_value_bytes32_to_bytes32_frame hok2 h3nf (Spec_ok_unfold hok2 h3nf hs₃),
+    storage_array_index_access_bytes32_dyn_ptr_frame hok1 h2nf h4 h5
+      (Spec_ok_unfold hok1 h2nf hs₂),
+    storage_array_index_access_bytes32_dyn_ptr_5303_frame haok h1nf h2 h3
+      (Spec_ok_unfold haok h1nf hs₁),
+    lookup_insert_of_ne h1]
 
 end
 

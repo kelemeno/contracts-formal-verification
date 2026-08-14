@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256_uint256
@@ -78,6 +79,15 @@ lemma if_2960513488629726830_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
 lemma if_2960513488629726830_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_if_2960513488629726830 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_2960513488629726830_isOk hok hnf h)
+
+
+/-- **IN BOUNDS: THE GUARD CHANGES NOTHING** (generic-slot copy).  Same fact as
+`if_4451958921457272093_id_of_le`, and here the spec already states it as an implication. -/
+lemma if_2960513488629726830_id_of_le {s₀ s₉ : State}
+    (hle : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!)
+    (h : A_if_2960513488629726830 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨_, _, hpos, _⟩ := h
+  exact hpos hle
 
 end
 
