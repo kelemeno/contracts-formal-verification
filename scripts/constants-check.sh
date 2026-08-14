@@ -13,6 +13,12 @@
 # This is the same reason `#print axioms` rather than `grep -L sorry` is the progress
 # metric in this repo: only the constant is authoritative.
 #
+# AFTER DELETING AN OLEAN, REBUILD BEFORE RUNNING audit-count.sh.  Deleting the stale
+# artifact is the right fix when a lookup and a build disagree -- but `audit-count.sh` runs
+# `lake env lean` directly, which does NOT rebuild dependencies, so a missing olean makes it
+# report dozens of "unknown constant" errors that look exactly like a proof regression and
+# are not.  `scripts/consumer-check.sh --changed` puts the artifacts back.
+#
 # Usage: scripts/constants-check.sh <spec_user.lean> [...]
 #        scripts/constants-check.sh --changed        # everything unpushed
 set -uo pipefail
