@@ -235,6 +235,67 @@ lemma not_isOutOfFuel_of_isOk {s : State} (h : isOk s) : ¬ ❓ s := by
   · simp [State.isOutOfFuel]
 
 
+
+/-! ## Which constructor a state is
+
+A loop's five closure obligations each assume a different shape for the body's output
+(`Ok`, `Continue`, `Break`, `Leave`).  When the body cannot actually produce one of them,
+the obligation is discharged by REFUTING its hypothesis -- and that needs the small facts
+below, none of which Clear provides. -/
+
+/-- A state carrying jump `c` IS that checkpoint.  One lemma covers every
+"this jump excludes that shape" argument: subst and the shapes are literal. -/
+lemma eq_checkpoint_of_isJump {s : State} {c : Jump} (h : isJump c s) : s = .Checkpoint c := by
+  rcases s with ⟨e, st⟩ | _ | c'
+  · exact absurd h (by simp [State.isJump])
+  · exact absurd h (by simp [State.isJump])
+  · simp only [State.isJump] at h
+    subst h
+    rfl
+
+lemma not_isOutOfFuel_of_isContinue {s : State} (h : isContinue s) : ¬ ❓ s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · simp [State.isOutOfFuel]
+  · exact absurd h (by simp [State.isContinue])
+  · simp [State.isOutOfFuel]
+
+lemma not_isOutOfFuel_of_isLeave {s : State} (h : isLeave s) : ¬ ❓ s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · simp [State.isOutOfFuel]
+  · exact absurd h (by simp [State.isLeave])
+  · simp [State.isOutOfFuel]
+
+lemma not_isOk_of_isContinue {s : State} (h : isContinue s) : ¬ isOk s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · exact absurd h (by simp [State.isContinue])
+  · simp [isOk]
+  · simp [isOk]
+
+lemma not_isOk_of_isLeave {s : State} (h : isLeave s) : ¬ isOk s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · exact absurd h (by simp [State.isLeave])
+  · simp [isOk]
+  · simp [isOk]
+
+lemma not_isContinue_of_isBreak {s : State} (h : isBreak s) : ¬ isContinue s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · exact absurd h (by simp [State.isBreak])
+  · exact absurd h (by simp [State.isBreak])
+  · rcases c with ⟨e, st⟩ | ⟨e, st⟩ | ⟨e, st⟩
+    · exact absurd h (by simp [State.isBreak])
+    · simp [State.isContinue]
+    · exact absurd h (by simp [State.isBreak])
+
+lemma not_isLeave_of_isBreak {s : State} (h : isBreak s) : ¬ isLeave s := by
+  rcases s with ⟨e, st⟩ | _ | c
+  · exact absurd h (by simp [State.isBreak])
+  · exact absurd h (by simp [State.isBreak])
+  · rcases c with ⟨e, st⟩ | ⟨e, st⟩ | ⟨e, st⟩
+    · exact absurd h (by simp [State.isBreak])
+    · simp [State.isLeave]
+    · exact absurd h (by simp [State.isBreak])
+
+
 end
 
 end Clear
