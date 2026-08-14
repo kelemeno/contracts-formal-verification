@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.FinBits
 import specs.StateOk
 
 
@@ -72,6 +73,44 @@ lemma block_7182708311549001418_frame {v : Identifier} {s₀ s₉ : State}
   simp only [multifill_cons, multifill_nil]
   rw [lookup_insert_of_ne he2, lookup_insert_of_ne he1, lookup_insert_of_ne h0,
     lookup_insert_of_ne hsb, lookup_insert_of_ne h1]
+
+/-- **THE FULL-WORD CASE: the mask clears everything.**
+
+With `offset = 0` -- what every `bytes32` caller passes -- `shiftBits` is `0`, so the mask
+`not(shl(shiftBits, not 0))` is `not(not 0) = 0`.  The write below therefore ANDs the old
+word with `0` and stores `value` outright, rather than patching a field.
+
+Both shift directions appear here and they are different facts: `shl(3, offset)` shifts
+ZERO, `shl(shiftBits, not 0)` shifts BY zero. -/
+lemma block_7182708311549001418_mask {s₀ s₉ : State} (hok : isOk s₀)
+    (hoff : s₀["offset"]!! = 0)
+    (h : A_block_7182708311549001418 s₀ s₉) : s₉["split_expr_2"]!! = 0 := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_block_7182708311549001418 at h
+    subst h
+    simp only [multifill_cons, multifill_nil] at hoff ⊢
+    rw [lookup_insert' (by simp only [isOk_insert]; exact hok), lookup_insert' (by simp only [isOk_insert]; exact hok),
+      lookup_insert' (by simp only [isOk_insert]; exact hok), lookup_insert_of_ne (by decide),
+      lookup_insert' (by simp only [isOk_insert]; exact hok), lookup_insert_of_ne (by decide), hoff]
+    simp only [Clear.FinBits.zero_shiftLeft, Clear.FinBits.shiftLeft_zero]
+    exact Clear.FinBits.lnot_lnot_zero
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+/-- The shift amount, for the same reason: `shl(3, 0) = 0`. -/
+lemma block_7182708311549001418_shiftBits {s₀ s₉ : State} (hok : isOk s₀)
+    (hoff : s₀["offset"]!! = 0)
+    (h : A_block_7182708311549001418 s₀ s₉) : s₉["shiftBits"]!! = 0 := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_block_7182708311549001418 at h
+    subst h
+    simp only [multifill_cons, multifill_nil] at hoff ⊢
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide),
+      lookup_insert_of_ne (by decide), lookup_insert' (by simp only [isOk_insert]; exact hok),
+      lookup_insert_of_ne (by decide), hoff]
+    exact Clear.FinBits.zero_shiftLeft 3
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
 
 end
 

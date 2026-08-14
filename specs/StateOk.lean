@@ -309,6 +309,31 @@ lemma lookup_initcall_fst3 {s : State} {u v w : Ast.Identifier} {x y z : UInt256
 
 
 
+/-- Second of THREE parameters.  `multifill` inserts the FIRST parameter LAST, so the
+second sits one insert down -- reached by skipping the first by NAME, not by position. -/
+lemma lookup_initcall_snd3 {s : State} {u v w : Ast.Identifier} {x y z : UInt256}
+    (huv : v ≠ u) (h : isOk s) : (s☎️⟦[u, v, w],[x, y, z]⟧)[v]!! = y := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    rw [lookup_insert_of_ne huv,
+      lookup_insert' (by simp only [isOk_insert]; exact isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+/-- Third of THREE parameters -- inserted FIRST, so innermost. -/
+lemma lookup_initcall_thd3 {s : State} {u v w : Ast.Identifier} {x y z : UInt256}
+    (hwu : w ≠ u) (hwv : w ≠ v) (h : isOk s) : (s☎️⟦[u, v, w],[x, y, z]⟧)[w]!! = z := by
+  rcases s with ⟨evm, store⟩ | _ | _
+  · simp only [State.initcall, multifill_cons, multifill_nil]
+    -- the THIRD parameter is the innermost insert, so its `lookup_insert'` sits directly
+    -- on the base state: there is no insert left for `isOk_insert` to strip
+    rw [lookup_insert_of_ne hwu, lookup_insert_of_ne hwv,
+      lookup_insert' (by exact isOk_setStore_of_isOk (by simp [isOk]))]
+  · exact absurd h (by simp [isOk])
+  · exact absurd h (by simp [isOk])
+
+
+
 /-- Reviving an `Ok` state does not change its evm.
 
 The hypothesis is NOT removable, and the reason is worth knowing: `State.evm` of a

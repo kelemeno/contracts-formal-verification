@@ -146,6 +146,57 @@ lemma update_storage_value_bytes32_to_bytes32_config {slot offset value : Litera
   rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs2]
   exact hcfg
 
+/-- **THE WRITER WRITES WHAT IT WAS ASKED TO** -- for the whole-word case.
+
+`offset = 0` is what every `bytes32` caller passes, and the array-push path is one: a
+32-byte element occupies its slot outright, so the mask machinery collapses and the slot
+ends up holding `value`.
+
+With `update_storage_value_bytes32_to_bytes32_sload_frame` (nothing else moves) this pins
+the writer completely: slot `slot` becomes `value`, every other slot is untouched. -/
+lemma update_storage_value_bytes32_to_bytes32_val {slot offset value : Literal}
+    {s₀ s₉ : State} {act : Account} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hoff : offset = 0)
+    (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) :
+    Clear.EVMState.sload s₉.evm slot = value := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  subst heq
+  have hfok : isOk (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧) :=
+    isOk_initcall_of_isOk hok
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have ha₁ := Spec_ok_unfold hfok h1nf h₁
+  have hs1 : isOk s₁ := L2InteropCommitmentTree.Common.block_7182708311549001418_isOk hfok ha₁
+  have ha₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := L2InteropCommitmentTree.Common.block_8692170500034331446_isOk hs1 ha₂
+  -- the callee's evm is the caller's, all the way to the write
+  have hev : s₁.evm = s₀.evm := by
+    rw [L2InteropCommitmentTree.Common.block_7182708311549001418_evm ha₁]
+    exact Clear.evm_initcall hok
+  -- the three arguments, read back inside the callee
+  have hoffc : (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧)["offset"]!! = 0 := by
+    rw [Clear.lookup_initcall_snd3 (by decide) hok]; exact hoff
+  have hslot : s₁["slot"]!! = slot := by
+    rw [L2InteropCommitmentTree.Common.block_7182708311549001418_frame (by decide) ha₁]
+    exact Clear.lookup_initcall_fst3 hok
+  have hval : s₁["value"]!! = value := by
+    rw [L2InteropCommitmentTree.Common.block_7182708311549001418_frame (by decide) ha₁]
+    exact Clear.lookup_initcall_thd3 (by decide) (by decide) hok
+  -- the mask block leaves a cleared mask and no shift
+  have hmask : s₁["split_expr_2"]!! = 0 :=
+    L2InteropCommitmentTree.Common.block_7182708311549001418_mask hfok hoffc ha₁
+  have hsb : s₁["shiftBits"]!! = 0 :=
+    L2InteropCommitmentTree.Common.block_7182708311549001418_shiftBits hfok hoffc ha₁
+  have hw := L2InteropCommitmentTree.Common.block_8692170500034331446_val hs1
+    (by rw [hev]; exact hacc) hmask hsb ha₂
+  rw [hslot, hval] at hw
+  rw [evm_setStore, revive_of_ok hs2]
+  exact hw
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

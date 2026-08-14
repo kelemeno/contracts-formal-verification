@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.FinBits
 import specs.StorageFrame
 import specs.KeccakLowSlot
 import specs.KeccakDistinct
@@ -102,6 +103,30 @@ lemma block_8692170500034331446_config {s₀ s₉ : State} (hok : isOk s₀)
   subst h
   simp only [multifill_cons, multifill_nil, evm_insert]
   exact config_setEvm_sstore (by simp only [isOk_insert]; exact hok) hR hC
+
+/-- **WHAT LANDS IN THE SLOT.**  With the mask cleared (`split_expr_2 = 0`) and no shift
+(`shiftBits = 0`) -- the state the mask block leaves for a `bytes32` write -- this block
+stores `value` outright: `or(and(old, 0), shl(0, value))` is `value`.
+
+This is the half of the array-push story that says the leaf you pushed is the leaf that is
+there.  The frame lemmas above say where it did NOT go. -/
+lemma block_8692170500034331446_val {s₀ s₉ : State} {act : Account} (hok : isOk s₀)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hmask : s₀["split_expr_2"]!! = 0) (hsb : s₀["shiftBits"]!! = 0)
+    (h : A_block_8692170500034331446 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm (s₀["slot"]!!) = s₀["value"]!! := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_block_8692170500034331446 at h
+    subst h
+    simp only [multifill_cons, multifill_nil] at hmask hsb ⊢
+    rw [Clear.evm_setEvm_of_isOk (by simp only [isOk_insert]; exact hok)]
+    -- the slot written is the caller's, and the value is `value` once the mask collapses
+    simp (config := { decide := true })
+      [evm_insert, lookup_insert', lookup_insert_of_ne, isOk_insert, hok, hmask, hsb,
+      Clear.FinBits.land_zero, Clear.FinBits.shiftLeft_zero, Clear.FinBits.zero_lor]
+    exact Clear.StorageFrame.sload_sstore_self hacc
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
 
 end
 
