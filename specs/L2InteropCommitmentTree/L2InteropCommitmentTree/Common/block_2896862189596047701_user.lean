@@ -49,6 +49,17 @@ lemma block_2896862189596047701_frame {v : Identifier} {s₀ s₉ : State} (hok 
   rw [heq] at hnf ⊢
   exact update_storage_value_bytes32_to_bytes32_frame hok hnf (Spec_ok_unfold hok hnf hs)
 
+
+/-- **STORAGE FRAME.**  The loop's write block stores the new node at `_17` and nowhere
+else, so every other slot survives one iteration's write. -/
+lemma block_2896862189596047701_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (hq : q ≠ s₀["_17"]!!) (h : A_block_2896862189596047701 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact update_storage_value_bytes32_to_bytes32_sload_frame hok hnf hq
+    (Spec_ok_unfold hok hnf hs)
+
 end
 
 end L2InteropCommitmentTree.Common
