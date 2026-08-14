@@ -94,6 +94,35 @@ theorem mkInterval_0_64_ne_of_word32_ne
   rw [heq, ev ms_i] at h
   exact (Option.some.inj h).symm
 
+/-- **The storage-array accessor's window.**  `storage_array_index_access` does
+`mstore(0, array)` then `keccak256(0, 32)`, so its preimage interval is the 32-byte window
+at address 0 and is determined by the word stored there.  Two accessor calls on DIFFERENT
+arrays therefore hash different preimages.
+
+This is the companion of `mkInterval_0_64_ne_of_word32_ne` (which serves the two-word
+mapping windows) for the one-word array windows, and it is what an offset-vs-offset
+separation argument needs: a node slot is `keccak(level array) + index` and a level array's
+LENGTH slot is `keccak(nodes) + i`, so ruling out a collision starts from the two windows
+being distinct.  Axiom-free -- it is pure interval arithmetic. -/
+theorem mkInterval_0_32_ne_of_word0_ne
+    {ms₁ ms₂ : MachineState}
+    (h0 : ms₁.lookupMemory (0 : UInt256) ≠ ms₂.lookupMemory (0 : UInt256)) :
+    mkInterval ms₁ 0 32 ≠ mkInterval ms₂ 0 32 := by
+  intro heq
+  apply h0
+  have ev : ∀ ms : MachineState,
+      (mkInterval ms 0 32).get? 0 = some (ms.lookupMemory (0 : UInt256)) := by
+    intro ms
+    unfold mkInterval
+    simp only [List.get?_map]
+    have hidx : (List.range' (↑(0 : UInt256)) (↑(32 : UInt256))).get? 0 = some 0 := by
+      decide
+    rw [hidx]
+    rfl
+  have h := ev ms₁
+  rw [heq, ev ms₂] at h
+  exact (Option.some.inj h).symm
+
 /-- **Demonstration that `keccak256_inj` resolves a real non-aliasing fact.**
 For an EnumerableMap key `k`, the `_values[k]` slot (`keccak(k ‖ 210)`) and the
 `_indexes[k]` slot (`keccak(k ‖ 209)`) are DISTINCT, provided only that the two
