@@ -1,6 +1,8 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakFresh
+import specs.KeccakSlotSep
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -362,6 +364,40 @@ lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_low
   rw [storage_array_index_access_bytes32_dyn_ptr_val hok hnf hso hlt h]
   exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config index c hR hC
     (Clear.KeccakDeterminism.keccakOut_some_of_clean hclean) hj hcl
+
+
+/-- **THE ACCESSOR'S SLOT MISSES ANY OTHER CACHED-PLUS-OFFSET SLOT.**
+
+The low-slot companion rules out collisions with LITERAL slots.  This rules out collisions
+with the other keccak-derived family: a level array's LENGTH slot is `keccak(nodes) + i`,
+which is not a low slot at all, so `_slot_ne_low` says nothing about it.  That is an
+offset-vs-offset question and `KeccakSlotSep.cached_off_ne_off` is its answer.
+
+The two hashes must be CACHED in the same state, which is how the fold actually runs: the
+level array's slot is computed by an earlier accessor call in the same body, so by the time
+the node slot is hashed both intervals are in the cache.  `mkInterval_0_32_ne_of_word0_ne`
+supplies the `hne` at the use site, from the two arrays being different words.
+
+Axiom-free: `cached_off_ne_off` rests on the cache CONFIGURATION, not on keccak
+injectivity. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_slot_ne_cached
+    {slot offset : Identifier} {array index r₁ r₂ k₂ : Literal} {I₂ : List UInt256}
+    {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hso : slot ≠ offset)
+    (hlt : index < Clear.EVMState.sload s₀.evm array)
+    (hsep : Clear.KeccakSlotSep.Separated ((s₀.evm).mstore 0 array))
+    (hinj : Clear.KeccakFresh.CacheInj ((s₀.evm).mstore 0 array))
+    (hc₁ : Finmap.lookup (EVMState.mkInterval ((s₀.evm).mstore 0 array).machine_state 0 32)
+             ((s₀.evm).mstore 0 array).keccak_map = some r₁)
+    (hc₂ : Finmap.lookup I₂ ((s₀.evm).mstore 0 array).keccak_map = some r₂)
+    (hne : EVMState.mkInterval ((s₀.evm).mstore 0 array).machine_state 0 32 ≠ I₂)
+    (hk₁ : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hk₂ : k₂.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ r₂ + k₂ := by
+  rw [storage_array_index_access_bytes32_dyn_ptr_val hok hnf hso hlt h,
+    Clear.KeccakDeterminism.keccakOut_of_cached hc₁]
+  exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hc₁ hc₂ hne hk₁ hk₂
 
 end
 
