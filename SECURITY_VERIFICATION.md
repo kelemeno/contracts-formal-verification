@@ -2303,3 +2303,31 @@ looks the CONSTANTS up rather than building their modules.  That distinction is 
 pedantic: lake reported modules OK several times this session while the file did not compile
 (a stale olean), and one spec had been broken and green since 2026-08-13 for exactly that
 reason.  A module build is not evidence that a lemma exists.
+
+### Part H addendum — the fresh-vs-cached asymmetry, and why it is not a problem (2026-08-14)
+
+Closing the array-LENGTH half needs the fold's node slot to miss a level array's length slot.
+Those are two keccak-derived families:
+
+    node slot    = keccak(level array window) + index      -- hashed HERE, may be FRESH
+    length slot  = keccak(nodes window)       + i          -- hashed EARLIER, so CACHED
+
+`KeccakSlotSep.cached_off_ne_off` answers offset-vs-offset but wants BOTH values cached in
+one state, and `keccakOut_add_ne_slot` answers offset-vs-BARE-slot, which a length slot is
+not. So neither applies verbatim: the accessor's own hash may be a fresh mint.
+
+**The resolution is that the inequality is between VALUES, not states.** After the accessor
+hashes, its value IS cached in the post-state (`keccakOut_caches_of_clean`), and the earlier
+value is still cached there because the cache only grows. So both are cached AT THE POST
+STATE, and `cached_off_ne_off` applied there proves an inequality between two `UInt256`s
+which is then true everywhere.
+
+So the remaining work is to state the hypotheses at the post-hash state rather than the
+pre-hash one. `storage_array_index_access_..._slot_ne_cached` (proved) is the pre-state
+form and applies when the array was already hashed once — which is the case for the SECOND
+accessor call in a block, but not necessarily the first.
+
+Nothing here needs new mathematics; it needs the hypotheses stated at the right state. The
+mistake to avoid is assuming the fold's hashes are always cache hits: the FIRST hash of a
+level array in a given call is a mint, and a lemma that silently assumes otherwise would be
+unusable exactly where it is needed.
