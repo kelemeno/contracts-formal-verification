@@ -88,6 +88,27 @@ lemma array_push_pre_array {array value0 : Literal} {s₀ : State} (hok : isOk s
     (s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!! = array :=
   Clear.lookup_initcall_fst hok
 
+
+/-- The push's overflow flag is set exactly when the length fits. -/
+lemma array_push_flag {array value0 : Literal} {s₀ : State} (hok : isOk s₀)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616) :
+    (((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+        Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+          ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧)⟦"split_expr_0" ↦
+        (decide (((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+            Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+              ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧)["oldLen"]!!
+          < 18446744073709551616)).toUInt256⟧)["split_expr_0"]!! ≠ 0 := by
+  have hfok : isOk (s₀☎️⟦["array", "value0"],[array, value0]⟧) := isOk_initcall_of_isOk hok
+  have hgok : isOk ((s₀☎️⟦["array", "value0"],[array, value0]⟧)⟦"oldLen" ↦
+      Clear.EVMState.sload (s₀☎️⟦["array", "value0"],[array, value0]⟧).evm
+        ((s₀☎️⟦["array", "value0"],[array, value0]⟧)["array"]!!)⟧) := isOk_insert.mpr hfok
+  -- the `.evm` occurrence here is the BARE initcall, not the "oldLen" state, so the
+  -- frame lemma that applies is `evm_initcall` and not `array_push_pre_evm`
+  rw [lookup_insert' hgok, lookup_insert' hfok, Clear.evm_initcall hok,
+    array_push_pre_array (array := array) (value0 := value0) hok]
+  simp [hfits]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
