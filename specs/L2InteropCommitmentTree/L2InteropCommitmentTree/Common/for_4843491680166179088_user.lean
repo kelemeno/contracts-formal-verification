@@ -40,7 +40,8 @@ def APost_for_4843491680166179088 (s₀ s₉ : State) : Prop :=
 /-- **Loop postcondition, RELATIONAL.**  Two claims, not one:
 
 1. the exit flag is zero -- the loop left because the levels ran out, which is the only
-   way out (`for { } 1 { }` with a single break);
+   way out (`for { } 1 { }` with a single break) -- and, said in terms of the SOURCE
+   rather than a compiled temporary, `var_i` reached the level count in storage;
 2. the loop advanced the Merkle path by SOME number of levels `k`, with the index halving
    and the level counter incrementing TOGETHER.
 
@@ -54,6 +55,7 @@ never has to look inside the body; one relating `s₀` to `s₉` requires every 
 body to be shown not to disturb `var_index` or `var_i`. -/
 def AFor_for_4843491680166179088 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → (Ok evm store)["split_expr_5"]!! = 0) ∧
+  (isOk s₉ → ¬ (s₉["var_i"]!! < Clear.EVMState.sload s₉.evm (s₉["var_self_slot"]!!))) ∧
   ∃ k : ℕ, s₉["var_index"]!! = Clear.FoldRightPeel.idxAt (s₀["var_index"]!!) k ∧
     s₉["var_i"]!! = Clear.FoldRightPeel.lvlAt (s₀["var_i"]!!) k
 
@@ -247,8 +249,8 @@ lemma AOk_for_4843491680166179088 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
     have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
     have hfor : AFor_for_4843491680166179088 s₄ s₅ :=
       Spec_ok_unfold (P := AFor_for_4843491680166179088) hok4 h5 hspec
-    refine ⟨hfor.1, ?_⟩
-    obtain ⟨k, hidx, hlvl⟩ := hfor.2
+    refine ⟨hfor.1, hfor.2.1, ?_⟩
+    obtain ⟨k, hidx, hlvl⟩ := hfor.2.2
     -- the POST moves the level counter and nothing else
     have hidx4 : s₄["var_index"]!! = (Ok e2 st2 : State)["var_index"]!! := by
       rw [h4, lookup_insert_of_ne (by decide)]
@@ -306,10 +308,22 @@ lemma ABreak_for_4843491680166179088 : ∀ s₀ s₂, isOk s₀ → isBreak s₂
       Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
       Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2,
       Clear.reviveJump_eq_of_Spec_of_isJump h₂ hj1, e1, Clear.reviveJump_setBreak hgc]
-    refine ⟨?_, 0, ?_, ?_⟩
+    refine ⟨?_, ?_, 0, ?_, ?_⟩
     · intro evm store hs
       rw [← hs]
       exact hf
+    · -- and what the flag MEANS: the level counter reached the stored level count
+      intro _
+      have hvi : (rootGuardStateGenDyn s₀)["var_i"]!! = s₀["var_i"]!! := by
+        unfold rootGuardStateGenDyn
+        rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+      have hevm : (rootGuardStateGenDyn s₀).evm = s₀.evm := by
+        unfold rootGuardStateGenDyn; simp only [evm_insert]
+      have hvs : (rootGuardStateGenDyn s₀)["var_self_slot"]!! = s₀["var_self_slot"]!! := by
+        unfold rootGuardStateGenDyn
+        rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+      rw [hvi, hevm, hvs]
+      exact (rootGuardStateGenDyn_flag_iff h0).mp hf
     · simp only [Clear.FoldRightPeel.idxAt_zero]
       unfold rootGuardStateGenDyn
       rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
