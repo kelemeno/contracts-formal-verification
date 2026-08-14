@@ -29,7 +29,8 @@ thread it through unchanged, and it is sound because `_1` is untouched by body
 and post. -/
 def AFor_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["start"]!! < (Ok evm store)["_1"]!!)) ∧
-  (isOk s₉ → ∀ q : UInt256, (∀ j : UInt256, q ≠ s₀["start"]!! + j) →
+  isOk s₉ ∧
+  (∀ q : UInt256, (∀ j : UInt256, q ≠ s₀["start"]!! + j) →
     Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q)
 
 /-- Loop body: zero one storage slot — `sstore(start, 0)`. -/
@@ -58,7 +59,7 @@ lemma for_4496777052991139710_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_4496777052991139710 (👌 s₀) = 0 → AFor_for_4496777052991139710 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_4496777052991139710 ACond_for_4496777052991139710 at *
-  refine ⟨?_, ?_⟩
+  refine ⟨?_, hok, ?_⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -66,7 +67,7 @@ lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_44967770
     simp only [State.mkOk] at hcond
     simp [fromBool, Bool.toUInt256, hlt] at hcond
   · -- zero iterations write nothing
-    intro _ _ _
+    intro _ _
     rfl
 
 lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_4496777052991139710 s₀ = 0 → ABody_for_4496777052991139710 s₀ s₂ → APost_for_4496777052991139710 s₂ s₄ → Spec AFor_for_4496777052991139710 s₄ s₅ → AFor_for_4496777052991139710 s₀ s₅ := by
@@ -80,8 +81,8 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
       have hAF := Spec_ok_unfold (P := AFor_for_4496777052991139710) (s := s₄) (s' := s₅)
         hok4 h5 hspec
-      refine ⟨hAF.1, ?_⟩
-      intro h5ok q hq
+      refine ⟨hAF.1, hAF.2.1, ?_⟩
+      intro q hq
       -- the body's `setEvm` leaves the varstore alone, so the cursor is the caller's
       have hstart2 : (Ok e2 st2 : State)["start"]!! = (Ok e0 st0 : State)["start"]!! := by
         rw [hb]; exact Clear.lookup_setEvm (by simp [isOk])
@@ -89,7 +90,7 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         rw [h4, lookup_insert' (by simp [isOk]), hstart2]
       -- the recursive call's separation hypothesis, shifted by one iteration
       have e54 : Clear.EVMState.sload s₅.evm q = Clear.EVMState.sload s₄.evm q := by
-        refine hAF.2 h5ok q ?_
+        refine hAF.2.2 q ?_
         intro j
         rw [hstart4, add_assoc]
         exact hq (1 + j)
