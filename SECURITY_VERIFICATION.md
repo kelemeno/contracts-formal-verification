@@ -2599,3 +2599,38 @@ not an artefact of the proof.
 
 Once (1)–(3) land, "pushing a leaf increments the leaf count" follows from pieces that all
 exist today.
+
+
+### Part H addendum 9 — the fold frame need not wait on the array-length invariant (2026-08-14)
+
+Addendum 8 laid out three steps to a storage frame for the fold. Reading the first one
+closely turned up a dependency that can be removed, which is worth recording because the
+thing it removes has been open since the fold work began.
+
+**The apparent problem.** Step 1 wants "the slot the fold body writes is not a low slot".
+The natural route is the index accessor's `_val` — the slot is `keccak(array) + index` — and
+that lemma requires `hlt`, i.e. that the bounds check passed. Inside the fold that means
+`index < _nodes[i].length`, which is exactly the structural invariant
+(`maxNodeNumber < _nodes[i].length`) recorded as STILL OPEN: it is a property of the tree's
+REPRESENTATION maintained by `pushNewLeaf`, and proving it is its own project.
+
+**Why it is not actually needed.** The accessor computes the element address on BOTH
+branches. Its bounds guard decides only whether to panic; `arrIdxResultState` — the `mstore`,
+the hash, and the `slot`/`offset` writes — runs either way, because in this model a revert is
+a flag rather than a rollback. So the returned slot is keccak-derived with a small offset
+whether or not the check passed, and "not a low slot" follows from the keccak configuration
+alone.
+
+`_val` needs `hlt` for a different reason: it states the slot in closed form over `s₀.evm`,
+and the panic branch changes the evm. That is a statement about WHICH slot, and the fold
+frame does not need it — only that the slot is not one of the tree's constant-numbered ones.
+
+**What this buys.** A `_slot_not_low` on the accessor, unconditional in the bounds check and
+needing only the window, one unit of fuel, and the index below `2 ^ 32`, would let the fold's
+storage frame proceed without the array-length invariant. Everything else it needs is now in
+place: window and fuel propagate through every helper on the path, and both low-slot lemmas
+exist.
+
+One small piece is missing for it — `panic_error_0x32_frame`, to know the accessor's `index`
+argument survives the panic branch (its `_sload`, `_config`, `_account` and `_fuel` all exist;
+the variable frame does not).
