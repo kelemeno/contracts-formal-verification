@@ -1,5 +1,6 @@
 import Clear.EVMState
 import specs.KeccakDistinct
+import specs.KeccakDeterminism
 
 /-!
 # Keccak slot-injectivity (TRUSTED-BASE AXIOM)
@@ -122,6 +123,24 @@ theorem mkInterval_0_32_ne_of_word0_ne
   have h := ev ms₁
   rw [heq, ev ms₂] at h
   exact (Option.some.inj h).symm
+
+/-- Reading back the word an accessor just stored: `mstore(0, array)` then look at 0. -/
+theorem lookupMemory_mstore0_self (σ : EVMState) (v : UInt256) :
+    ((σ.mstore 0 v).machine_state).lookupMemory (0 : UInt256) = v := by
+  unfold EVMState.mstore EVMState.updateMemory
+  exact Clear.KeccakDeterminism.lookupMemory_updateMemory_self' _ 0 v (by norm_num)
+
+/-- **TWO ACCESSOR CALLS ON DIFFERENT ARRAYS HASH DIFFERENT WINDOWS.**
+
+The `hne` that `KeccakSlotSep.cached_off_ne_off` demands, in the form the fold can supply
+it: the level-array slot and the `_nodes` base slot are different words, so the 32-byte
+windows the two accessor calls hash are different lists. -/
+theorem acc_window_ne_of_array_ne {σ₁ σ₂ : EVMState} {a₁ a₂ : UInt256} (h : a₁ ≠ a₂) :
+    mkInterval ((σ₁.mstore 0 a₁).machine_state) 0 32
+      ≠ mkInterval ((σ₂.mstore 0 a₂).machine_state) 0 32 := by
+  apply mkInterval_0_32_ne_of_word0_ne
+  rw [lookupMemory_mstore0_self, lookupMemory_mstore0_self]
+  exact h
 
 /-- **Demonstration that `keccak256_inj` resolves a real non-aliasing fact.**
 For an EnumerableMap key `k`, the `_values[k]` slot (`keccak(k ‖ 210)`) and the
