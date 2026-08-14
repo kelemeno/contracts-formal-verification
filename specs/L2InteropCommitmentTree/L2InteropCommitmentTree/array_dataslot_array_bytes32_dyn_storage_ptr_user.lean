@@ -98,6 +98,30 @@ lemma array_dataslot_array_bytes32_dyn_storage_ptr_account {data : Identifier}
     hfdef, Clear.evm_initcall hok]
   exact ⟨rfl, rfl⟩
 
+/-- **WHERE THE ELEMENTS START.**  The returned data slot is `keccak(ptr)` — over the
+CALLER's argument and `s₀`'s own evm.  This is the companion of the index accessor's
+`_val`: that one says where element `i` is, this one says where element `0` is, and the
+copy loop writes at `dstSlot + i` off exactly this base. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_val {data : Identifier} {ptr : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    s₉[data]!! = (Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore s₀.evm 0 ptr) 0 32).1 := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil]
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [lookup_insert' (isOk_setStore_of_isOk (by
+      rw [revive_of_ok hXok]; exact hXok)),
+    lookup_insert' (by simp only [isOk_setEvm]; exact hmok),
+    hmdef, Clear.evm_setEvm_of_isOk hfok, hfdef, Clear.evm_initcall hok,
+    Clear.lookup_initcall_one hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
