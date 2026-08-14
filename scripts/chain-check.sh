@@ -13,7 +13,11 @@
 # aliases.  They were aliases because the closed versions belonged to a SIBLING COPY of
 # the same code -- see scripts/match-copies.sh, which finds those.
 #
-# This walks the transitive import closure of a spec and reports every alias in it.
+# This walks the transitive import closure of a spec and reports every alias in it -- and
+# every STUB, which is the more urgent case: a stub is `A_x := sorry`, so anything above it
+# carries `sorryAx` and proves NOTHING.  Two specs were found in that state on 2026-08-14
+# (one of them an access-control guard), each sorry-free in its own file with the `sorry`
+# several imports away.  Aliases cost readability; stubs cost soundness.
 # WHAT THIS DOES AND DOES NOT MEAN.  `A_x := x_concrete_of_code.1` IS the concrete spec,
 # so composing through an alias is not unsound and does not make a result vacuous -- a
 # theorem proved through aliases is still a theorem about the compiled code.  What an
@@ -58,6 +62,12 @@ def deps_of(n):
     return [l.split('.')[-1].strip() for l in open(p)
             if l.startswith('import generated') and not l.strip().endswith('_gen')]
 
+def is_stub(n):
+    p = path(n)
+    if not p:
+        return False
+    return 'sorry' in open(p).read()
+
 def is_alias(n):
     p = path(n)
     if not p:
@@ -75,19 +85,28 @@ for t in targets:
     if path(t) is None:
         print(f"SKIP  {t} (no spec file under {base})")
         continue
-    seen, stack, aliases, direct = set(), [(t, 0)], [], set(deps_of(t))
+    seen, stack, aliases, stubs, direct = set(), [(t, 0)], [], [], set(deps_of(t))
     while stack:
         n, d = stack.pop()
         if n in seen:
             continue
         seen.add(n)
-        if is_alias(n) and n != t:
+        if is_stub(n) and n != t:
+            stubs.append((n, n in direct))
+        elif is_alias(n) and n != t:
             aliases.append((n, n in direct))
         for x in deps_of(n):
             if x not in seen:
                 stack.append((x, d + 1))
-    if not aliases:
-        print(f"ok    {t}  ({len(seen) - 1} specs beneath it, none an alias)")
+    if stubs:
+        bad += 1
+        print(f"STUB  {t}  ({len(seen) - 1} beneath it, {len(stubs)} STUB -- this proves NOTHING)")
+        for n, isdirect in sorted(stubs):
+            print(f"        {'DIRECT ' if isdirect else '       '}{n}")
+        if aliases:
+            print(f"      (also {len(aliases)} alias)")
+    elif not aliases:
+        print(f"ok    {t}  ({len(seen) - 1} specs beneath it, no stub and no alias)")
     else:
         bad += 1
         print(f"ALIAS {t}  ({len(seen) - 1} beneath it, {len(aliases)} still alias)")
