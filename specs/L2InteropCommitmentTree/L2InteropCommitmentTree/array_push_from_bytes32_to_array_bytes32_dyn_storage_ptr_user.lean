@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakDeterminism
+import specs.KeccakDistinct
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
@@ -320,6 +321,57 @@ lemma array_push_length {array value0 : Literal} {s₀ s₉ : State} {act : Acco
     storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf ha₂,
     pushSt_evm hok]
   exact Clear.StorageFrame.sload_sstore_self hacc
+
+
+/-- **A PUSH TOUCHES EXACTLY TWO SLOTS** -- the length, and the element at index `oldLen`.
+
+Everything else in storage survives, which is what a caller needs in order to push onto one
+level of the tree without disturbing another.  Together with `array_push_length` this pins
+the push's whole storage effect: one slot incremented, one slot written, nothing else moved.
+
+Note the accessor contributes NOTHING to this frame even on its panic branch: a bounds
+failure is a flag in this model, not a rollback, and it writes no storage either way. -/
+lemma array_push_sload_frame {array value0 : Literal} {q : UInt256} {s₀ s₉ : State}
+    {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hnw : (Clear.EVMState.sload s₀.evm array).val + 1 < UInt256.size)
+    (hqa : q ≠ array)
+    (hqe : q ≠ (Clear.KeccakDeterminism.keccakOut ((Clear.EVMState.sstore s₀.evm array
+          (Clear.EVMState.sload s₀.evm array + 1)).mstore 0 array) 0 32).1
+        + Clear.EVMState.sload s₀.evm array)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have ha₂ := Spec_ok_unfold hstok h2nf h₂
+  have hs2ok : isOk s₂ := storage_array_index_access_bytes32_dyn_ptr_isOk h2nf ha₂
+  have ha₃ := Spec_ok_unfold hs2ok h3nf h₃
+  have hlt : Clear.EVMState.sload s₀.evm array
+      < Clear.EVMState.sload (pushSt s₀ array value0).evm array := by
+    rw [pushSt_evm hok]
+    exact Clear.StorageFrame.sload_lt_after_push hacc hnw
+  have hslot : s₂["slot"]!!
+      = (Clear.KeccakDeterminism.keccakOut
+            (((pushSt s₀ array value0).evm).mstore 0 array) 0 32).1
+        + Clear.EVMState.sload s₀.evm array :=
+    storage_array_index_access_bytes32_dyn_ptr_val hstok h2nf (by decide) hlt ha₂
+  rw [pushSt_evm (array := array) (value0 := value0) hok] at hslot
+  have hq : q ≠ s₂["slot"]!! := by rw [hslot]; exact hqe
+  have hs3ok : isOk s₃ := update_storage_value_bytes32_to_bytes32_isOk h3nf ha₃
+  subst heq
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk hs3ok,
+    update_storage_value_bytes32_to_bytes32_sload_frame hs2ok h3nf hq ha₃,
+    storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf ha₂,
+    pushSt_evm hok]
+  exact Clear.KeccakDistinct.sload_sstore_of_ne s₀.evm hqa
 
 
 end
