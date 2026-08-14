@@ -2354,3 +2354,33 @@ abstract leaf set (a `Finset AbsLeaf`), not this. Defining that predicate, and p
 `pushNewLeaf` maintains it, is the remaining work; every separation lemma it will need
 (`_slot_ne_low`, `_slot_ne_cached`, `_slot_ne_post`, `acc_window_ne_of_array_ne`) and every
 config frame that carries their hypotheses is already proved and axiom-clean.
+
+### Part H addendum 3 — where the layout assumption gets discharged (2026-08-14)
+
+`specs/TreeLayout.lean` states `LevelsSized` as an assumption. Discharging it means proving
+`pushNewLeaf` maintains it. The entry point, for whoever picks this up:
+
+    fun_pushNewLeaf              CONTENTFUL.  sload(1) → increment → sstore(1)
+                                 → height := sload(0), capacity := 1 << height
+                                 → if_2518866309321428816   grow height: push _zeros, push _nodes
+                                 → if_8492884752647891302   the level-growing LOOP
+                                 → fun_updateLeaf(0, index, leaf)
+
+    if_2518866309321428816       contentful, abs_of_concrete only — no use lemmas
+    if_8492884752647891302       contentful, abs_of_concrete only — no use lemmas
+
+So the specs describe the code but state nothing a caller can use, which is the same
+distinction that made the guard work small once noticed: "specced" and "usable" are
+different properties, and the corpus status columns only measure the first.
+
+What preservation needs, in order:
+  1. use lemmas for the two branches (what each does to `_nodes[i].length`);
+  2. the growth loop's own invariant — it pushes onto level `i` exactly while
+     `oldMaxNodeNumber ≠ maxNodeNumber`, which is the source fact
+     `check-source-invariants.sh` pins as "levels grow with the tree";
+  3. `LevelsSized` preserved across the whole function, given it held before.
+
+That is a project of comparable size to the fold bridge itself, and a different KIND of
+proof: `pushNewLeaf` GROWS storage, while everything proved this session walks it. The
+storage frames built here (`sload_sstore_of_ne`, the config frames, the separation results)
+apply, but the invariant is about lengths changing rather than staying put.
