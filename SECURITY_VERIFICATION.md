@@ -2384,3 +2384,55 @@ That is a project of comparable size to the fold bridge itself, and a different 
 proof: `pushNewLeaf` GROWS storage, while everything proved this session walks it. The
 storage frames built here (`sload_sstore_of_ne`, the config frames, the separation results)
 apply, but the invariant is about lengths changing rather than staying put.
+
+
+### Part H addendum 4 — the deployed `array.push` is fully specified (2026-08-14)
+
+Addendum 3 ended with a three-step plan for `LevelsSized` preservation, whose step 1 was
+"use lemmas for the two branches — what each does to `_nodes[i].length`". The per-push half
+of that step is now proved, on the copy `fun_pushNewLeaf` actually calls
+(`array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr`, the two-argument general one —
+solc emitted several and only this one is on the tree path):
+
+| lemma | what it says |
+| --- | --- |
+| `array_push_length` | `sload s₉ array = sload s₀ array + 1` — exactly one, not merely "grew" |
+| `array_push_val` | the element lands at `keccak(array) + oldLen`, and it is `value0` |
+| `array_push_sload_frame` | every other slot survives |
+| `array_push_normal` | the reusable middle: off the panic path both remaining calls start from `pushSt`, closed over `s₀` |
+
+Together: after a push, `array[oldLen] = value0`, the length is one higher, and nothing else
+in storage moved. "Exactly one" is the load-bearing part — the fold's step count is pinned
+to level lengths, so a level that grew by more than one would run ahead of its siblings.
+
+The ordering the deployed code uses is what makes this provable at all: the length is
+stored BEFORE the element's address is computed, so the accessor's bounds check sees the
+NEW length and admits index `oldLen`. Had the element write come first, that check would
+reject the very element being appended.
+
+**Two reusable layers had to be built underneath, and both are worth knowing about:**
+
+- **The `offset = 0` field mask** (`specs/FinBits.lean`). `update_storage_value_bytes32_to_bytes32`
+  patches a FIELD of a packed slot, so "it stores `value`" is not true in general — it is
+  true exactly when `offset = 0`, which is what every `bytes32` caller passes. Proving that
+  the mask collapses is what turned the writer from "it wrote somewhere" into "the slot
+  holds `value`". `update_storage_value_bytes32_to_bytes32_val` is the result.
+- **The ACCOUNT frame** (`specs/StorageFrame.lean`, plus `_account` on the accessor and the
+  panic). Clear's storage model makes a write read back only if an account exists at
+  `code_owner`; that hypothesis has to survive the length `sstore` and the address
+  computation. Without carrying it, `array_push_val` could not be STATED — the hypothesis
+  would have to be assumed at an existentially-bound intermediate state that no caller can
+  name. It is unconditional across the accessor, panic branch included, for the same reason
+  the storage frame is: Clear models a revert as a FLAG, not a rollback.
+
+Everything above is axiom-clean and, notably, free of the four declared keccak axioms: the
+only keccak fact used is the accessor's own slot equation, and the one place a separation
+is needed (`array ≠ keccak(array) + oldLen`) is a HYPOTHESIS discharged at the use site by
+the low-slot result, where `array` is a literal.
+
+**What this does NOT yet give.** Steps 2 and 3 of addendum 3's plan are untouched: the
+growth loop's own invariant, and `LevelsSized` across the whole of `fun_pushNewLeaf`. The
+per-push fact is now available to them, but the loop-level argument — that pushing onto
+level `i` exactly while `oldMaxNodeNumber ≠ maxNodeNumber` keeps every level big enough —
+is still to be made. `fun_pushNewLeaf`'s own spec remains `abs_of_concrete` + `isOk` +
+`not_break`, i.e. it describes the code but states nothing a caller can use.
