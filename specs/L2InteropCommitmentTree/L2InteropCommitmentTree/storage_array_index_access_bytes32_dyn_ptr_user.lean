@@ -6,6 +6,7 @@ import specs.KeccakSlotSep
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.KeccakFuel
+import specs.KeccakInjective
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2600721580863995212
@@ -574,6 +575,92 @@ lemma storage_array_index_access_bytes32_dyn_ptr_fuel
   simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
   rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hssok]
   exact Clear.KeccakFuel.Fuel.keccakOut (Clear.KeccakFuel.Fuel.mstore 0 _ hfss)
+
+/-- The result state's slot, in terms of the state the guard produced -- on EITHER branch. -/
+private lemma slot_arrIdxResultState {ss : State} (hok : isOk ss) :
+    (arrIdxResultState ss)["slot"]!!
+      = (Clear.KeccakDeterminism.keccakOut
+          (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).1 + (ss["index"]!!) := by
+  unfold arrIdxResultState
+  have hmok : isOk (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hok
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil]
+  rw [lookup_insert_of_ne (by decide), lookup_insert' (isOk_insert.mpr
+      (by simp only [isOk_setEvm]; exact hok)),
+    lookup_insert' (by simp only [isOk_setEvm]; exact hok),
+    lookup_insert_of_ne (by decide), Clear.lookup_setEvm hmok, Clear.lookup_setEvm hok,
+    Clear.evm_setEvm_of_isOk hok]
+
+/-- **THE ELEMENT SLOT IS NEVER A LOW SLOT -- AND THIS DOES NOT NEED THE BOUNDS CHECK.**
+
+`_val` and `_slot_ne_low` both require `hlt`, and inside the fold that hypothesis IS the
+still-open `maxNodeNumber < _nodes[i].length` invariant.  They need it because they say WHICH
+slot, in closed form over `s₀.evm`, and the panic branch changes the evm.
+
+This says only that the slot is not one of the tree's constant-numbered ones, and that holds
+on BOTH branches: the guard decides whether to panic, but the address computation -- `mstore`,
+hash, `slot`/`offset` -- runs either way, because a revert is a flag in this model rather
+than a rollback.  So a caller framing a literal slot past an accessor call owes the keccak
+configuration and nothing about the array's length. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_slot_not_low
+    {slot offset : Identifier} {array index c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 1)
+    (hj : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hgce : (arrIdxGuardState array index s₀).evm = s₀.evm := arrIdxGuardState_evm hok
+  have hgci : (arrIdxGuardState array index s₀)["index"]!! = index :=
+    arrIdxGuardState_index hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches: `Ok`, same window, same fuel, same `index`
+  have hboth : isOk ss ∧ (Clear.KeccakLowSlot.RangeInWindow ss.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow ss.evm) ∧
+      Clear.KeccakFuel.Fuel ss.evm 1 ∧ ss["index"]!! = index := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      have hspa := Spec_ok_unfold hgcok hssnf hsp
+      refine ⟨panic_error_0x32_isOk hgcok hspa, ?_, ?_, ?_⟩
+      · exact panic_error_0x32_config hgcok (by rw [hgce]; exact hR) (by rw [hgce]; exact hC) hspa
+      · exact panic_error_0x32_fuel hgcok (by rw [hgce]; exact hf) hspa
+      · rw [panic_error_0x32_frame hgcok hspa]; exact hgci
+    · have hss : ss = arrIdxGuardState array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, ⟨by rw [hgce]; exact hR, by rw [hgce]; exact hC⟩,
+        by rw [hgce]; exact hf, hgci⟩
+  obtain ⟨hssok, ⟨hRss, hCss⟩, hfss, hidx⟩ := hboth
+  have hrsok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  have hrev : isOk (🧟(arrIdxResultState ss)) := by
+    rw [revive_of_ok hrsok]; exact hrsok
+  subst heq
+  rw [lookup_insert' (isOk_insert.mpr (isOk_setStore_of_isOk hrev)),
+    slot_arrIdxResultState hssok, hidx]
+  -- the hash at the state the address computation actually runs from
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
+  obtain ⟨r, σ', hsome⟩ := Clear.KeccakFuel.keccak256_some_of_fuel (p := 0) (q := 32)
+    (Clear.KeccakFuel.Fuel.mstore 0 (ss["array"]!!) hfss)
+  have hko : Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32 = (r, σ') := by
+    unfold Clear.KeccakDeterminism.keccakOut
+    rw [hsome]
+  rw [hko]
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hj hcl
 
 end
 
