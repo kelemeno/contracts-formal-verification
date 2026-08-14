@@ -58,28 +58,24 @@ lemma if_3779316958150250372_abs_of_concrete {s₀ s₉ : State} :
     exact heq.symm
 
 /-- **STORAGE FRAME.**  The zero-fill clears elements `1 .. oldLen-1` of the array at
-`s₀["slot"]`, i.e. slots `keccak(slot) + 1 + j`.  Every other slot survives -- including on
-the branch where the loop never runs.
+`s₀["slot"]` -- slots `keccak(slot) + 1` up to `keccak(slot) + oldLen_1`.  Everything
+outside that interval survives, on both branches.
 
-The trip count is EXISTENTIAL, and has to be: it is data the loop determines, not something
-a caller knows up front.  Stating the separation over all `j : UInt256` instead would make
-the hypothesis unsatisfiable (`j = q - base` refutes it) and the lemma vacuous.  So the
-caller receives `n` and then has to show `q` avoids those `n` slots -- dischargeable from
-the keccak low-slot result once `n` is bounded.
-
-Note `primCall`'s components: `.1` is the STATE and `.2` the values -- the opposite way
-round from what the spec's argument order suggests.  Normalising with `primCall_keccakOut`
-first turns the loop's start state into a plain insert tower, which is the only shape the
-`isOk` and `evm` lemmas apply to. -/
+The separation is stated as an INTERVAL rather than as a bound on the trip count, and that
+is what makes it dischargeable: a low slot is below `keccak(slot) + 1` outright, by the
+keccak low-slot result.  Quantifying over the iteration index instead would hide the bound
+inside an existential the caller cannot see. -/
 lemma if_3779316958150250372_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
     (hnf : ¬ ❓ s₉)
+    (hsep : q < (Clear.KeccakDeterminism.keccakOut
+        (Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)) 0 32).1 + 1 ∨
+      (Clear.KeccakDeterminism.keccakOut
+        (Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)) 0 32).1 + (s₀["oldLen_1"]!!) ≤ q)
     (h : A_if_3779316958150250372 s₀ s₉) :
-    ∃ n : ℕ, (∀ j : ℕ, j < n → q ≠ (Clear.KeccakDeterminism.keccakOut
-        (Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)) 0 32).1 + 1 + (j : UInt256)) →
-      Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
   obtain ⟨ss, hspec, hle, hgt⟩ := h
   by_cases hg : s₀["oldLen_1"]!! ≤ 1
-  · exact ⟨0, fun _ => by rw [hle hg]⟩
+  · rw [hle hg]
   · have hssnf : ¬ ❓ ss := by rw [hgt hg] at hnf; exact hnf
     simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
     have hmok : isOk (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧) := by
@@ -90,23 +86,22 @@ lemma if_3779316958150250372_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
       simp only [isOk_setEvm]; exact hok
     obtain ⟨-, -, hframe, -⟩ :=
       Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
-    obtain ⟨n, hrec⟩ := hframe
-    -- the cursor's start value: these rewrites mention no bound variable, so unlike the
-    -- `sload` ones they go through under the ∀
-    rw [lookup_insert' (isOk_insert.mpr (isOk_insert.mpr hkok)),
-      lookup_insert_of_ne (by decide), lookup_insert' hkok] at hrec
-    simp only [evm_insert] at hrec
-    rw [Clear.evm_setEvm_of_isOk hmok] at hrec
-    refine ⟨n, fun hsep => ?_⟩
-    have hsep' : ∀ j : ℕ, j < n → q ≠ (Clear.KeccakDeterminism.keccakOut
-        (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).1 + 1
-          + (j : UInt256) := by
-      intro j hj
+    -- the interval's endpoints, in closed form.  Hand-ordering these rewrites means
+    -- counting insert layers; `simp only` with the conditional lookup lemmas does not.
+    simp (config := { decide := true }) only
+      [lookup_insert', lookup_insert_of_ne, Clear.lookup_setEvm, isOk_insert, isOk_setEvm,
+        hok, hmok] at hframe
+    simp only [evm_insert] at hframe
+    rw [Clear.evm_setEvm_of_isOk hmok] at hframe
+    have hsep' : q < (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).1 + 1 ∨
+        (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).1
+            + (s₀["oldLen_1"]!!) ≤ q := by
       rw [Clear.evm_setEvm_of_isOk hok]
-      exact hsep j hj
-    -- INSTANTIATE before rewriting: `hrec`'s `q` is ∀-bound, and `sload_keccakOut`'s
-    -- pattern has to match it, which `rw` cannot do under a binder
-    have hf := hrec q hsep'
+      exact hsep
+    -- INSTANTIATE before rewriting: `hframe`'s `q` is ∀-bound
+    have hf := hframe q hsep'
     rw [Clear.StorageFrame.sload_keccakOut, Clear.evm_setEvm_of_isOk hok,
       Clear.StorageFrame.sload_mstore] at hf
     rw [hgt hg]

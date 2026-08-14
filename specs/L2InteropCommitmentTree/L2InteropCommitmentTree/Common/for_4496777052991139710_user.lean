@@ -32,7 +32,7 @@ and post. -/
 def AFor_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → ¬ ((Ok evm store)["start"]!! < (Ok evm store)["_1"]!!)) ∧
   isOk s₉ ∧
-  (∃ n : ℕ, ∀ q : UInt256, (∀ j : ℕ, j < n → q ≠ s₀["start"]!! + (j : UInt256)) →
+  (∀ q : UInt256, (q < s₀["start"]!! ∨ s₀["_1"]!! ≤ q) →
     Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
   ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
     Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
@@ -71,7 +71,7 @@ lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_44967770
     simp only [State.mkOk] at hcond
     simp [fromBool, Bool.toUInt256, hlt] at hcond
   · -- zero iterations write nothing
-    exact ⟨0, fun _ _ => rfl⟩
+    exact fun _ _ => rfl
 
 lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_4496777052991139710 s₀ = 0 → ABody_for_4496777052991139710 s₀ s₂ → APost_for_4496777052991139710 s₂ s₄ → Spec AFor_for_4496777052991139710 s₄ s₅ → AFor_for_4496777052991139710 s₀ s₅ := by
   intro s₀ s₂ s₄ s₅ h0 h2 h5 _hcond hbody hpost hspec
@@ -98,8 +98,6 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         refine hAF.2.2.2 ⟨?_, ?_⟩
         · rw [hev4]; exact Clear.StorageFrame.rangeInWindow_sstore hR
         · rw [hev4]; exact Clear.StorageFrame.cachedInWindow_sstore hC
-      obtain ⟨n, hrec⟩ := hAF.2.2.1
-      refine ⟨n + 1, ?_⟩
       intro q hq
       -- the body's `setEvm` leaves the varstore alone, so the cursor is the caller's
       have hstart2 : (Ok e2 st2 : State)["start"]!! = (Ok e0 st0 : State)["start"]!! := by
@@ -107,15 +105,34 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hstart4 : s₄["start"]!! = (Ok e0 st0 : State)["start"]!! + 1 := by
         rw [h4, lookup_insert' (by simp [isOk]), hstart2]
       -- the recursive call's separation hypothesis, shifted by one iteration
+      -- the guard held, so the cursor is strictly below the bound
+      have hlt0 : (Ok e0 st0 : State)["start"]!! < (Ok e0 st0 : State)["_1"]!! := by
+        by_contra hcon
+        exact _hcond (by simp [ACond_for_4496777052991139710, fromBool, hcon])
+      -- `_1` is touched by neither the body nor the post
+      have hone2 : (Ok e2 st2 : State)["_1"]!! = (Ok e0 st0 : State)["_1"]!! := by
+        rw [hb]; exact Clear.lookup_setEvm (by simp [isOk])
+      have hone4 : s₄["_1"]!! = (Ok e0 st0 : State)["_1"]!! := by
+        rw [h4, lookup_insert_of_ne (by decide), hone2]
+      -- the cursor's step does not wrap, because it stays under the bound
+      have hv1 : ((Ok e0 st0 : State)["start"]!! + 1).val
+          = ((Ok e0 st0 : State)["start"]!!).val + 1 := by
+        have hs : ((Ok e0 st0 : State)["start"]!!).val
+            < ((Ok e0 st0 : State)["_1"]!!).val := hlt0
+        have hb1 := ((Ok e0 st0 : State)["_1"]!!).isLt
+        have h1 : ((1 : UInt256)).val = 1 := by decide
+        rw [Fin.val_add, h1, Nat.mod_eq_of_lt (by omega)]
       have e54 : Clear.EVMState.sload s₅.evm q = Clear.EVMState.sload s₄.evm q := by
-        refine hrec q ?_
-        intro j hj
-        rw [hstart4]
-        intro hcon
-        apply hq (j + 1) (by omega)
-        rw [hcon]
-        push_cast
-        ring
+        refine hAF.2.2.1 q ?_
+        rw [hstart4, hone4]
+        rcases hq with h | h
+        · -- still below the advanced cursor
+          left
+          have hqv : q.val < ((Ok e0 st0 : State)["start"]!!).val := h
+          show q.val < _
+          rw [hv1]
+          omega
+        · exact Or.inr h
       have e42 : Clear.EVMState.sload s₄.evm q
           = Clear.EVMState.sload (Ok e2 st2 : State).evm q := by
         rw [h4]; simp only [evm_insert]
@@ -123,7 +140,10 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have e20 : Clear.EVMState.sload (Ok e2 st2 : State).evm q
           = Clear.EVMState.sload (Ok e0 st0 : State).evm q := by
         rw [hb, Clear.evm_setEvm_of_isOk (by simp [isOk])]
-        exact Clear.KeccakDistinct.sload_sstore_of_ne _ (by simpa using hq 0 (by omega))
+        refine Clear.KeccakDistinct.sload_sstore_of_ne _ ?_
+        rcases hq with h | h
+        · exact ne_of_lt h
+        · exact fun hc => absurd (lt_of_lt_of_le hlt0 (hc ▸ h)) (lt_irrefl _)
       rw [e54, e42, e20]
     · exact absurd h2 (by simp [isOk])
     · exact absurd h2 (by simp [isOk])
