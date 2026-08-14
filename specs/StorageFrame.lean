@@ -231,5 +231,75 @@ theorem sload_lt_after_push {σ : EVMState} {array : UInt256} {act : Account}
     rw [Fin.val_add, h1, Nat.mod_eq_of_lt hfits]
   simp only [Fin.lt_def, hval]
   omega
+/-! ### The ACCOUNT frame
+
+`sload_sstore_self` -- "a write reads back" -- needs an account to exist at `code_owner`,
+and that hypothesis has to survive the calls between the write and the read.  These say it
+does: nothing on the array-push path removes the account or changes which address is
+`code_owner`.
+
+Without this layer a "the element you wrote is the element that is there" result cannot be
+stated at all, because the account hypothesis would have to be assumed at an intermediate
+state the caller cannot name. -/
+
+@[simp] theorem lookupAccount_mstore (σ : EVMState) (a v : UInt256) (addr : Address) :
+    (σ.mstore a v).lookupAccount addr = σ.lookupAccount addr := rfl
+
+@[simp] theorem execution_env_mstore (σ : EVMState) (a v : UInt256) :
+    (σ.mstore a v).execution_env = σ.execution_env := rfl
+
+/-- Hashing mints a fresh slot value or hits the cache; either way it rewrites the keccak
+tables, never `account_map` or `execution_env`.  Same case structure as
+`sload_keccakOut`: split `keccak256` FIRST, then the cache lookup, then the partition. -/
+theorem keccakOut_frame (σ : EVMState) (p n : UInt256) :
+    (keccakOut σ p n).2.account_map = σ.account_map ∧
+      (keccakOut σ p n).2.execution_env = σ.execution_env := by
+  unfold keccakOut
+  rcases hk : σ.keccak256 p n with _ | ⟨r, σ'⟩
+  · exact ⟨rfl, rfl⟩
+  · simp only
+    unfold EVMState.keccak256 at hk
+    dsimp only at hk
+    rcases hlk : Finmap.lookup (EVMState.mkInterval σ.machine_state p n) σ.keccak_map with
+      _ | val
+    · rw [hlk] at hk
+      rcases hpart : List.partition (fun x => decide (x ∈ σ.used_range)) σ.keccak_range with
+        ⟨fst, rest⟩
+      rcases rest with _ | ⟨r', rs'⟩
+      · rw [hpart] at hk; simp at hk
+      · rw [hpart] at hk
+        simp only [Option.some.injEq, Prod.mk.injEq] at hk
+        rw [← hk.2]
+        exact ⟨rfl, rfl⟩
+    · rw [hlk] at hk
+      simp only [Option.some.injEq, Prod.mk.injEq] at hk
+      rw [← hk.2]
+      exact ⟨rfl, rfl⟩
+
+theorem lookupAccount_keccakOut (σ : EVMState) (p n : UInt256) (addr : Address) :
+    (keccakOut σ p n).2.lookupAccount addr = σ.lookupAccount addr := by
+  unfold EVMState.lookupAccount
+  rw [(keccakOut_frame σ p n).1]
+
+@[simp] theorem execution_env_keccakOut (σ : EVMState) (p n : UInt256) :
+    (keccakOut σ p n).2.execution_env = σ.execution_env := (keccakOut_frame σ p n).2
+
+@[simp] theorem execution_env_evm_revert (σ : EVMState) (p n : UInt256) :
+    (σ.evm_revert p n).execution_env = σ.execution_env := rfl
+
+@[simp] theorem lookupAccount_evm_revert (σ : EVMState) (p n : UInt256) (addr : Address) :
+    (σ.evm_revert p n).lookupAccount addr = σ.lookupAccount addr := rfl
+
+/-- **The account survives a write to it** -- indeed `sstore` is what updates it.  This is
+the step that lets the account hypothesis cross `array.push`'s length write and still be
+available for the element write that follows. -/
+theorem lookupAccount_sstore_self {σ : EVMState} {p v : UInt256} {act : Account}
+    (hacc : σ.lookupAccount σ.execution_env.code_owner = some act) :
+    (σ.sstore p v).lookupAccount (σ.sstore p v).execution_env.code_owner
+      = some (act.updateStorage p v) := by
+  unfold EVMState.sstore
+  simp only [hacc]
+  unfold EVMState.lookupAccount EVMState.updateAccount
+  simp only [Finmap.lookup_insert]
 
 end Clear.StorageFrame
