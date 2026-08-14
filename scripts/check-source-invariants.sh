@@ -126,6 +126,51 @@ check "_handleCallValue: single call site" "$HCV_CALLS" "1" \
   "a second call site would pay a call outside the at-most-once path"
 
 echo
+# --- the FullMerkle fold: what discharges the accessor's bounds hypothesis ---
+#
+# The Lean side proves the fold writes at most one slot per iteration and that the
+# accessor's slot is `keccak(array) + index`, never a low slot.  Turning that into "the
+# level count survives the fold" needs the accessor's `hlt` -- the node index is inside
+# its level array -- AT EACH ITERATION.  Nothing in the loop establishes it; these three
+# source facts do, and if any changes the Lean hypothesis becomes undischargeable.
+#
+# Counts are scoped to updateLeaf: `revert MerkleWrongIndex` and `/= 2` both occur
+# elsewhere in the file (setup and pushNewLeaf), so a whole-file count measures the wrong
+# thing -- it read 2 and 5 before this was scoped.
+
+MERKLE="$SRC/common/libraries/FullMerkle.sol"
+# body of a named function, from its signature to the next top-level `function`
+fn_body() {
+  awk -v fn="$2" '
+    index($0, "function " fn "(") { inside=1 }
+    inside && /^    function / && !index($0, "function " fn "(") { inside=0 }
+    inside { print }
+  ' "$1"
+}
+if [ -f "$MERKLE" ]; then
+  UL=$(fn_body "$MERKLE" updateLeaf)
+
+  # (a) the entry guard: updateLeaf reverts unless _index <= maxNodeNumber
+  GUARD=$(printf '%s\n' "$UL" | grep -c "revert MerkleWrongIndex" | tr -d ' ')
+  check "FullMerkle: updateLeaf index guard" "$GUARD" "1" \
+    "storage_array_index_access_..._val's hlt, hence _slot_ne_low at every level" \
+    "without the guard the fold can run with index > maxNodeNumber, the accessor reverts mid-fold, and the bounds hypothesis is simply false"
+
+  # (b) index and bound are halved TOGETHER, so index <= maxNodeNumber is preserved
+  HALVE=$(printf '%s\n' "$UL" | grep -cE "(_index|maxNodeNumber) /= 2;" | tr -d ' ')
+  check "FullMerkle: index/bound halve together" "$HALVE" "2" \
+    "the induction that carries hlt from one iteration to the next" \
+    "if only one is halved the relation index <= maxNodeNumber breaks after one level and every later accessor call is out of bounds"
+
+  # (c) pushNewLeaf grows each level exactly as its max node number grows
+  PUSH=$(printf '%s\n' "$(fn_body "$MERKLE" pushNewLeaf)" | grep -c "_nodes\[i\].push" | tr -d ' ')
+  check "FullMerkle: levels grow with the tree" "$PUSH" "1" \
+    "the array-length half of hlt (maxNodeNumber < _nodes[i].length)" \
+    "a level array shorter than its max node number makes updateLeaf revert on a valid leaf"
+else
+  echo "SKIP  FullMerkle.sol not found under $SRC"
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "all invariants hold"
 else
