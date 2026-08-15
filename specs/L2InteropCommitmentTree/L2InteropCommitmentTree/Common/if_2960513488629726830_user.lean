@@ -1,5 +1,9 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakFuel
+import specs.KeccakLowSlot
+import specs.StateOk
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.abi_encode_uint256_uint256
@@ -88,6 +92,84 @@ lemma if_2960513488629726830_id_of_le {s₀ s₉ : State}
     (h : A_if_2960513488629726830 s₀ s₉) : s₉ = s₀ := by
   obtain ⟨_, _, hpos, _⟩ := h
   exact hpos hle
+
+/-! The reverting branch runs the encoder from `m`, the caller's state with the selector
+bound and written to memory.  PARSE: `multifill vars vals s🇪⟦σ⟧` is
+`(multifill vars vals s)🇪⟦σ⟧` -- the multifill is INNERMOST and the memory write sits
+outside it.  These two facts about `m` are stated once and reused by all three frames. -/
+
+private def guardM (s₀ : State) : State :=
+  (Clear.State.multifill ["split_expr_2"] [Fin.shiftLeft 458764239 224] s₀)🇪⟦
+    Clear.EVMState.mstore s₀.evm 0
+      ((Clear.State.multifill ["split_expr_2"] [Fin.shiftLeft 458764239 224]
+        s₀)["split_expr_2"]!!)⟧
+
+private lemma guardM_isOk {s₀ : State} (hok : isOk s₀) : isOk (guardM s₀) := by
+  unfold guardM
+  simp only [isOk_setEvm]
+  exact isOk_multifill hok
+
+private lemma guardM_evm {s₀ : State} (hok : isOk s₀) :
+    (guardM s₀).evm = Clear.EVMState.mstore s₀.evm 0
+      ((Clear.State.multifill ["split_expr_2"] [Fin.shiftLeft 458764239 224]
+        s₀)["split_expr_2"]!!) :=
+  Clear.evm_setEvm_of_isOk (isOk_multifill hok)
+
+/-- **STORAGE FRAME.**  The entry guard either passes the state through or encodes
+`MerkleWrongIndex(index, bound)` into memory and reverts.  Neither writes storage, so a
+caller carrying a slot past the bounds check needs no case analysis on whether it fired. -/
+lemma if_2960513488629726830_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_2960513488629726830 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨se, hse, hpos, hneg⟩ := h
+  by_cases hc : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!
+  · rw [hpos hc]
+  · have hsnf : ¬ ❓ se := by rw [hneg hc] at hnf; simpa only [isOutOfFuel_setEvm'] using hnf
+    have hspec : A_abi_encode_uint256_uint256 "split_expr_3" _ _ (guardM s₀) se :=
+      Spec_ok_unfold (guardM_isOk hok) hsnf hse
+    have hsok : isOk se := abi_encode_uint256_uint256_isOk hsnf hspec
+    rw [hneg hc, Clear.evm_setEvm_of_isOk hsok, Clear.StorageFrame.sload_evm_revert,
+      abi_encode_uint256_uint256_sload (guardM_isOk hok) hspec, guardM_evm hok,
+      Clear.StorageFrame.sload_mstore]
+
+/-- **CONFIG FRAME.**  Same two branches: a memory write and a revert keep the window. -/
+lemma if_2960513488629726830_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_2960513488629726830 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨se, hse, hpos, hneg⟩ := h
+  by_cases hc : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!
+  · rw [hpos hc]
+    exact ⟨hR, hC⟩
+  · have hsnf : ¬ ❓ se := by rw [hneg hc] at hnf; simpa only [isOutOfFuel_setEvm'] using hnf
+    have hspec : A_abi_encode_uint256_uint256 "split_expr_3" _ _ (guardM s₀) se :=
+      Spec_ok_unfold (guardM_isOk hok) hsnf hse
+    have hsok : isOk se := abi_encode_uint256_uint256_isOk hsnf hspec
+    obtain ⟨hRe, hCe⟩ := abi_encode_uint256_uint256_config (guardM_isOk hok)
+      (by rw [guardM_evm hok]; exact Clear.StorageFrame.rangeInWindow_mstore hR)
+      (by rw [guardM_evm hok]; exact Clear.StorageFrame.cachedInWindow_mstore hC) hspec
+    rw [hneg hc, Clear.evm_setEvm_of_isOk hsok]
+    exact ⟨Clear.StorageFrame.rangeInWindow_evm_revert hRe,
+      Clear.StorageFrame.cachedInWindow_evm_revert hCe⟩
+
+/-- **FUEL FRAME.**  Neither branch spends pool. -/
+lemma if_2960513488629726830_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_if_2960513488629726830 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨se, hse, hpos, hneg⟩ := h
+  by_cases hc : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!
+  · rw [hpos hc]; exact hf
+  · have hsnf : ¬ ❓ se := by rw [hneg hc] at hnf; simpa only [isOutOfFuel_setEvm'] using hnf
+    have hspec : A_abi_encode_uint256_uint256 "split_expr_3" _ _ (guardM s₀) se :=
+      Spec_ok_unfold (guardM_isOk hok) hsnf hse
+    have hsok : isOk se := abi_encode_uint256_uint256_isOk hsnf hspec
+    have hfe : Clear.KeccakFuel.Fuel se.evm k :=
+      abi_encode_uint256_uint256_fuel (guardM_isOk hok)
+        (by rw [guardM_evm hok]; exact Clear.KeccakFuel.Fuel.mstore _ _ hf) hspec
+    rw [hneg hc, Clear.evm_setEvm_of_isOk hsok]
+    exact Clear.KeccakFuel.Fuel.evm_revert _ _ hfe
 
 end
 
