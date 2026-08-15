@@ -45,9 +45,13 @@ that reading) or the two node counts had met.
 Stating it via the compiled flag rather than the underlying comparison is what keeps
 the closure lemmas mechanical; the meaning lemma below recovers the comparison. -/
 def AFor_for_2693611967757691411 (s₀ s₉ : State) : Prop :=
-  ∀ evm store, s₉ = Ok evm store →
+  (∀ evm store, s₉ = Ok evm store →
     ((Ok evm store)["split_expr_6"]!! = 0 ∨
-      (Ok evm store)["var_oldMaxNodeNumber"]!! = (Ok evm store)["var_maxNodeNumber"]!!)
+      (Ok evm store)["var_oldMaxNodeNumber"]!! = (Ok evm store)["var_maxNodeNumber"]!!)) ∧
+  -- **THE FLAG TRAVELS BACK ACROSS THE WHOLE LOOP.**  Costs the caller nothing to state:
+  -- no trip count, and -- unlike the storage frame this loop still lacks -- no bound on
+  -- any array length, because `array_push_clean_unconditional` needs none.
+  (isOk s₉ → Clear.KeccakClean.Clean s₉.evm → Clear.KeccakClean.Clean s₀.evm)
 
 /-- Loop body: check the two break conditions, copy level `i`'s node, halve both counts. -/
 def ABody_for_2693611967757691411 (s₀ s₉ : State) : Prop :=
@@ -91,90 +95,41 @@ lemma for_2693611967757691411_concrete_of_body_abs {s₀ s₉ : State} :
   obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := hc
   exact ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq.symm⟩
 
-/-- Vacuous: the loop condition is the literal `1`, so it is never `0`. -/
-lemma AZero_for_2693611967757691411 : ∀ s₀, isOk s₀ → ACond_for_2693611967757691411 (👌 s₀) = 0 → AFor_for_2693611967757691411 s₀ s₀ := by
-  intro s₀ _hok hcond
-  unfold ACond_for_2693611967757691411 at hcond
-  exact absurd hcond (by decide)
-
-lemma AOk_for_2693611967757691411 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → APost_for_2693611967757691411 s₂ s₄ → Spec AFor_for_2693611967757691411 s₄ s₅ → AFor_for_2693611967757691411 s₀ s₅ := by
-  intro s₀ s₂ s₄ s₅ _h0 h2 h5 _hcond _hbody hpost hspec
-  rcases s₂ with ⟨e2, st2⟩ | _ | _
-  · have h4 : s₄ = (Ok e2 st2)⟦"var_i" ↦ ((Ok e2 st2)["var_i"]!! + 1)⟧ := hpost e2 st2 rfl
-    have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
-    exact Spec_ok_unfold (P := AFor_for_2693611967757691411) (s := s₄) (s' := s₅) hok4 h5 hspec
-  · exact absurd h2 (by simp [isOk])
-  · exact absurd h2 (by simp [isOk])
-
-lemma AContinue_for_2693611967757691411 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → Spec APost_for_2693611967757691411 (🧟s₂) s₄ → Spec AFor_for_2693611967757691411 s₄ s₅ → AFor_for_2693611967757691411 s₀ s₅ := by
-  intro s₀ s₂ s₄ s₅ _h0 _h2 _hcond _hbody _hpost hspec
-  intro evm store hs
-  have h5 : ¬ ❓ s₅ := by rw [hs]; simp [State.isOutOfFuel]
-  rcases s₄ with ⟨e4, st4⟩ | _ | _
-  · exact Spec_ok_unfold (P := AFor_for_2693611967757691411) (by simp [isOk]) h5 hspec evm store hs
-  · exact absurd (hspec) (by rw [hs] at *; simp [Spec, State.isOutOfFuel])
-  · exact absurd (hspec) (by rw [hs] at *; simp [Spec, State.isJump])
-
-/-- **The main exit.**  A `break` can only come from one of the two guards, and every
-step after it merely carries the checkpoint along — so the state the loop revives is
-the one live AT THE BREAK, and the guard's branch condition is exactly the disjunct
-`AFor` needs.  If neither guard breaks the body ends `Ok`, contradicting `isBreak`. -/
-lemma ABreak_for_2693611967757691411 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → AFor_for_2693611967757691411 s₀ (🧟s₂) := by
-  intro s₀ sb h0 hb _hcond hbody
-  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := hbody
-  rw [heq] at hb ⊢
-  have h4nf : ¬ ❓ s₄ := by
-    rcases s₄ with ⟨e, st⟩ | _ | c
-    · simp [State.isOutOfFuel]
-    · simp [State.isBreak] at hb
-    · simp [State.isOutOfFuel]
-  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+/-- The body cannot end in a `continue`: it has no `continue` statement, so every path
+either falls through `Ok` or leaves through one of the two break guards. -/
+lemma ABody_for_2693611967757691411_isOk_or_isBreak {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : ABody_for_2693611967757691411 s₀ s₉) : isOk s₉ ∨ isBreak s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
   have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
   have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
   have hgc : isOk (levelGuardState s₀) := by
-    unfold levelGuardState; simp only [isOk_insert]; exact h0
+    unfold levelGuardState; simp only [isOk_insert]; exact hok
   have hg1 := Spec_ok_unfold hgc h1nf h₁
   by_cases hf1 : (levelGuardState s₀)["split_expr_6"]!! = 0
-  · have e1 : s₁ = 💔(levelGuardState s₀) := hg1.1 hf1
+  · right
+    have e1 : s₁ = 💔(levelGuardState s₀) := hg1.1 hf1
     have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
     obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
-    have hj2 : isJump (.Break be bst) s₂ := Clear.isJump_of_Spec_of_isJump h₂ hj1
-    have hj3 : isJump (.Break be bst) s₃ := Clear.isJump_of_Spec_of_isJump h₃ hj2
-    rw [Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
-      Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2,
-      Clear.reviveJump_eq_of_Spec_of_isJump h₂ hj1, e1, Clear.reviveJump_setBreak hgc]
-    intro evm store hs
-    left
-    rw [← hs]
-    exact hf1
+    exact Clear.isBreak_of_isJump_Break (Clear.isJump_of_Spec_of_isJump h₄
+      (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
   · have e1 : s₁ = levelGuardState s₀ := hg1.2 hf1
-    have hs1ok : isOk s₁ := by rw [e1]; exact hgc
-    have hg2 := Spec_ok_unfold hs1ok h2nf h₂
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hg2 := Spec_ok_unfold hs1 h2nf h₂
     by_cases hf2 : s₁["var_oldMaxNodeNumber"]!! = s₁["var_maxNodeNumber"]!!
-    · have e2 : s₂ = 💔s₁ := hg2.1 hf2
-      have hb2 : isBreak s₂ := by rw [e2]; exact Clear.isBreak_setBreak hs1ok
+    · right
+      have e2 : s₂ = 💔s₁ := hg2.1 hf2
+      have hb2 : isBreak s₂ := by rw [e2]; exact Clear.isBreak_setBreak hs1
       obtain ⟨be, bst, hj2⟩ := Clear.isJump_Break_of_isBreak hb2
-      have hj3 : isJump (.Break be bst) s₃ := Clear.isJump_of_Spec_of_isJump h₃ hj2
-      rw [Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
-        Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2, e2, Clear.reviveJump_setBreak hs1ok]
-      intro evm store hs
-      right
-      rw [← hs]
-      exact hf2
-    · exfalso
+      exact Clear.isBreak_of_isJump_Break (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ hj2))
+    · left
       have e2 : s₂ = s₁ := hg2.2 hf2
-      have hs2ok : isOk s₂ := by rw [e2]; exact hs1ok
-      have hs3ok : isOk s₃ := block_7020639558537270069_isOk hs2ok h3nf (Spec_ok_unfold hs2ok h3nf h₃)
-      have hs4ok : isOk s₄ := block_294889826768454570_isOk hs3ok h4nf (Spec_ok_unfold hs3ok h4nf h₄)
-      exact not_isOk_of_isBreak hb hs4ok
-
-lemma ALeave_for_2693611967757691411 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → AFor_for_2693611967757691411 s₀ s₂ := by
-  intro s₀ s₂ _h0 h2 _hcond _hbody
-  intro evm store hs
-  rcases s₂ with _ | _ | c
-  · exact absurd h2 (by simp [State.isLeave])
-  · exact absurd h2 (by simp [State.isLeave])
-  · exact absurd hs (by simp)
+      have hs2 : isOk s₂ := by rw [e2]; exact hs1
+      have hs3 : isOk s₃ := block_7020639558537270069_isOk hs2 h3nf
+        (Spec_ok_unfold hs2 h3nf h₃)
+      exact block_294889826768454570_isOk hs3 hnf (Spec_ok_unfold hs3 hnf h₄)
 
 /-- **ONE ITERATION CARRIES THE FLAG BACK.**
 
@@ -224,6 +179,115 @@ lemma ABody_for_2693611967757691411_clean {s₀ s₉ : State} (hok : isOk s₀) 
       have c2 := block_7020639558537270069_clean_unconditional hs2 h3nf hclean a₃
       rw [e2, e1, hgce] at c2
       exact c2
+
+/-- Vacuous: the loop condition is the literal `1`, so it is never `0`. -/
+lemma AZero_for_2693611967757691411 : ∀ s₀, isOk s₀ → ACond_for_2693611967757691411 (👌 s₀) = 0 → AFor_for_2693611967757691411 s₀ s₀ := by
+  intro s₀ _hok hcond
+  unfold ACond_for_2693611967757691411 at hcond
+  exact absurd hcond (by decide)
+
+lemma AOk_for_2693611967757691411 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → APost_for_2693611967757691411 s₂ s₄ → Spec AFor_for_2693611967757691411 s₄ s₅ → AFor_for_2693611967757691411 s₀ s₅ := by
+  intro s₀ s₂ s₄ s₅ _h0 h2 h5 _hcond _hbody hpost hspec
+  rcases s₂ with ⟨e2, st2⟩ | _ | _
+  · have hok2 : isOk (Ok e2 st2 : State) := by simp [isOk]
+    have h4 : s₄ = (Ok e2 st2)⟦"var_i" ↦ ((Ok e2 st2)["var_i"]!! + 1)⟧ := hpost e2 st2 rfl
+    have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
+    have hfor := Spec_ok_unfold (P := AFor_for_2693611967757691411) (s := s₄) (s' := s₅)
+      hok4 h5 hspec
+    have he4 : s₄.evm = (Ok e2 st2 : State).evm := by rw [h4]; simp only [evm_insert]
+    refine ⟨hfor.1, ?_⟩
+    -- back across the rest of the loop, then back across this iteration
+    intro h5ok hc5
+    have hc2 : Clear.KeccakClean.Clean (Ok e2 st2 : State).evm := by
+      have := hfor.2 h5ok hc5
+      rwa [he4] at this
+    exact ABody_for_2693611967757691411_clean _h0 hok2 hc2 _hbody
+  · exact absurd h2 (by simp [isOk])
+  · exact absurd h2 (by simp [isOk])
+
+lemma AContinue_for_2693611967757691411 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → Spec APost_for_2693611967757691411 (🧟s₂) s₄ → Spec AFor_for_2693611967757691411 s₄ s₅ → AFor_for_2693611967757691411 s₀ s₅ := by
+  intro s₀ s₂ _s₄ _s₅ h0 h2 _hcond hbody _hpost _hspec
+  exfalso
+  rcases ABody_for_2693611967757691411_isOk_or_isBreak h0
+      (Clear.not_isOutOfFuel_of_isContinue h2) hbody with hok | hbr
+  · exact Clear.not_isOk_of_isContinue h2 hok
+  · exact Clear.not_isContinue_of_isBreak hbr h2
+
+/-- **The main exit.**  A `break` can only come from one of the two guards, and every
+step after it merely carries the checkpoint along — so the state the loop revives is
+the one live AT THE BREAK, and the guard's branch condition is exactly the disjunct
+`AFor` needs.  If neither guard breaks the body ends `Ok`, contradicting `isBreak`. -/
+lemma ABreak_for_2693611967757691411 : ∀ s₀ s₂, isOk s₀ → isBreak s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → AFor_for_2693611967757691411 s₀ (🧟s₂) := by
+  intro s₀ sb h0 hb _hcond hbody
+  have hgce0 : (levelGuardState s₀).evm = s₀.evm := by
+    unfold levelGuardState; simp only [evm_insert]
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := hbody
+  rw [heq] at hb ⊢
+  have h4nf : ¬ ❓ s₄ := by
+    rcases s₄ with ⟨e, st⟩ | _ | c
+    · simp [State.isOutOfFuel]
+    · simp [State.isBreak] at hb
+    · simp [State.isOutOfFuel]
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (levelGuardState s₀) := by
+    unfold levelGuardState; simp only [isOk_insert]; exact h0
+  have hg1 := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf1 : (levelGuardState s₀)["split_expr_6"]!! = 0
+  · have e1 : s₁ = 💔(levelGuardState s₀) := hg1.1 hf1
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj2 : isJump (.Break be bst) s₂ := Clear.isJump_of_Spec_of_isJump h₂ hj1
+    have hj3 : isJump (.Break be bst) s₃ := Clear.isJump_of_Spec_of_isJump h₃ hj2
+    rw [Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
+      Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2,
+      Clear.reviveJump_eq_of_Spec_of_isJump h₂ hj1, e1, Clear.reviveJump_setBreak hgc]
+    refine ⟨?_, ?_⟩
+    · intro evm store hs
+      left
+      rw [← hs]
+      exact hf1
+    · -- the loop stopped at the guard, which only read: the flag is the caller's own
+      intro _ hc
+      rwa [hgce0] at hc
+  · have e1 : s₁ = levelGuardState s₀ := hg1.2 hf1
+    have hs1ok : isOk s₁ := by rw [e1]; exact hgc
+    have hg2 := Spec_ok_unfold hs1ok h2nf h₂
+    by_cases hf2 : s₁["var_oldMaxNodeNumber"]!! = s₁["var_maxNodeNumber"]!!
+    · have e2 : s₂ = 💔s₁ := hg2.1 hf2
+      have hb2 : isBreak s₂ := by rw [e2]; exact Clear.isBreak_setBreak hs1ok
+      obtain ⟨be, bst, hj2⟩ := Clear.isJump_Break_of_isBreak hb2
+      have hj3 : isJump (.Break be bst) s₃ := Clear.isJump_of_Spec_of_isJump h₃ hj2
+      rw [Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
+        Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2, e2, Clear.reviveJump_setBreak hs1ok]
+      refine ⟨?_, ?_⟩
+      · intro evm store hs
+        right
+        rw [← hs]
+        exact hf2
+      · -- likewise: neither guard touches the machine
+        intro _ hc
+        rw [e1, hgce0] at hc
+        exact hc
+    · exfalso
+      have e2 : s₂ = s₁ := hg2.2 hf2
+      have hs2ok : isOk s₂ := by rw [e2]; exact hs1ok
+      have hs3ok : isOk s₃ := block_7020639558537270069_isOk hs2ok h3nf (Spec_ok_unfold hs2ok h3nf h₃)
+      have hs4ok : isOk s₄ := block_294889826768454570_isOk hs3ok h4nf (Spec_ok_unfold hs3ok h4nf h₄)
+      exact not_isOk_of_isBreak hb hs4ok
+
+lemma ALeave_for_2693611967757691411 : ∀ s₀ s₂, isOk s₀ → isLeave s₂ → ¬ ACond_for_2693611967757691411 s₀ = 0 → ABody_for_2693611967757691411 s₀ s₂ → AFor_for_2693611967757691411 s₀ s₂ := by
+  intro s₀ s₂ _h0 h2 _hcond _hbody
+  refine ⟨?_, ?_⟩
+  · intro evm store hs
+    rcases s₂ with _ | _ | c
+    · exact absurd h2 (by simp [State.isLeave])
+    · exact absurd h2 (by simp [State.isLeave])
+    · exact absurd hs (by simp)
+  · intro hok _
+    exact absurd hok (Clear.not_isOk_of_isLeave h2)
+
 
 end
 
