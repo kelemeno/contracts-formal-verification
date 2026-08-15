@@ -1148,6 +1148,27 @@ lemma cached_off_ne_of_config {σ : EVMState} {I₁ I₂ : List UInt256} {r₁ r
   rw [add_zero] at h
   exact h
 
+/-- Cache transport through three `sstore`s, stated abstractly so no weld term is simped. -/
+lemma lookup_mono_sstore3 {σ : EVMState} {a b c d e f : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (((σ.sstore a b).sstore c d).sstore e f).keccak_map = some w := by
+  simp only [keccak_map_sstoreV]
+  exact h
+
+/-- `cached_off_ne_off` with BOTH offsets at zero: two slots cached under different preimages
+are different slots.  Needed where the left-hand slot is itself a weld term, so that no
+`add_zero` has to be rewritten at the call site. -/
+lemma cached_ne_of_config {σ : EVMState} {I₁ I₂ : List UInt256} {r₁ r₂ : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hc₁ : Finmap.lookup I₁ σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup I₂ σ.keccak_map = some r₂)
+    (hne : I₁ ≠ I₂) : r₁ ≠ r₂ := by
+  have h := Clear.KeccakSlotSep.cached_off_ne_off (k₁ := (0 : UInt256)) (k₂ := (0 : UInt256))
+    hsep hinj hc₁ hc₂ hne (by decide) (by decide)
+  rw [add_zero, add_zero] at h
+  exact h
+
 /-- `arrSlot_ne_cached64_of_clean` with the cached-side offset at zero. -/
 lemma arrSlot_ne_cached64_0_of_clean
     {σ : EVMState} {ms : MachineState} {a q w j : UInt256}
@@ -1193,6 +1214,27 @@ The rule that works is not "avoid `simp`".  It is:
     slot ONCE, at the end.
 
 Applying all three made the proof typecheck immediately. -/
+
+
+
+/-! ### `vtiAt_wFinal_old` on the derived route — NOT YET
+
+Every ingredient exists and is verified: the six base-4-vs-base-5 separations are
+`cached_ne_of_config` / `cached_off_ne_of_config` (both sides are cached 64-byte hits, and
+`base54_interval_neV` supplies the different-preimage input), the `u` hit reaches the
+`wE4`/`wF4` accessor threads through the `lookup_mono_*` family, and the three frame steps
+have zero-offset forms above.  A full assembly was written and every site typechecked.
+
+What it does not do is FIT.  The proof exceeds 16M heartbeats at the tactic block as a whole,
+with no inner site reported — and unlike `vtiAt_wFinal_V`, raising the budget does not help,
+so this is not accumulated cost but something pathological in elaborating ~40 anchor `have`s
+whose types each mention a `@[reducible]` weld state.  The likely culprits are the defeq
+shortcuts (`hcuE4 := hcuG`, `hcuF4 := hcuS2`), which force `isDefEq` across `wS2` — and `wS2`
+contains a walk recursing on a symbolic level count.
+
+Next thing to try is factoring the anchor block into its own lemma so the weld terms are
+elaborated once in a small context, rather than more tactic surgery.  Reverted rather than
+left half-built. -/
 
 
 end
