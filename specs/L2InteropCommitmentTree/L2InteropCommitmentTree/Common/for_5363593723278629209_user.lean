@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.FoldRightPeel
 
@@ -604,6 +605,126 @@ lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
     rw [hrec, he4, hfrm]
   · exact absurd h2 (by simp [isOk])
   · exact absurd h2 (by simp [isOk])
+
+/-- **CLEAN FLAG, BACKWARDS, ACROSS ONE ITERATION.**
+
+`isOk s₉` rules out the break arm, so the iteration really ran: guard, parity, the parent
+advance, the write.  Only the parity switch and the advance can hash, and both give the
+backward direction, so the flag walks from the end of the iteration to its start. -/
+lemma ABody_for_5363593723278629209_clean {s₀ s₉ : State}
+    (hok : isOk s₀) (hok9 : isOk s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : ABody_for_5363593723278629209 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 hclean
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardStateGen s₀) := by
+    unfold rootGuardStateGen; simp only [isOk_insert]; exact hok
+  have hgce : (rootGuardStateGen s₀).evm = s₀.evm := by
+    unfold rootGuardStateGen; simp only [evm_insert]
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hbr : (rootGuardStateGen s₀)["split_expr_5"]!! = 0
+  · -- the break arm cannot end `Ok`, exactly as in `_preserves_low`
+    exfalso
+    have e1 : s₁ = 💔(rootGuardStateGen s₀) := hg.1 hbr
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardStateGen s₀ := hg.2 hbr
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_4762420646048873450_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_8439353917263816235_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have c4 : Clear.KeccakClean.Clean s₄.evm :=
+      (block_7643149059429413085_clean hs4 h5nf (Spec_ok_unfold hs4 h5nf h₅)).mp hclean
+    have c3 : Clear.KeccakClean.Clean s₃.evm :=
+      block_8439353917263816235_clean hs3 h4nf c4 (Spec_ok_unfold hs3 h4nf h₄)
+    have c2 : Clear.KeccakClean.Clean s₂.evm :=
+      switch_4762420646048873450_clean hs2 h3nf c3 (Spec_ok_unfold hs2 h3nf h₃)
+    have e2 : s₂.evm = s₁.evm := mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    rw [← hgce, ← e1, ← e2]
+    exact c2
+
+/-- **ONE ITERATION LEAVES EVERY LOW SLOT ALONE -- WITHOUT A FUEL BUDGET.**
+
+The same statement as `_preserves_low` with `Fuel s₀.evm 5` replaced by the collision flag
+on the iteration's own result.  This is the form the loop induction wants: `AOk` gets the
+recursive instance's flag for free from the flag on the whole loop's result, whereas a
+budget would have to be split between this iteration and the rest, which is what forced the
+`6 * k` shape on the fold's frame in the first place. -/
+lemma ABody_for_5363593723278629209_preserves_low_of_clean {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hok9 : isOk s₉)
+    (hR : RangeInWindow s₀.evm) (hC : CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (hj : (s₀["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : ABody_for_5363593723278629209 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hok9 hclean ⊢
+  have h5nf : ¬ ❓ s₅ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (rootGuardStateGen s₀) := by
+    unfold rootGuardStateGen; simp only [isOk_insert]; exact hok
+  have hgce : (rootGuardStateGen s₀).evm = s₀.evm := by
+    unfold rootGuardStateGen; simp only [evm_insert]
+  have hgci : (rootGuardStateGen s₀)["var_index"]!! = s₀["var_index"]!! := by
+    unfold rootGuardStateGen
+    rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+  have hg := Spec_ok_unfold hgc h1nf h₁
+  by_cases hbr : (rootGuardStateGen s₀)["split_expr_5"]!! = 0
+  · exfalso
+    have e1 : s₁ = 💔(rootGuardStateGen s₀) := hg.1 hbr
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    have hj5 : isJump (.Break be bst) s₅ :=
+      Clear.isJump_of_Spec_of_isJump h₅ (Clear.isJump_of_Spec_of_isJump h₄
+        (Clear.isJump_of_Spec_of_isJump h₃ (Clear.isJump_of_Spec_of_isJump h₂ hj1)))
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break hj5) hok9
+  · have e1 : s₁ = rootGuardStateGen s₀ := hg.2 hbr
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hs2 : isOk s₂ := mod_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      switch_4762420646048873450_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hs4 : isOk s₄ :=
+      block_8439353917263816235_isOk hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+    have h1e : s₁.evm = s₀.evm := by rw [e1]; exact hgce
+    have e2 : s₂.evm = s₁.evm := mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+    obtain ⟨hR3, hC3⟩ := switch_4762420646048873450_config hs2 h3nf
+      (by rw [e2, h1e]; exact hR) (by rw [e2, h1e]; exact hC) (Spec_ok_unfold hs2 h3nf h₃)
+    have hi1 : s₁["var_index"]!! = s₀["var_index"]!! := by rw [e1]; exact hgci
+    have hi2 : s₂["var_index"]!! = s₁["var_index"]!! :=
+      mod_uint256_frame hs1 (by decide) (Spec_ok_unfold hs1 h2nf h₂)
+    have hi3 : s₃["var_index"]!! = s₂["var_index"]!! :=
+      switch_4762420646048873450_frame hs2 h3nf (by decide) (Spec_ok_unfold hs2 h3nf h₃)
+    have hj3 : (s₃["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound := by
+      rw [hi3, hi2, hi1]; exact hj
+    -- the flag walks back one step, to the advance block whose slot is in question
+    have c4 : Clear.KeccakClean.Clean s₄.evm :=
+      (block_7643149059429413085_clean hs4 h5nf (Spec_ok_unfold hs4 h5nf h₅)).mp hclean
+    have hne : s₄["_18"]!! ≠ c :=
+      block_8439353917263816235_slot_not_low_of_clean hs3 h4nf hR3 hC3 c4 hj3 hcl
+        (Spec_ok_unfold hs3 h4nf h₄)
+    rw [block_7643149059429413085_sload hs4 h5nf (Ne.symm hne)
+        (Spec_ok_unfold hs4 h5nf h₅),
+      block_8439353917263816235_sload hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄),
+      switch_4762420646048873450_sload hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃),
+      mod_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂), e1]
+    unfold rootGuardStateGen
+    simp only [evm_insert]
 
 end
 
