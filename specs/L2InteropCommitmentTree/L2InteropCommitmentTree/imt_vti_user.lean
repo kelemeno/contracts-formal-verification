@@ -1131,20 +1131,25 @@ theorem vtiAt_wFinal_V_of_config
     _ = (wS3 evm V IX k).sload wv := sload_hashLeafOut_of_clean _ hcleanH3
     _ = evm.sload 1 := by rw [hwv]; exact sload_sstore_self haccV
 
-/-! ### `vtiAt_wFinal_V` on the derived route — BLOCKED ON ELABORATION, NOT ON MATH
+/-! ### Why the twin above is written the way it is
 
-The pieces are all here: `pushOut_sload_cached_of_config` above replaces the `Sep32` push-tail
-frame, and `keccak256_add_ne_lowSlot_of_config` replaces the low-slot separation.  Assembling
-them into a `vtiAt_wFinal_V` twin does not typecheck within 4M heartbeats.
+`vtiAt_wFinal_V_of_config` took four formulations.  The first three timed out at 4M
+heartbeats, and none of them was a proof problem: every weld state (`wF5`, `wH3`, `wFinal`,
+…) is `@[reducible]`, so any step that normalises or motive-abstracts over one unfolds the
+whole dispatcher chain.  `simpa` fixing a `w + 0` cost 4M heartbeats; so did `rw [add_zero]`
+on the same term; so did the statement elaboration once enough such steps accumulated.
 
-The cost is not the proof.  Every weld state (`wF5`, `wH3`, `wFinal`, …) is `@[reducible]`,
-so any step that normalises or motive-abstracts over one unfolds the whole dispatcher chain.
-Three separate formulations timed out, each at whatever step touched such a term: `simpa`
-fixing a `w + 0`, then `rw [add_zero] at h`, then the statement elaboration itself.
+The rule that works is not "avoid `simp`".  It is:
 
-What should work is `set`-ing the weld states as opaque locals at the top of the proof so the
-big terms are never unfolded, paying the abstraction once.  That is the next attempt; it is
-engineering, not a gap in the argument. -/
+  * never rewrite BACKWARD over a weld state -- abstracting a big term out of a goal is the
+    expensive direction, substituting a variable into one is free;
+  * push every `+ 0` / `add_zero` fixup down into a lemma whose states are abstract
+    variables, where it costs nothing (`pushOut_sload_cached0_of_config` exists only for
+    this);
+  * keep the calc running over the abstract cached word and connect to the concrete write
+    slot ONCE, at the end.
+
+Applying all three made the proof typecheck immediately. -/
 
 
 end
