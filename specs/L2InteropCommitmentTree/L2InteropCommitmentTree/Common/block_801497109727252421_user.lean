@@ -22,34 +22,40 @@ open Clear EVMState Ast Expr Stmt FunctionDefinition State Interpreter ExecLemma
 new free pointer passes solc's `2^64 - 1` memory ceiling -- checked by
 `if_5792510925045852942` together with the wraparound flag.
 
-REVERTED TO AN ALIAS.  A contentful version was committed in 4f6e6e7 and NEVER COMPILED:
-it wrote every step as an insert, but the `and` primop produces a `multifill`, so
-`abs_of_concrete` could not close.  The breakage survived because that commit's own
-subject -- a shell bug reporting false greens -- was the bug that hid it, and afterwards a
-stale olean kept the module reporting OK.  Found by scripts/constants-check.sh, which
-looks the CONSTANTS up instead of trusting the module build.
+Contentful again, at the third attempt.  Two earlier tries failed on the ENCODING rather
+than the content, and the shape was finally read off the goal instead of guessed:
 
-Re-converting it needs the `and` step written as `multifill ["split_expr_2"] [...]`; the
-docstring above is the intended content.
+  * `add` and `not` produce INSERTS, `and` produces a MULTIFILL -- mixed, not uniform,
+    which is what defeated both "all inserts" (4f6e6e7) and "all multifills";
+  * `gt` compiles to `if 18446744073709551615 < _ then 1 else 0`, NOT to
+    `(decide _).toUInt256` as the sibling comparison blocks use;
+  * lookups inside `⟦ ↦ ⟧` need parentheses or the notation mis-parses.
 
-SECOND ATTEMPT, 2026-08-15, also reverted -- but it narrowed the search.  Established:
-  * the multifill IS required for `and`, as the note above says;
-  * lookups inside `⟦ ↦ ⟧` must be PARENTHESISED or the notation mis-parses
-    (`unexpected token ']!!'`);
-  * with those two fixed the file PARSES and the mismatch moves to `exact hc.symm`, so
-    what remains is a discrepancy in the step SHAPES, not the syntax;
-  * making every primop step a multifill (add/not/and/add/gt) does NOT close it either.
-So the next attempt should read the true shape off the goal rather than guess: dump the
-"but is expected to have type" side of that mismatch in full and transcribe it verbatim.
-Do not trust `lake build` here -- an intermediate run reported "Build completed
-successfully" for the still-broken file, the same false green that let 4f6e6e7 land. -/
-def A_block_801497109727252421 (s₀ s₉ : State) : Prop := block_801497109727252421_concrete_of_code.1 s₀ s₉
+Method worth reusing: `#print` the concrete relation and regex out the repeated subterms,
+rather than guessing a shape and reading the type mismatch. -/
+def A_block_801497109727252421 (s₀ s₉ : State) : Prop :=
+  let b := s₀⟦"split_expr_0" ↦ (s₀["size"]!!) + 31⟧⟦"split_expr_1" ↦ UInt256.lnot 31⟧
+  let rounded := Fin.land (b["split_expr_0"]!!) (b["split_expr_1"]!!)
+  let c := Clear.State.multifill ["split_expr_2"] [rounded] b
+  let d := c⟦"newFreePtr" ↦ (c["memPtr"]!!) + (c["split_expr_2"]!!)⟧
+  s₉ = d⟦"split_expr_3" ↦ if 18446744073709551615 < (d["newFreePtr"]!!) then 1 else 0⟧
 
 lemma block_801497109727252421_abs_of_concrete {s₀ s₉ : State} :
   Spec block_801497109727252421_concrete_of_code s₀ s₉ →
   Spec A_block_801497109727252421 s₀ s₉ := by
-  intro h
-  simpa [A_block_801497109727252421] using h
+  unfold block_801497109727252421_concrete_of_code A_block_801497109727252421
+  rcases s₀ with ⟨evm, store⟩ | _ | _ <;> [skip; aesop_spec; aesop_spec]
+  apply spec_eq
+  intro _hne hc
+  exact hc.symm
+
+/-- **THE EVM IS THE CALLER'S.**  Five variable assignments: no memory, no storage, no
+hashing.  One equation settles window, flag, accounts and storage together. -/
+lemma block_801497109727252421_evm {s₀ s₉ : State}
+    (h : A_block_801497109727252421 s₀ s₉) : s₉.evm = s₀.evm := by
+  unfold A_block_801497109727252421 at h
+  subst h
+  simp only [evm_insert, evm_multifill]
 
 end
 
