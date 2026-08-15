@@ -3020,6 +3020,72 @@ theorem decodeLeaf_retarget_outside_of_config {σ : EVMState} {idx i v w wi : UI
   · exact leafSlot_add_ne_of_config hsep hinj hc hci hne (by decide)
   · exact leafSlot_off_ne_off_of_config hsep hinj hc hci hne (by decide) (by decide)
 
+/-- **DERIVED** companion to `leafSlot_inj`.
+
+Note which idealization this replaces and with what.  `leafSlot_inj` calls
+`keccak256_inj` -- collision resistance -- but the two slots here are CACHE HITS, and for
+cached values the needed fact is far weaker: the cache does not map two distinct preimages
+to one slot.  That is `CacheInj`, a property of the pool, and it is preserved by every step
+because the set of slots a state can produce only shrinks.
+
+The gap between the two is real and is exactly where `keccak256_inj` remains irreducible:
+for FRESH results, or for two calls in disjoint state threads, `CacheInj` says nothing.
+This corpus's leaf slots are always cached by the time they are compared. -/
+theorem leafSlot_inj_of_config {σ : EVMState} {i j wi wj : UInt256}
+    (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
+    (hij : i ≠ j) : leafSlot σ i ≠ leafSlot σ j := by
+  rw [(leafSlot_keccak hci).2, (leafSlot_keccak hcj).2]
+  intro he
+  exact accInterval_ne hij (hinj _ _ wi hci (he ▸ hcj))
+
+/-- **DERIVED** companion to `leafSetOf_insert` -- the deep target of the `imt_fidelity`
+migration.  Every separation it needed now has an axiom-free route: slot injectivity from
+`CacheInj`, the offset separations from `Separated`, and the two low-slot facts from the
+keccak window.  Four idealizations traded for two pool properties and the window. -/
+theorem leafSetOf_insert_of_config {σ : EVMState} {v ni nv w : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some w)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm) :
+    leafSetOf ((((σ.sstore (leafSlot σ (σ.sload 1)) v).sstore
+        (leafSlot σ (σ.sload 1) + 1) ni).sstore
+        (leafSlot σ (σ.sload 1) + 2) nv).sstore 1 (σ.sload 1 + 1))
+      = insert (⟨v, nv⟩ : AbsLeaf) (leafSetOf σ) := by
+  have hkey : ∀ m : ℕ, m < (σ.sload 1).val → σ.sload 1 ≠ (m : UInt256) := by
+    intro m hm
+    apply Fin.ne_of_val_ne
+    have hmv : ((m : UInt256)).val = m :=
+      Nat.mod_eq_of_lt (lt_trans hm (σ.sload 1).isLt)
+    rw [hmv]
+    exact Nat.ne_of_gt hm
+  refine leafSetOf_after_write hacc hc hnw hcaches ?_ ?_ ?_ ?_ ?_ ?_
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_inj_of_config hinj hc hcm (hkey m hm),
+           Ne.symm (leafSlot_add_ne_of_config hsep hinj hcm hc
+             (Ne.symm (hkey m hm)) (by decide))⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_add_ne_of_config hsep hinj hc hcm (hkey m hm) (by decide),
+           leafSlot_off_ne_off_of_config hsep hinj hc hcm (hkey m hm)
+             (by decide) (by decide)⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨leafSlot_add_ne_of_config hsep hinj hc hcm (hkey m hm) (by decide),
+           leafSlot_off_ne_off_of_config hsep hinj hc hcm (hkey m hm)
+             (by decide) (by decide)⟩
+  · intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨Ne.symm (leafSlot_ne_low_of_config 1 hR hC hcm (by decide)),
+           Ne.symm (leafSlot_add_ne_low_of_config 2 1 hR hC hcm (by decide) (by decide))⟩
+  · exact Ne.symm (leafSlot_ne_low_of_config 1 hR hC hc (by decide))
+  · exact Ne.symm (leafSlot_add_ne_low_of_config 2 1 hR hC hc (by decide) (by decide))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

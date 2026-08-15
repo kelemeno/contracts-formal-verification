@@ -144,6 +144,7 @@ import specs.AttackVectors.DestinationCapstone
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2518866309321428816_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -401,3 +402,11 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_use
 #print axioms L2InteropCommitmentTree.Common.if_2518866309321428816_config
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_clean
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrArrPush_clean_unconditional
+
+-- The axiom-free route through imt_fidelity.  `leafSetOf_insert` carries all four
+-- KeccakInjective idealizations; its `_of_config` twin carries none, trading them for two
+-- pool properties (Separated, CacheInj) and the keccak window.  The originals remain the
+-- ledger's non-clean entries because the no-theft chain still calls them.
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSlot_inj_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf_insert_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.decodeLeaf_retarget_outside_of_config
