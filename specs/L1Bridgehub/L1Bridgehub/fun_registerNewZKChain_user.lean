@@ -7,6 +7,7 @@ import generated.L1Bridgehub.L1Bridgehub.fun_registerNewZKChain_gen
 
 import specs.KeccakInjective
 import specs.KeccakDistinct
+import specs.KeccakLowSlot
 
 
 /-
@@ -280,6 +281,35 @@ theorem fun_registerNewZKChain_value_survives_fun_add
       Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne_keys),
       Clear.KeccakDistinct.sload_sstore_of_ne _ hne_208]
   exact hcommitted
+
+
+/-! ## The registration frame on the derived route — one of three
+
+`fun_registerNewZKChain_value_survives_fun_add` peels three `sstore`s, and each needs the
+written slot to miss the value slot `keccak(chainId‖210)`.  Exactly one of the three comes off
+the keccak idealizations cleanly:
+
+  * **length slot `208`** — `keccak256_ne_lowSlot`, whose `_of_config` twin needs only the
+    low-slot window configuration.  That is the lemma below.
+  * **index slot** — `keccak256_inj` on `keccak(chainId‖210)` vs `keccak(chainId‖209)`.
+  * **keys element** — `keccak256_slot_sep` on a 32-byte vs a 64-byte preimage.
+
+The last two are NOT convertible as stated.  Their derived counterparts (`cached_ne_of_config`,
+`cached_off_ne_off_of_len_ne`) need both slots cached in ONE state, but the hypotheses give
+independent states `σv`, `σi`, `σk` — the same shape that makes `Sep32` underivable in
+`imt_vti`.  Converting them means restating the hypotheses as cache hits at a common state,
+which changes the interface and requires knowing what the concrete caller can supply.  Left
+for whoever owns that call site. -/
+
+/-- **DERIVED** companion to `register_valueSlot_ne_lengthSlot`: a keccak output is never the
+reserved `_keys.length` slot `208`, from the pool window instead of the idealization. -/
+theorem register_valueSlot_ne_lengthSlot_of_config
+    {σ σ' : EVMState} {p n r_values : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hv : σ.keccak256 p n = some (r_values, σ')) :
+    r_values ≠ (208 : UInt256) :=
+  Clear.KeccakLowSlot.keccak256_ne_lowSlot_of_config (208 : UInt256)
+    (Clear.KeccakLowSlot.noLowInRange_of_window hR) (Clear.KeccakLowSlot.noLowCached_of_window hC) hv (by decide)
 
 end
 
