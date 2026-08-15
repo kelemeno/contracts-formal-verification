@@ -2972,6 +2972,54 @@ theorem glueSeq_leafSetOf'
   unfold imtInsert
   exact Finset.Insert.comm _ _ _
 
+/-! ### Axiom-free companions for the two slot separations
+
+`leafSlot_add_ne` and `leafSlot_off_ne_off` above are the only users of
+`keccak256_slot_sep` in this file, and both hold their inputs as CACHE HITS -- which is
+exactly the shape `KeccakSlotSep.cached_off_ne_off` was derived for.  So both have drop-in
+companions that trade the idealization for two pool properties the caller already tracks
+elsewhere: `Separated` (the pool's slots are pairwise apart) and `CacheInj` (the cache does
+not map two preimages to one slot).
+
+One lemma covers both, since `_add_ne` is the `k₂ = 0` case of `_off_ne_off`.  These are
+the bottom of the migration for `imt_fidelity`: everything above that still carries
+`keccak256_slot_sep` reaches it through these two. -/
+
+/-- **DERIVED** companion to `leafSlot_off_ne_off`. -/
+theorem leafSlot_off_ne_off_of_config {σ : EVMState} {i j wi wj k₁ k₂ : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
+    (hij : i ≠ j)
+    (hk₁ : k₁.val < Clear.KeccakInjective.lowSlotBound)
+    (hk₂ : k₂.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i + k₁ ≠ leafSlot σ j + k₂ := by
+  rw [(leafSlot_keccak hci).2, (leafSlot_keccak hcj).2]
+  exact Clear.KeccakSlotSep.cached_off_ne_off hsep hinj hci hcj (accInterval_ne hij) hk₁ hk₂
+
+/-- **DERIVED** companion to `leafSlot_add_ne`: the `k₂ = 0` case. -/
+theorem leafSlot_add_ne_of_config {σ : EVMState} {i j wi wj k : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hcj : Finmap.lookup (accInterval σ j 4) σ.keccak_map = some wj)
+    (hij : i ≠ j) (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    leafSlot σ i + k ≠ leafSlot σ j := by
+  have h := leafSlot_off_ne_off_of_config (k₂ := 0) hsep hinj hci hcj hij hk
+    (by show (0 : ℕ) < 2 ^ 32; norm_num)
+  simpa using h
+
+/-- **DERIVED** companion to `decodeLeaf_retarget_outside` -- the first of the five
+`imt_fidelity` results above the LeafSetFrame layer to get an axiom-free route. -/
+theorem decodeLeaf_retarget_outside_of_config {σ : EVMState} {idx i v w wi : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hc : Finmap.lookup (accInterval σ idx 4) σ.keccak_map = some w)
+    (hci : Finmap.lookup (accInterval σ i 4) σ.keccak_map = some wi)
+    (hne : idx ≠ i) :
+    decodeLeaf (σ.sstore (leafSlot σ idx + 2) v) i = decodeLeaf σ i := by
+  refine decodeLeaf_sstore_outside hci ?_ ?_
+  · exact leafSlot_add_ne_of_config hsep hinj hc hci hne (by decide)
+  · exact leafSlot_off_ne_off_of_config hsep hinj hc hci hne (by decide) (by decide)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
