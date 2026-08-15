@@ -3086,6 +3086,122 @@ theorem leafSetOf_insert_of_config {σ : EVMState} {v ni nv w : UInt256}
   · exact Ne.symm (leafSlot_ne_low_of_config 1 hR hC hc (by decide))
   · exact Ne.symm (leafSlot_add_ne_low_of_config 2 1 hR hC hc (by decide) (by decide))
 
+/-- **DERIVED** companion to `leafCount_retarget`. -/
+theorem leafCount_retarget_of_config {σ : EVMState} {idx v w : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hc : Finmap.lookup (accInterval σ idx 4) σ.keccak_map = some w) :
+    (σ.sstore (leafSlot σ idx + 2) v).sload 1 = σ.sload 1 :=
+  sload_sstore_ne (leafSlot_add_ne_low_of_config 2 1 hR hC hc (by decide) (by decide))
+
+/-- **DERIVED** companion to `leafSetOf_imtInsert`.
+
+Both halves of the original are now axiom-free: the retarget step through
+`decodeLeaf_retarget_outside_of_config`, and the struct write through
+`leafSetOf_insert_of_config`.  The four pool/window properties travel to the retargeted
+state by the `_sstore` preservation lemmas -- which hold for the reason the whole derived
+route works: a step can only SHRINK the set of slots a state may produce. -/
+theorem leafSetOf_imtInsert_of_config {σ : EVMState} {widx v ni w wc : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinjc : Clear.KeccakFresh.CacheInj σ)
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hwlt : widx.val < (σ.sload 1).val)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hcw : Finmap.lookup (accInterval σ widx 4) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some wc)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
+      decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m') :
+    leafSetOf (((((retargetEvm σ widx v).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1)) v).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 1) ni).sstore
+        (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 2)
+          (decodeLeaf σ widx).nextKey).sstore
+        1 ((retargetEvm σ widx v).sload 1 + 1))
+      = imtInsert (leafSetOf σ) (decodeLeaf σ widx) v := by
+  set σᵣ := retargetEvm σ widx v with hσᵣ
+  have hcnt : σᵣ.sload 1 = σ.sload 1 := leafCount_retarget_of_config hR hC hcw
+  have hstepA : leafSetOf σᵣ
+      = insert (⟨(decodeLeaf σ widx).key, v⟩ : AbsLeaf)
+          ((leafSetOf σ).erase (decodeLeaf σ widx)) := by
+    unfold leafSetOf
+    rw [hcnt]
+    have hfa : decodeLeaf σ ((widx.val : ℕ) : UInt256) = decodeLeaf σ widx := by
+      rw [Fin.cast_val_eq_self widx]
+    rw [← hfa]
+    refine image_update_erase_insert hwlt ?_ ?_ ?_
+    · intro m hm hma
+      obtain ⟨wm, hcm⟩ := hcaches m hm
+      refine decodeLeaf_retarget_outside_of_config hsep hinjc hcw hcm ?_
+      intro heq
+      apply hma
+      have hmv : ((m : UInt256)).val = m :=
+        Nat.mod_eq_of_lt (lt_trans hm (σ.sload 1).isLt)
+      rw [← heq] at hmv
+      exact hmv.symm
+    · rw [Fin.cast_val_eq_self widx]
+      exact decodeLeaf_retarget hacc hcw
+    · exact hinj
+  have haccr : (σᵣ.lookupAccount σᵣ.execution_env.code_owner).isSome :=
+    acct_sstore hacc
+  have hnwr : (σᵣ.sload 1).val + 1 < 2 ^ 256 := by rw [hcnt]; exact hnw
+  have hccr : Finmap.lookup (accInterval σᵣ (σᵣ.sload 1) 4) σᵣ.keccak_map
+      = some wc := by
+    rw [hcnt, hσᵣ]
+    exact cache_sstore hcc
+  have hcachesr : ∀ m : ℕ, m < (σᵣ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σᵣ (m : UInt256) 4) σᵣ.keccak_map
+        = some wm := by
+    rw [hcnt]
+    intro m hm
+    obtain ⟨wm, hcm⟩ := hcaches m hm
+    exact ⟨wm, by rw [hσᵣ]; exact cache_sstore hcm⟩
+  -- the four properties survive the retarget write
+  have hstepB := leafSetOf_insert_of_config (σ := σᵣ) (v := v) (ni := ni)
+    (nv := (decodeLeaf σ widx).nextKey)
+    (by rw [hσᵣ]; exact Clear.StorageFrame.rangeInWindow_sstore hR)
+    (by rw [hσᵣ]; exact Clear.StorageFrame.cachedInWindow_sstore hC)
+    (by rw [hσᵣ]; exact Clear.StorageFrame.separated_sstore hsep)
+    (by rw [hσᵣ]; exact Clear.StorageFrame.cacheInj_sstore hinjc)
+    haccr hnwr hccr hcachesr
+  rw [hstepB, hstepA]
+  unfold imtInsert
+  exact Finset.Insert.comm _ _ _
+
+/-- **DERIVED** companion to `leafSetOf_evolution_step` -- the axiom-free route now reaches
+the shape `evolution_invariant` and the delivery/reclaim results consume.
+
+Pure packaging over `leafSetOf_imtInsert_of_config`: the witness is the window leaf itself,
+and its membership is the same `Finset.mem_image` as in the original. -/
+theorem leafSetOf_evolution_step_of_config {σ : EVMState} {widx v ni w wc : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinjc : Clear.KeccakFresh.CacheInj σ)
+    (hacc : (σ.lookupAccount σ.execution_env.code_owner).isSome)
+    (hwlt : widx.val < (σ.sload 1).val)
+    (hnw : (σ.sload 1).val + 1 < 2 ^ 256)
+    (hcw : Finmap.lookup (accInterval σ widx 4) σ.keccak_map = some w)
+    (hcc : Finmap.lookup (accInterval σ (σ.sload 1) 4) σ.keccak_map = some wc)
+    (hcaches : ∀ m : ℕ, m < (σ.sload 1).val →
+      ∃ wm, Finmap.lookup (accInterval σ (m : UInt256) 4) σ.keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (σ.sload 1).val → ∀ m' : ℕ, m' < (σ.sload 1).val →
+      decodeLeaf σ (m : UInt256) = decodeLeaf σ (m' : UInt256) → m = m')
+    (hlow : (decodeLeaf σ widx).key < v)
+    (hwin : (decodeLeaf σ widx).nextKey = 0 ∨ v < (decodeLeaf σ widx).nextKey) :
+    ∃ W₀ v', W₀ ∈ leafSetOf σ ∧ W₀.key < v'
+      ∧ (W₀.nextKey = 0 ∨ v' < W₀.nextKey)
+      ∧ leafSetOf (((((retargetEvm σ widx v).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1)) v).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 1) ni).sstore
+          (leafSlot (retargetEvm σ widx v) ((retargetEvm σ widx v).sload 1) + 2)
+            (decodeLeaf σ widx).nextKey).sstore
+          1 ((retargetEvm σ widx v).sload 1 + 1))
+        = imtInsert (leafSetOf σ) W₀ v' := by
+  refine ⟨decodeLeaf σ widx, v, ?_, hlow, hwin,
+    leafSetOf_imtInsert_of_config hR hC hsep hinjc hacc hwlt hnw hcw hcc hcaches hinj⟩
+  unfold leafSetOf
+  exact Finset.mem_image.mpr
+    ⟨widx.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
