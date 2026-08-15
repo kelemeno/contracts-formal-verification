@@ -115,9 +115,12 @@ lemma block_5267003775473151689_config {s₀ s₉ : State} (hok : isOk s₀) (hn
     (by rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC1)
     (Spec_ok_unfold hmok hnf h₂)
 
-/-- **CLEAN FLAG, BACKWARDS.**  Allocation cannot dirty it; the push can. -/
+/-- **CLEAN FLAG, BACKWARDS.**  Allocation cannot dirty it; the push can.
+
+No size hypothesis, deliberately: the caller above needs this flag in order to prove the
+storage frames that would establish such a bound, so requiring one here would close a
+circle.  `arrArrPush_clean_unconditional` is what makes that possible. -/
 lemma block_5267003775473151689_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
-    (hfits : Clear.EVMState.sload s₀.evm 2 < 18446744073709551616)
     (hclean : Clear.KeccakClean.Clean s₉.evm)
     (h : A_block_5267003775473151689 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
   obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
@@ -131,12 +134,52 @@ lemma block_5267003775473151689_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf
   have hme : (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧).evm
       = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
     Clear.evm_setEvm_of_isOk hs1
-  have c1 := arrArrPush_clean hmok hnf
-    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits) hclean
-    (Spec_ok_unfold hmok hnf h₂)
+  have c1 := arrArrPush_clean_unconditional hmok hnf hclean (Spec_ok_unfold hmok hnf h₂)
   rw [hme, Clear.KeccakClean.clean_mstore] at c1
   rw [← hine]
   exact (allocate_memory_clean hin h1nf (Spec_ok_unfold hin h1nf h₁)).mp c1
+
+set_option maxHeartbeats 800000 in
+/-- **STORAGE FRAME: SLOT 2 AND NOTHING ELSE.**
+
+The levels array's length lives at slot 2; the new element lands on a keccak image.  Every
+other constant-numbered slot survives -- slot 1 included, which is what the leaf counter
+needs from the growth path.
+
+Third and last of the growth path's deliberate low-slot writes: slot 0 in `_6359`, slot 3
+in `_3221`, slot 2 here. -/
+lemma block_5267003775473151689_sload_of_ne {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm 2 < 18446744073709551616)
+    (hc2 : c ≠ 2)
+    (hclow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hlen : (Clear.EVMState.sload s₀.evm 2).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_5267003775473151689 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  obtain ⟨h1nf, hin, hs1⟩ := b5267_parts hok hnf h₁ h₂ heq
+  rw [heq] at hnf hclean ⊢
+  have hine : (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧).evm = s₀.evm := by simp only [evm_insert]
+  have hsl1 : ∀ q : Literal, Clear.EVMState.sload s₁.evm q = Clear.EVMState.sload s₀.evm q := by
+    intro q; rw [allocate_memory_sload hin h1nf (Spec_ok_unfold hin h1nf h₁), hine]
+  obtain ⟨hR1, hC1⟩ := allocate_memory_config hin h1nf (by rw [hine]; exact hR)
+    (by rw [hine]; exact hC) (Spec_ok_unfold hin h1nf h₁)
+  have hmok : isOk (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧) := by
+    simpa only [isOk_setEvm] using hs1
+  have hme : (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧).evm
+      = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
+    Clear.evm_setEvm_of_isOk hs1
+  -- the memory write changes no storage, so the push sees the caller's slot 2
+  rw [arrArrPush_sload_of_low hmok hnf
+      (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits) hc2 hclow
+      (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hlen)
+      (by rw [hme]; exact Clear.StorageFrame.rangeInWindow_mstore hR1)
+      (by rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC1)
+      hclean (Spec_ok_unfold hmok hnf h₂),
+    hme, Clear.StorageFrame.sload_mstore, hsl1]
 
 end
 
