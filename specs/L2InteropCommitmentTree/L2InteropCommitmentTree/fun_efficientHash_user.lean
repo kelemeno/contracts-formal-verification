@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakDeterminism
@@ -253,6 +254,45 @@ lemma fun_efficientHash_fuel {var_result : Identifier} {var_lhs var_rhs : Litera
     refine Clear.KeccakFuel.Fuel.keccakOut ?_
     rw [hbe]
     exact Clear.KeccakFuel.Fuel.mstore 32 var_rhs (Clear.KeccakFuel.Fuel.mstore 0 var_lhs hf)
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+/-- **CLEAN FLAG, BACKWARDS.**  The fold's hash step, and the one place in the loop body
+where the flag can actually turn on: a clean result proves the pool was non-empty. -/
+lemma fun_efficientHash_clean {var_result : Identifier} {var_lhs var_rhs : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_fun_efficientHash var_result var_lhs var_rhs s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_fun_efficientHash at h
+    subst h
+    set f := (Ok evm store)☎️⟦["var_lhs", "var_rhs"], [var_lhs, var_rhs]⟧ with hfdef
+    have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk (by simp [isOk])
+    set a := f🇪⟦EVMState.mstore f.evm 0 var_lhs⟧ with hadef
+    have haok : isOk a := by rw [hadef]; simpa only [isOk_setEvm] using hfok
+    set b := a🇪⟦EVMState.mstore a.evm 32 var_rhs⟧ with hbdef
+    have hbok : isOk b := by rw [hbdef]; simpa only [isOk_setEvm] using haok
+    have hrok : isOk (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1) := by
+      apply isOk_multifill
+      rw [primCall_keccakOut]
+      simpa only [isOk_setEvm] using hbok
+    have hev : (((🧟 (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1))🏪⟦Ok evm store⟧)⟦var_result ↦
+        (multifill ["var_result"] (primCall b .Keccak256 [0, 64]).2
+        (primCall b .Keccak256 [0, 64]).1)["var_result"]!!⟧).evm
+        = (keccakOut b.evm 0 64).2 := by
+      rw [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrok, evm_multifill,
+        primCall_keccakOut, Clear.evm_setEvm_of_isOk hbok]
+    rw [hev] at hclean
+    have hbe : b.evm
+        = EVMState.mstore (EVMState.mstore (Ok evm store).evm 0 var_lhs) 32 var_rhs := by
+      rw [hbdef, Clear.evm_setEvm_of_isOk haok, hadef, Clear.evm_setEvm_of_isOk hfok, hfdef]
+      rw [Clear.evm_initcall (by simp [isOk])]
+    have := Clear.KeccakClean.clean_keccakOut_backward hclean
+    rw [hbe] at this
+    simpa only [Clear.KeccakClean.clean_mstore] using this
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
 

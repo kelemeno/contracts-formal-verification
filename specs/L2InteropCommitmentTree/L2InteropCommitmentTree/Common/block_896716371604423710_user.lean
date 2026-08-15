@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_efficientHash
@@ -78,6 +79,15 @@ lemma block_896716371604423710_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s�
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact fun_efficientHash_fuel hok hf (Spec_ok_unfold hok hnf hs)
+
+/-- **CLEAN FLAG, BACKWARDS.**  This block is the fold's hash and nothing else. -/
+lemma block_896716371604423710_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_896716371604423710 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf hclean
+  exact fun_efficientHash_clean hok hclean (Spec_ok_unfold hok hnf hs)
 
 end
 

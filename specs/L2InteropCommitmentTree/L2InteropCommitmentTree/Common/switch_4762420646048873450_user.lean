@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_7746411058724286464
@@ -199,6 +200,32 @@ lemma switch_4762420646048873450_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk 
     have hf1 : Clear.KeccakFuel.Fuel s₁.evm (k + 1) :=
       block_7746411058724286464_fuel hok h1nf hf (Spec_ok_unfold hok h1nf h₁)
     exact block_896716371604423710_fuel hs1 hnf hf1 (Spec_ok_unfold hs1 hnf h₂)
+
+/-- **CLEAN FLAG, BACKWARDS.**  The parity switch: the even arm reads the sibling then
+hashes, the odd arm reads then hashes.  Either way the flag walks back to the caller. -/
+lemma switch_4762420646048873450_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_switch_4762420646048873450 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, hbrEven, hbrOdd⟩ := h
+  by_cases hc : s₀["split_expr_6"]!! = 0
+  · rw [hbrEven hc] at hnf hclean
+    have hins : isOk (s₀⟦"expr" ↦ 0⟧) := isOk_insert.mpr hok
+    have hinse : (s₀⟦"expr" ↦ 0⟧).evm = s₀.evm := by simp only [evm_insert]
+    have h3nf : ¬ ❓ s₃ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+    have hs3 : isOk s₃ :=
+      switch_4354665484259437184_isOk hins h3nf (Spec_ok_unfold hins h3nf h₃)
+    have c3 : Clear.KeccakClean.Clean s₃.evm :=
+      fun_efficientHash_clean hs3 hclean (Spec_ok_unfold hs3 hnf h₄)
+    rw [← hinse]
+    exact switch_4354665484259437184_clean hins h3nf c3 (Spec_ok_unfold hins h3nf h₃)
+  · rw [hbrOdd hc] at hnf hclean
+    have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      block_7746411058724286464_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    have c1 : Clear.KeccakClean.Clean s₁.evm :=
+      block_896716371604423710_clean hs1 hnf hclean (Spec_ok_unfold hs1 hnf h₂)
+    exact block_7746411058724286464_clean hok h1nf c1 (Spec_ok_unfold hok h1nf h₁)
 
 end
 

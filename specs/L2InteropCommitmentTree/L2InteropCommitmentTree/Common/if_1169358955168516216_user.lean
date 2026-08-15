@@ -3,6 +3,7 @@ import specs.KeccakFuel
 import specs.StateOk
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakClean
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -101,6 +102,17 @@ lemma if_1169358955168516216_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀
     have hpnf : ¬ ❓ sp := by rw [heq] at hnf; exact hnf
     rw [heq]
     exact panic_error_0x11_fuel hok hf (Spec_ok_unfold hok hpnf hsp)
+
+/-- **CLEAN FLAG.**  Either branch: the underflow panic never hashes. -/
+lemma if_1169358955168516216_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_1169358955168516216 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨hpos, hneg⟩ := h
+  by_cases hc : s₀["diff"]!! ≤ s₀["x"]!!
+  · rw [hpos hc]
+  · obtain ⟨s, hs, hse⟩ := hneg hc
+    subst hse
+    exact panic_error_0x11_clean hok (Spec_ok_unfold hok hnf hs)
 
 end
 

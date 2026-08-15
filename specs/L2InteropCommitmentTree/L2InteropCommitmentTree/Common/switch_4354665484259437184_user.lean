@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
@@ -307,6 +308,55 @@ lemma switch_4354665484259437184_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk 
     rw [extract_from_storage_value_dynamict_bytes32_evm hldok (Spec_ok_unfold hldok hnf h₄)]
     simp only [evm_insert]
     exact hf3
+
+/-- **CLEAN FLAG, BACKWARDS.**  Both arms of the default-vs-sibling switch read through
+accessors, so both give the one direction. -/
+lemma switch_4354665484259437184_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_switch_4354665484259437184 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, hbrA, hbrB⟩ := h
+  by_cases hc : s₀["var_maxNodeNumber"]!! = s₀["var_index"]!!
+  · rw [hbrA hc] at hnf hclean
+    have hddok : isOk (s₀⟦"split_expr_12" ↦ s₀["var_self_slot"]!! + 3⟧) := isOk_insert.mpr hok
+    have hdde : (s₀⟦"split_expr_12" ↦ s₀["var_self_slot"]!! + 3⟧).evm = s₀.evm := by
+      simp only [evm_insert]
+    have h5nf : ¬ ❓ s₅ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₆
+        (by simpa only [isOutOfFuel_insert'] using hoo))
+    have hs5 : isOk s₅ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h5nf (Spec_ok_unfold hddok h5nf h₅)
+    have hld2ok : isOk (s₅⟦"split_expr_13" ↦ Clear.EVMState.sload s₅.evm (s₅["_14"]!!)⟧) :=
+      isOk_insert.mpr hs5
+    rw [extract_from_storage_value_dynamict_bytes32_evm hld2ok
+      (Spec_ok_unfold hld2ok hnf h₆), evm_insert] at hclean
+    rw [← hdde]
+    exact storage_array_index_access_bytes32_dyn_ptr_clean hddok h5nf hclean
+      (Spec_ok_unfold hddok h5nf h₅)
+  · rw [hbrB hc] at hnf hclean
+    have h3nf : ¬ ❓ s₃ := by
+      intro hoo
+      exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+        (by simpa only [isOutOfFuel_insert'] using hoo))
+    have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+    have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+    have hs1 : isOk s₁ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+    have hs2 : isOk s₂ := checked_add_uint256_isOk h2nf (Spec_ok_unfold hs1 h2nf h₂)
+    have hs3 : isOk s₃ :=
+      storage_array_index_access_bytes32_dyn_ptr_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+    have hldok : isOk (s₃⟦"split_expr_11" ↦ Clear.EVMState.sload s₃.evm (s₃["_12"]!!)⟧) :=
+      isOk_insert.mpr hs3
+    rw [extract_from_storage_value_dynamict_bytes32_evm hldok
+      (Spec_ok_unfold hldok hnf h₄), evm_insert] at hclean
+    have c2 : Clear.KeccakClean.Clean s₂.evm :=
+      storage_array_index_access_bytes32_dyn_ptr_clean hs2 h3nf hclean
+        (Spec_ok_unfold hs2 h3nf h₃)
+    have c1 : Clear.KeccakClean.Clean s₁.evm :=
+      (checked_add_uint256_clean hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)).mp c2
+    exact storage_array_index_access_bytes32_dyn_ptr_clean hok h1nf c1
+      (Spec_ok_unfold hok h1nf h₁)
 
 end
 
