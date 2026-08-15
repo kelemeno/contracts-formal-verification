@@ -1217,6 +1217,111 @@ Applying all three made the proof typecheck immediately. -/
 
 
 
+/-! ### Anchors for the `vtiAt_wFinal_old` twin
+
+The twin needs the pool triple and the `u` hit at five states along the weld chain.  Deriving
+them inline exhausts the heartbeat budget -- not because any step is expensive (each group
+clears at 800k on its own) but because every annotation mentions a `@[reducible]` weld state
+and there are ~40 of them.  Split into two lemmas, each of which fits. -/
+
+/-- Anchors on the retarget (`wE4`) and new-leaf (`wF4`) accessor threads. -/
+lemma vtiOld_anchorsEF {evm : EVMState} {V IX x u : UInt256} {k : ℕ}
+    (hsepE : Clear.KeccakSlotSep.Separated evm) (husedE : Clear.KeccakFresh.CacheInUsed evm) (hinjE : Clear.KeccakFresh.CacheInj evm)
+    (hcu : Finmap.lookup (accInterval evm x 5) evm.keccak_map = some u) :
+    Clear.KeccakSlotSep.Separated ((accOut (wE4 evm V IX) IX 4).2)
+    ∧ Clear.KeccakFresh.CacheInj ((accOut (wE4 evm V IX) IX 4).2)
+    ∧ Finmap.lookup (accInterval evm x 5)
+        ((accOut (wE4 evm V IX) IX 4).2).keccak_map = some u
+    ∧ Clear.KeccakSlotSep.Separated ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2)
+    ∧ Clear.KeccakFresh.CacheInj ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2)
+    ∧ Finmap.lookup (accInterval evm x 5)
+        ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).keccak_map = some u := by
+  have hsepG : Clear.KeccakSlotSep.Separated (guardsEvm evm V IX) := separated_guardsEvm hsepE
+  have husedG : Clear.KeccakFresh.CacheInUsed (guardsEvm evm V IX) := cacheInUsed_guardsEvm husedE
+  have hinjG : Clear.KeccakFresh.CacheInj (guardsEvm evm V IX) := cacheInj_guardsEvm husedE hinjE
+  have hcuG : Finmap.lookup (accInterval evm x 5) (guardsEvm evm V IX).keccak_map = some u :=
+    lookup_mono_guardsEvm hcu
+  have hsepE4 : Clear.KeccakSlotSep.Separated (wE4 evm V IX) :=
+    Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsepG)))
+  have husedE4 : Clear.KeccakFresh.CacheInUsed (wE4 evm V IX) :=
+    Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ husedG)))
+  have hinjE4 : Clear.KeccakFresh.CacheInj (wE4 evm V IX) :=
+    Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+      (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ hinjG)))
+  have hsepS2 : Clear.KeccakSlotSep.Separated (wS2 evm V IX k) := separated_insertUpdEvm k hsepG
+  have husedS2 : Clear.KeccakFresh.CacheInUsed (wS2 evm V IX k) := cacheInUsed_insertUpdEvm k husedG
+  have hinjS2 : Clear.KeccakFresh.CacheInj (wS2 evm V IX k) := cacheInj_insertUpdEvm k husedG hinjG
+  have hcuS2 : Finmap.lookup (accInterval evm x 5) (wS2 evm V IX k).keccak_map = some u :=
+    lookup_mono_insertUpdEvm k hcuG
+  have hsepF4 : Clear.KeccakSlotSep.Separated (wF4 evm V IX k) :=
+    Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsepS2)))
+  have husedF4 : Clear.KeccakFresh.CacheInUsed (wF4 evm V IX k) :=
+    Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ husedS2)))
+  have hinjF4 : Clear.KeccakFresh.CacheInj (wF4 evm V IX k) :=
+    Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+      (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ hinjS2)))
+  exact ⟨separated_accOut hsepE4, Clear.KeccakFresh.cacheInj_accOut husedE4 hinjE4,
+    accOut_lookup_mono hcuG, separated_accOut hsepF4,
+    Clear.KeccakFresh.cacheInj_accOut husedF4 hinjF4, accOut_lookup_mono hcuS2⟩
+
+/-- Anchors on the vti write thread (`wF5`) and the two interleaved hash states. -/
+lemma vtiOld_anchorsVH {evm : EVMState} {V IX x u : UInt256} {k : ℕ}
+    (hsepE : Clear.KeccakSlotSep.Separated evm) (husedE : Clear.KeccakFresh.CacheInUsed evm) (hinjE : Clear.KeccakFresh.CacheInj evm)
+    (hcu : Finmap.lookup (accInterval evm x 5) evm.keccak_map = some u) :
+    Clear.KeccakSlotSep.Separated ((accOut (wF5 evm V IX k) V 5).2)
+    ∧ Clear.KeccakFresh.CacheInj ((accOut (wF5 evm V IX k) V 5).2)
+    ∧ Finmap.lookup (accInterval evm x 5)
+        ((accOut (wF5 evm V IX k) V 5).2).keccak_map = some u
+    ∧ Clear.KeccakSlotSep.Separated (wH3 evm V IX k) ∧ Clear.KeccakFresh.CacheInUsed (wH3 evm V IX k)
+    ∧ Clear.KeccakFresh.CacheInj (wH3 evm V IX k)
+    ∧ Clear.KeccakSlotSep.Separated (wH1 evm V IX) ∧ Clear.KeccakFresh.CacheInUsed (wH1 evm V IX)
+    ∧ Clear.KeccakFresh.CacheInj (wH1 evm V IX)
+    ∧ Finmap.lookup (accInterval evm x 5) (wH1 evm V IX).keccak_map = some u := by
+  have hsepG : Clear.KeccakSlotSep.Separated (guardsEvm evm V IX) := separated_guardsEvm hsepE
+  have husedG : Clear.KeccakFresh.CacheInUsed (guardsEvm evm V IX) := cacheInUsed_guardsEvm husedE
+  have hinjG : Clear.KeccakFresh.CacheInj (guardsEvm evm V IX) := cacheInj_guardsEvm husedE hinjE
+  have hcuG : Finmap.lookup (accInterval evm x 5) (guardsEvm evm V IX).keccak_map = some u :=
+    lookup_mono_guardsEvm hcu
+  have hsepS2 : Clear.KeccakSlotSep.Separated (wS2 evm V IX k) := separated_insertUpdEvm k hsepG
+  have husedS2 : Clear.KeccakFresh.CacheInUsed (wS2 evm V IX k) := cacheInUsed_insertUpdEvm k husedG
+  have hinjS2 : Clear.KeccakFresh.CacheInj (wS2 evm V IX k) := cacheInj_insertUpdEvm k husedG hinjG
+  have hcuS2 : Finmap.lookup (accInterval evm x 5) (wS2 evm V IX k).keccak_map = some u :=
+    lookup_mono_insertUpdEvm k hcuG
+  have hsepFK : Clear.KeccakSlotSep.Separated ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2) :=
+    separated_accOut (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsepS2))))
+  have husedFK : Clear.KeccakFresh.CacheInUsed ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2) :=
+    Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ husedS2))))
+  have hinjFK : Clear.KeccakFresh.CacheInj ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2) :=
+    Clear.KeccakFresh.cacheInj_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+        (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ husedS2))))
+      (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+        (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ hinjS2))))
+  have hcuFK : Finmap.lookup (accInterval evm x 5)
+      ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).keccak_map = some u :=
+    accOut_lookup_mono hcuS2
+  have hsepF5 : Clear.KeccakSlotSep.Separated (wF5 evm V IX k) :=
+    Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore hsepFK))
+  have husedF5 : Clear.KeccakFresh.CacheInUsed (wF5 evm V IX k) :=
+    Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore husedFK))
+  have hinjF5 : Clear.KeccakFresh.CacheInj (wF5 evm V IX k) :=
+    Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore hinjFK))
+  exact ⟨separated_accOut hsepF5, Clear.KeccakFresh.cacheInj_accOut husedF5 hinjF5,
+    accOut_lookup_mono (lookup_mono_sstore3 hcuFK),
+    separated_pushEH (separated_insertNewEvm k hsepG),
+    cacheInUsed_pushEH (cacheInUsed_insertNewEvm k husedG),
+    cacheInj_pushEH (cacheInUsed_insertNewEvm k husedG) (cacheInj_insertNewEvm k husedG hinjG),
+    separated_hashLeafOut (separated_retargetStageEvm hsepG),
+    cacheInUsed_hashLeafOut (cacheInUsed_retargetStageEvm husedG),
+    cacheInj_hashLeafOut (cacheInUsed_retargetStageEvm husedG)
+      (cacheInj_retargetStageEvm husedG hinjG),
+    lookup_mono_hashLeafOut (lookup_mono_retargetStageEvm hcuG)⟩
+
 /-! ### `vtiAt_wFinal_old` on the derived route — NOT YET, AND THE EARLIER DIAGNOSIS WAS WRONG
 
 Every ingredient exists and is verified: the six base-4-vs-base-5 separations are
