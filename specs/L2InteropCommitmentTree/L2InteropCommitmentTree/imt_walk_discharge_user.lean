@@ -351,6 +351,266 @@ lemma padWalk_sload_low :
       simpa only [padWalk] using this)]
     exact padStep_sload_low hs h0.1 h0.2.1 h0.2.2
 
+/-! ## The low-slot frames on the derived route
+
+Everything in this file reaches `keccak256_add_ne_lowSlot`: the write of a walk level
+lands at `keccak(levelArray) + j`, and A6″ is what says such a slot is never a reserved
+low one.  `keccak256_add_ne_lowSlot_of_config` says the same from two pool facts —
+`RangeInWindow` (the unused pool sits clear of both ends of the address space) and
+`CachedInWindow` (so does everything already cached).
+
+These twins thread that pair down the same call tree.  The transport across the two
+walks and the hash atoms is what made them statable. -/
+
+/-- **DERIVED** companion to `nodeStore_sload_low`. -/
+lemma nodeStore_sload_low_of_config
+    {σ : EVMState} {base l j v s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hclean : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).2.hash_collision = false)
+    (hcleanA : (arrOut σ base).2.hash_collision = false)
+    (hj : j.val < lowSlotBound)
+    (hs : s.val < lowSlotBound) :
+    (nodeStore σ base l j v).sload s = σ.sload s := by
+  unfold nodeStore
+  have hksome := keccakOut_some_of_clean
+    (σ := ((arrOut σ base).2.mstore 0 ((arrOut σ base).1 + l))) (p := 0) (n := 32)
+    (by exact hclean)
+  have hpair : ((arrOut σ base).2.mstore 0 ((arrOut σ base).1 + l)).keccak256 0 32
+      = some ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).1,
+              (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).2) := by
+    rw [hksome]
+    rfl
+  have hne : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).1 + j ≠ s :=
+    Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config j s
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 0 _ (rangeInWindow_arrOut hR))
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 0 _
+        (cachedInWindow_arrOut hR hC))
+      hpair hj hs
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne)]
+  rw [sload_arrOut_of_clean s hclean]
+  rw [sload_arrOut_of_clean s hcleanA]
+
+/-- **DERIVED** companion to `stepOdd_sload_low`. -/
+lemma stepOdd_sload_low_of_config
+    {σ : EVMState} {base i idx cur s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hs : s.val < lowSlotBound)
+    (hj : (Fin.shiftRight idx 1).val < lowSlotBound)
+    (hfin : oddFinClean σ base i idx cur) :
+    ((stepOdd σ base i idx cur).2).sload s = σ.sload s := by
+  unfold oddFinClean at hfin
+  have h4 := arrOut_clean_backward hfin
+  have h3 := arrOut_clean_backward h4
+  have h2 := accOut_clean_backward h3
+  have h1 := arrOut_clean_backward h2
+  show (nodeStore (accOut (sibRead σ base i (idx - 1)).2
+      (sibRead σ base i (idx - 1)).1 cur).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).1).sload s
+    = σ.sload s
+  have hR' : Clear.KeccakLowSlot.RangeInWindow (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).2 :=
+    (rangeInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR)))
+  have hC' : Clear.KeccakLowSlot.CachedInWindow (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).2 :=
+    (cachedInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+      (cachedInWindow_arrOut (rangeInWindow_arrOut hR) (cachedInWindow_arrOut hR hC)))
+  rw [nodeStore_sload_low_of_config hR' hC' hfin h4 hj hs]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+  rw [sload_arrOut_of_clean s h1]
+
+/-- **DERIVED** companion to `stepEven_sload_low`. -/
+lemma stepEven_sload_low_of_config
+    {σ : EVMState} {base i idx cur s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hs : s.val < lowSlotBound)
+    (hj : (Fin.shiftRight idx 1).val < lowSlotBound)
+    (hfin : evenFinClean σ base i idx cur) :
+    ((stepEven σ base i idx cur).2).sload s = σ.sload s := by
+  unfold evenFinClean at hfin
+  have h4 := arrOut_clean_backward hfin
+  have h3 := arrOut_clean_backward h4
+  have h2 := accOut_clean_backward h3
+  have h1 := arrOut_clean_backward h2
+  show (nodeStore (accOut (sibRead σ base i (idx + 1)).2 cur
+      (sibRead σ base i (idx + 1)).1).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).1).sload s
+    = σ.sload s
+  have hR' : Clear.KeccakLowSlot.RangeInWindow (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).2 :=
+    (rangeInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR)))
+  have hC' : Clear.KeccakLowSlot.CachedInWindow (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).2 :=
+    (cachedInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+      (cachedInWindow_arrOut (rangeInWindow_arrOut hR) (cachedInWindow_arrOut hR hC)))
+  rw [nodeStore_sload_low_of_config hR' hC' hfin h4 hj hs]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+  rw [sload_arrOut_of_clean s h1]
+
+/-- **DERIVED** companion to `stepEdge_sload_low`. -/
+lemma stepEdge_sload_low_of_config
+    {σ : EVMState} {ss base i idx cur s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hs : s.val < lowSlotBound)
+    (hj : (Fin.shiftRight idx 1).val < lowSlotBound)
+    (hfin : edgeFinClean σ ss base i idx cur) :
+    ((stepEdge σ ss base i idx cur).2).sload s = σ.sload s := by
+  unfold edgeFinClean at hfin
+  have h4 := arrOut_clean_backward hfin
+  have h3 := arrOut_clean_backward h4
+  have h2 := accOut_clean_backward h3
+  have h1 := arrOut_clean_backward h2
+  show (nodeStore (accOut (sideRead σ (ss + 3) i).2 cur
+      (sideRead σ (ss + 3) i).1).2 base (i + 1) (Fin.shiftRight idx 1)
+      (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).1).sload s
+    = σ.sload s
+  have hR' : Clear.KeccakLowSlot.RangeInWindow (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).2 :=
+    (rangeInWindow_accOut (rangeInWindow_arrOut hR))
+  have hC' : Clear.KeccakLowSlot.CachedInWindow (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).2 :=
+    (cachedInWindow_accOut (rangeInWindow_arrOut hR) (cachedInWindow_arrOut hR hC))
+  rw [nodeStore_sload_low_of_config hR' hC' hfin h4 hj hs]
+  rw [sload_accOut_of_clean s h3]
+  show ((arrOut σ (ss + 3)).2).sload s = σ.sload s
+  rw [sload_arrOut_of_clean s h2]
+
+/-- **DERIVED** companion to `updateStep_sload_low`. -/
+lemma updateStep_sload_low_of_config
+    {σ : EVMState} {ss base i idx maxN cur s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hs : s.val < lowSlotBound)
+    (hok : StepLowOK ss base (σ, i, idx, maxN, cur)) :
+    ((updateStep σ ss base i idx maxN cur).2).sload s = σ.sload s := by
+  obtain ⟨hj, hflag⟩ := hok
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      rw [if_pos hpar, if_pos hedge] at hflag
+      exact stepEdge_sload_low_of_config hR hC hs hj hflag
+    · rw [if_pos hpar, if_neg hedge]
+      rw [if_pos hpar, if_neg hedge] at hflag
+      exact stepEven_sload_low_of_config hR hC hs hj hflag
+  · rw [if_neg hpar]
+    rw [if_neg hpar] at hflag
+    exact stepOdd_sload_low_of_config hR hC hs hj hflag
+
+/-- **THE WALK PRESERVES EVERY LOW SLOT — DERIVED.**  The induction re-establishes the
+window pair at each level from `rangeInWindow_updateStep` / `cachedInWindow_updateStep`. -/
+lemma updateWalk_sload_low_of_config :
+    ∀ (kk : ℕ) {σ : EVMState} {ss base i idx maxN cur s : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ →
+    Clear.KeccakLowSlot.CachedInWindow σ →
+    s.val < lowSlotBound →
+    (∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) →
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload s = σ.sload s := by
+  intro kk
+  induction kk with
+  | zero =>
+    intro σ ss base i idx maxN cur s _ _ _ _
+    rfl
+  | succ kk ih =>
+    intro σ ss base i idx maxN cur s hR hC hs hok
+    have h0 := hok 0 (by omega)
+    simp only [updateWalk] at h0 ⊢
+    rw [ih (rangeInWindow_updateStep hR) (cachedInWindow_updateStep hR hC) hs (by
+      intro j hj
+      have := hok (j+1) (by omega)
+      simpa only [updateWalk] using this)]
+    exact updateStep_sload_low_of_config hR hC hs h0
+
+/-- **DERIVED** companion to `padStep_sload_low`. -/
+lemma padStep_sload_low_of_config
+    {σ : EVMState} {i s : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hs : s.val < lowSlotBound)
+    (hi : i.val < lowSlotBound)
+    (hlen : (((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i)).val < lowSlotBound)
+    (hfin : padFinClean σ i) :
+    ((padStep σ i).sload s) = σ.sload s := by
+  unfold padFinClean at hfin
+  have hE1 : (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).hash_collision = false :=
+    arrOut_clean_backward hfin
+  have hB : ((arrOut (arrOut σ 2).2 3).2).hash_collision = false := by
+    rwa [hash_collision_sstore] at hE1
+  have hA : ((arrOut σ 2).2).hash_collision = false := arrOut_clean_backward hB
+  have hksomeFin := keccakOut_some_of_clean
+    (σ := (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+        ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).mstore 0
+      ((arrOut σ 2).1 + i)) (p := 0) (n := 32) (by exact hfin)
+  have hpairFin : ((((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+        ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).mstore 0
+      ((arrOut σ 2).1 + i)).keccak256 0 32
+      = some ((arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+          ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+          ((arrOut σ 2).1 + i)).1,
+        (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+          ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+          ((arrOut σ 2).1 + i)).2) := by
+    rw [hksomeFin]
+    rfl
+  have hksomeA := keccakOut_some_of_clean
+    (σ := σ.mstore 0 2) (p := 0) (n := 32) (by exact hA)
+  have hpairA : (σ.mstore 0 2).keccak256 0 32
+      = some ((arrOut σ 2).1, (arrOut σ 2).2) := by
+    rw [hksomeA]
+    rfl
+  have hne1 : (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
+      ((arrOut σ 2).1 + i)).1
+      + ((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i) ≠ s :=
+    Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ s
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 0 _
+        (Clear.StorageFrame.rangeInWindow_sstore
+          (rangeInWindow_arrOut (rangeInWindow_arrOut hR))))
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 0 _
+        (Clear.StorageFrame.cachedInWindow_sstore
+          (cachedInWindow_arrOut (rangeInWindow_arrOut hR)
+            (cachedInWindow_arrOut hR hC))))
+      hpairFin hlen hs
+  have hne2 : (arrOut σ 2).1 + i ≠ s :=
+    Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config i s
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 0 2 hR)
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 0 2 hC)
+      hpairA hi hs
+  show ((pushEvm (arrOut (arrOut σ 2).2 3).2 ((arrOut σ 2).1 + i)
+      ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut (arrOut σ 2).2 3).1 + i))).sload s)
+    = σ.sload s
+  unfold pushEvm
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne1)]
+  rw [sload_arrOut_of_clean s hfin]
+  rw [Clear.KeccakDistinct.sload_sstore_of_ne _ (Ne.symm hne2)]
+  rw [sload_arrOut_of_clean s hB]
+  rw [sload_arrOut_of_clean s hA]
+
+/-- **THE PADDING WALK PRESERVES EVERY LOW SLOT — DERIVED.** -/
+lemma padWalk_sload_low_of_config :
+    ∀ (kk : ℕ) {σ : EVMState} {i om m s : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ →
+    Clear.KeccakLowSlot.CachedInWindow σ →
+    s.val < lowSlotBound →
+    (∀ j, j < kk → PadLowOK (padWalk j σ i om m)) →
+    ((padWalk kk σ i om m).1).sload s = σ.sload s := by
+  intro kk
+  induction kk with
+  | zero =>
+    intro σ i om m s _ _ _ _
+    rfl
+  | succ kk ih =>
+    intro σ i om m s hR hC hs hok
+    have h0 := hok 0 (by omega)
+    simp only [padWalk] at h0 ⊢
+    rw [ih (rangeInWindow_padStep hR) (cachedInWindow_padStep hR hC) hs (by
+      intro j hj
+      have := hok (j+1) (by omega)
+      simpa only [padWalk] using this)]
+    exact padStep_sload_low_of_config hR hC hs h0.1 h0.2.1 h0.2.2
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

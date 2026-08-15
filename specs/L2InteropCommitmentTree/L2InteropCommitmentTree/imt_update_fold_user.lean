@@ -1766,6 +1766,92 @@ lemma cachedInWindow_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
   exact Clear.StorageFrame.cachedInWindow_sstore
     (cachedInWindow_arrOut (rangeInWindow_arrOut hR) (cachedInWindow_arrOut hR hC))
 
+/-! ## The low-slot window config crosses the update walk
+
+The third property pair, transported the same way as `Separated` / `CacheInj` above.
+`keccak256_add_ne_lowSlot_of_config` and `keccak256_ne_lowSlot_of_config` consume these,
+so the walk-level low-slot frames cannot leave the axiomatic route without them. -/
+
+lemma rangeInWindow_updateStep {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow ((updateStep σ ss base i idx maxN cur).2) := by
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      unfold stepEdge nodeStore sideRead
+      exact Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_arrOut
+        (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut hR))))
+    · rw [if_pos hpar, if_neg hedge]
+      unfold stepEven nodeStore sibRead
+      exact Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_arrOut
+        (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+          (rangeInWindow_arrOut hR)))))
+  · rw [if_neg hpar]
+    unfold stepOdd nodeStore sibRead
+    exact Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_arrOut
+      (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+        (rangeInWindow_arrOut hR)))))
+
+lemma cachedInWindow_updateStep {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow ((updateStep σ ss base i idx maxN cur).2) := by
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      unfold stepEdge nodeStore sideRead
+      exact Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_arrOut
+        (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut hR)))
+        (cachedInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut hR))
+          (cachedInWindow_accOut (rangeInWindow_arrOut hR)
+            (cachedInWindow_arrOut hR hC))))
+    · rw [if_pos hpar, if_neg hedge]
+      unfold stepEven nodeStore sibRead
+      exact Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_arrOut
+        (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+          (rangeInWindow_arrOut hR))))
+        (cachedInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+            (rangeInWindow_arrOut hR)))
+          (cachedInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+            (cachedInWindow_arrOut (rangeInWindow_arrOut hR)
+              (cachedInWindow_arrOut hR hC)))))
+  · rw [if_neg hpar]
+    unfold stepOdd nodeStore sibRead
+    exact Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_arrOut
+      (rangeInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+        (rangeInWindow_arrOut hR))))
+      (cachedInWindow_arrOut (rangeInWindow_accOut (rangeInWindow_arrOut
+          (rangeInWindow_arrOut hR)))
+        (cachedInWindow_accOut (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+          (cachedInWindow_arrOut (rangeInWindow_arrOut hR)
+            (cachedInWindow_arrOut hR hC)))))
+
+lemma rangeInWindow_updateWalk :
+    ∀ (k : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ →
+    Clear.KeccakLowSlot.RangeInWindow ((updateWalk ss base k σ i idx maxN cur).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ ss base i idx maxN cur h
+    simp only [updateWalk]
+    exact ih (rangeInWindow_updateStep h)
+
+lemma cachedInWindow_updateWalk :
+    ∀ (k : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ → Clear.KeccakLowSlot.CachedInWindow σ →
+    Clear.KeccakLowSlot.CachedInWindow ((updateWalk ss base k σ i idx maxN cur).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ _ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ ss base i idx maxN cur hR hC
+    simp only [updateWalk]
+    exact ih (rangeInWindow_updateStep hR) (cachedInWindow_updateStep hR hC)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
