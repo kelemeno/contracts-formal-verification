@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakFuel
 import specs.KeccakLowSlot
 import specs.StateOk
 
@@ -173,6 +174,39 @@ lemma checked_sub_uint256_config {diff : Identifier} {x : Literal} {s₀ s₉ : 
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk hssok]
   exact hcfg
+
+/-- **FUEL FRAME.**  The checked subtraction spends no pool on either branch. -/
+lemma checked_sub_uint256_fuel {diff : Identifier} {x : Literal} {k : ℕ} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_checked_sub_uint256 diff x s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["x"],[x]⟧) := isOk_initcall_of_isOk hok
+  have hs1ok : isOk ((s₀☎️⟦["x"],[x]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧) :=
+    isOk_insert.mpr hf0
+  have hs2ok : isOk (((s₀☎️⟦["x"],[x]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)⟦"diff" ↦
+      ((s₀☎️⟦["x"],[x]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["x"]!!
+        + (((s₀☎️⟦["x"],[x]⟧)⟦"split_expr_0" ↦ UInt256.lnot 0⟧)["split_expr_0"]!!)⟧) :=
+    isOk_insert.mpr hs1ok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [← heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump']
+    exact hoo
+  have hsok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_1169358955168516216_isOk hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hg)
+  have hfss : Clear.KeccakFuel.Fuel ss.evm k := by
+    refine L2InteropCommitmentTree.Common.if_1169358955168516216_fuel hs2ok hssnf ?_
+      (Spec_ok_unfold hs2ok hssnf hg)
+    simp only [evm_insert]
+    rw [Clear.evm_initcall hok]
+    exact hf
+  rw [← heq]
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hsok]
+  exact hfss
 
 end
 

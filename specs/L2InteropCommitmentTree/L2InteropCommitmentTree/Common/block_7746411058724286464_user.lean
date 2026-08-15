@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
 import specs.StorageFrame
@@ -167,6 +168,39 @@ lemma block_7746411058724286464_config {s₀ s₉ : State} (hok : isOk s₀) (hn
   rw [extract_from_storage_value_dynamict_bytes32_evm hldok (Spec_ok_unfold hldok hnf h₄)]
   simp only [evm_insert]
   exact ⟨hR3, hC3⟩
+
+/-- **FUEL FRAME.**  The odd-parity block makes TWO accessor calls, so it costs two units;
+the checked subtraction and the storage-value extraction cost nothing.
+
+Worth noting for the loop budget: the "one hash per level" picture undercounts badly.  Every
+accessor call hashes, and this branch makes two before the fold's own hash. -/
+lemma block_7746411058724286464_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 2))
+    (h : A_block_7746411058724286464 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo
+    exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+      (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h1nf (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_sub_uint256_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  have hf1 : Clear.KeccakFuel.Fuel s₁.evm (k + 1) :=
+    storage_array_index_access_bytes32_dyn_ptr_fuel hok h1nf hf (Spec_ok_unfold hok h1nf h₁)
+  have hf2 : Clear.KeccakFuel.Fuel s₂.evm (k + 1) :=
+    checked_sub_uint256_fuel hs1 h2nf hf1 (Spec_ok_unfold hs1 h2nf h₂)
+  have hf3 : Clear.KeccakFuel.Fuel s₃.evm k :=
+    storage_array_index_access_bytes32_dyn_ptr_fuel hs2 h3nf hf2 (Spec_ok_unfold hs2 h3nf h₃)
+  have hldok : isOk (s₃⟦"split_expr_8" ↦ Clear.EVMState.sload s₃.evm (s₃["_8"]!!)⟧) :=
+    isOk_insert.mpr hs3
+  rw [extract_from_storage_value_dynamict_bytes32_evm hldok (Spec_ok_unfold hldok hnf h₄)]
+  simp only [evm_insert]
+  exact hf3
 
 end
 
