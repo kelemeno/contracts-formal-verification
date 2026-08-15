@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.KeccakDistinct
 import specs.KeccakLowSlot
 import specs.StorageFrame
@@ -34,7 +35,10 @@ def AFor_for_6561856544793224737 (s₀ s₉ : State) : Prop :=
   (∀ q : UInt256, (∀ p : UInt256, p < 1 → q ≠ s₀["dstSlot"]!! + p) →
     Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
   ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
-    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm)
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm) ∧
+  -- **THE FLAG, BOTH WAYS.**  An `mload` and an `sstore` per iteration; no hashing, so the
+  -- iff holds and the caller owes nothing.
+  (Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm)
 
 /-- Loop body: read one word from `srcPtr` and store it at `dstSlot + i`.
 
@@ -71,7 +75,7 @@ lemma for_6561856544793224737_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_6561856544793224737 : ∀ s₀, isOk s₀ → ACond_for_6561856544793224737 (👌 s₀) = 0 → AFor_for_6561856544793224737 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_6561856544793224737 ACond_for_6561856544793224737 at *
-  refine ⟨?_, hok, ?_, fun h => h⟩
+  refine ⟨?_, hok, ?_, fun h => h, Iff.rfl⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -99,11 +103,15 @@ lemma AOk_for_6561856544793224737 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
         simp only [evm_insert]
         rw [hb, Clear.evm_setEvm_of_isOk (by simp only [isOk_insert]; exact h0)]
         exact ⟨_, _, rfl⟩
-      refine ⟨hAF.1, hAF.2.1, ?_, ?_⟩
+      refine ⟨hAF.1, hAF.2.1, ?storage, ?config, ?clean⟩
+      case clean =>
+        -- the write is an `sstore`, which cannot raise the flag
+        obtain ⟨p, v, hp⟩ := hev4
+        rw [hAF.2.2.2.2, hp, Clear.KeccakClean.clean_sstore]
       swap
       · rintro ⟨hR, hC⟩
         obtain ⟨p, v, hp⟩ := hev4
-        refine hAF.2.2.2 ⟨?_, ?_⟩
+        refine hAF.2.2.2.1 ⟨?_, ?_⟩
         · rw [hp]; exact Clear.StorageFrame.rangeInWindow_sstore hR
         · rw [hp]; exact Clear.StorageFrame.cachedInWindow_sstore hC
       intro q hq

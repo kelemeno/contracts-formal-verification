@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.KeccakDistinct
 import specs.KeccakLowSlot
 import specs.StorageFrame
@@ -36,7 +37,10 @@ def AFor_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
     Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q) ∧
   ((Clear.KeccakLowSlot.RangeInWindow s₀.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₀.evm) →
     Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm) ∧
-  (∀ v : Identifier, v ≠ "start" → s₉[v]!! = s₀[v]!!)
+  (∀ v : Identifier, v ≠ "start" → s₉[v]!! = s₀[v]!!) ∧
+  -- **THE FLAG, BOTH WAYS.**  This loop only zeroes storage slots -- it never hashes --
+  -- so unlike the tree's folds it can state the flag as an iff rather than backwards only.
+  (Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm)
 
 /-- Loop body: zero one storage slot — `sstore(start, 0)`. -/
 def ABody_for_4496777052991139710 (s₀ s₉ : State) : Prop :=
@@ -64,7 +68,7 @@ lemma for_4496777052991139710_concrete_of_post_abs {s₀ s₉ : State} :
 lemma AZero_for_4496777052991139710 : ∀ s₀, isOk s₀ → ACond_for_4496777052991139710 (👌 s₀) = 0 → AFor_for_4496777052991139710 s₀ s₀ := by
   intro s₀ hok hcond
   unfold AFor_for_4496777052991139710 ACond_for_4496777052991139710 at *
-  refine ⟨?_, hok, ?_, fun h => h, fun _ _ => rfl⟩
+  refine ⟨?_, hok, ?_, fun h => h, fun _ _ => rfl, Iff.rfl⟩
   · intro evm store hs
     subst hs
     intro hlt
@@ -94,7 +98,11 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       -- NAMED goals: an anonymous `case _` after a multi-goal `refine` takes the FIRST
       -- one, not the one the block was written for, and the type error it produces points
       -- somewhere else entirely
-      refine ⟨hAF.1, hAF.2.1, ?storage, ?config, ?vars⟩
+      refine ⟨hAF.1, hAF.2.1, ?storage, ?config, ?vars, ?clean⟩
+      case clean =>
+        -- an `sstore` cannot raise the collision flag, and the rest of the loop is the
+        -- recursive instance
+        rw [hAF.2.2.2.2.2, hev4, Clear.KeccakClean.clean_sstore]
       case config =>
         -- this iteration's write is an `sstore`, and the recursive call carries the
         -- window the rest of the way
@@ -105,7 +113,7 @@ lemma AOk_for_4496777052991139710 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       case vars =>
         -- the body is a pure `setEvm` and the post rebinds only the cursor
         intro v hv
-        rw [hAF.2.2.2.2 v hv, h4, lookup_insert_of_ne hv, hb]
+        rw [hAF.2.2.2.2.1 v hv, h4, lookup_insert_of_ne hv, hb]
         exact Clear.lookup_setEvm (by simp [isOk])
       intro q hq
       -- the body's `setEvm` leaves the varstore alone, so the cursor is the caller's
