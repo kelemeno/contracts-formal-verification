@@ -412,3 +412,29 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.decodeLeaf_retarget_outside_of_config
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf_imtInsert_of_config
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.leafSetOf_evolution_step_of_config
+
+-- THE DEPLOYED insert-fidelity chain, axiom-free (2026-08-15).  The `_of_config` route now
+-- reaches all the way from the walk atoms to the Evolution insert disjunct.  Each twin
+-- carries NONE of the four KeccakInjective idealizations; what they take instead is five
+-- pool/window facts (Separated, CacheInUsed, CacheInj, RangeInWindow, CachedInWindow) at the
+-- dispatcher ENTRY state, plus two extra anchors in the cache pack.  The transport lemmas in
+-- imt_insert_gate collapse the chain's intermediate states onto that entry state.
+--
+-- THE TRADE, STATED PLAINLY: the originals assume the hash is injective, never returns a
+-- reserved low slot, and separates distinct preimages.  The twins assume instead that the
+-- model's keccak pool is internally consistent at entry (its slots pairwise apart, its cache
+-- injective, both clear of the low-slot window).  Neither is discharged at the concrete
+-- level.  The twins' assumptions are weaker and are about the MODEL rather than about
+-- keccak, which is why they are worth having -- but this is a change of trusted base, not
+-- its elimination.  The originals stay the ledger's non-clean entries until the no-theft
+-- chain is switched over deliberately.
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrSlot_ne_accSlot_of_clean
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.updateWalk_sload_low_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.padWalk_sload_low_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.updateWalk_sload_leaf_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.padWalk_sload_leaf_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.newLeafStage_decode_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.glueSeq_leafSetOf'_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_leafSetOf_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_evolution_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_evolution_step_of_config
