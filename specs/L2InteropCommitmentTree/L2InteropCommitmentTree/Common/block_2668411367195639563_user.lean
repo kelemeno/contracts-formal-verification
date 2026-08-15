@@ -1,6 +1,8 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.StateOk
+import specs.KeccakFuel
+import specs.KeccakLowSlot
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
@@ -103,6 +105,123 @@ lemma block_2668411367195639563_frame {v : Identifier} {s₀ s₉ : State}
     storage_array_index_access_bytes32_dyn_ptr_5303_frame haok h1nf h2 h3
       (Spec_ok_unfold haok h1nf hs₁),
     lookup_insert_of_ne h1]
+
+/-! ### The leaf write's frames
+
+Three callees in a row -- two address computations and one `sstore` -- so the block costs
+three keccak-fuel units and touches exactly one storage slot: the one the second accessor
+computed. -/
+
+/-- Everything the three lemmas below unpack in common: the four states are `Ok` and none
+of them ran out of fuel. -/
+private lemma chain_ok {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    {s₁ s₂ s₃ : State}
+    (hs₁ : Spec (A_storage_array_index_access_bytes32_dyn_ptr_5303 "_2" "_3"
+      ((s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧)["_1"]!!))
+      (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) s₁)
+    (hs₂ : Spec (A_storage_array_index_access_bytes32_dyn_ptr "_4" "_5"
+      (s₁["_2"]!!) (s₁["var_index"]!!)) s₁ s₂)
+    (hs₃ : Spec (A_update_storage_value_bytes32_to_bytes32
+      (s₂["_4"]!!) (s₂["_5"]!!) (s₂["var_itemHash"]!!)) s₂ s₃)
+    (heq : s₉ = s₃⟦"var_currentHash" ↦ s₃["var_itemHash"]!!⟧) :
+    (¬ ❓ s₁ ∧ ¬ ❓ s₂ ∧ ¬ ❓ s₃) ∧ (isOk s₁ ∧ isOk s₂) := by
+  subst heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf; simpa only [isOutOfFuel_insert'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel hs₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel hs₂ hoo)
+  exact ⟨⟨h1nf, h2nf, h3nf⟩,
+    storage_array_index_access_bytes32_dyn_ptr_5303_isOk h1nf (Spec_ok_unfold haok h1nf hs₁),
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold
+      (storage_array_index_access_bytes32_dyn_ptr_5303_isOk h1nf
+        (Spec_ok_unfold haok h1nf hs₁)) h2nf hs₂)⟩
+
+/-- **KECCAK WINDOW.**  Two hashes and one `sstore`, none of which disturbs it. -/
+lemma block_2668411367195639563_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_block_2668411367195639563 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  obtain ⟨⟨h1nf, h2nf, h3nf⟩, hok1, hok2⟩ := chain_ok hok hnf hs₁ hs₂ hs₃ heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have hae : (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧).evm = s₀.evm := evm_insert
+  obtain ⟨hR1, hC1⟩ := storage_array_index_access_bytes32_dyn_ptr_5303_config haok h1nf
+    (by rw [hae]; exact hR) (by rw [hae]; exact hC) (Spec_ok_unfold haok h1nf hs₁)
+  obtain ⟨hR2, hC2⟩ := storage_array_index_access_bytes32_dyn_ptr_config hok1 h2nf hR1 hC1
+    (Spec_ok_unfold hok1 h2nf hs₂)
+  obtain ⟨hR3, hC3⟩ := update_storage_value_bytes32_to_bytes32_config hok2 h3nf hR2 hC2
+    (Spec_ok_unfold hok2 h3nf hs₃)
+  subst heq
+  simpa only [evm_insert] using ⟨hR3, hC3⟩
+
+/-- **FUEL.**  Exactly three units: a hash per accessor, and one for the `sstore`. -/
+lemma block_2668411367195639563_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 3))
+    (h : A_block_2668411367195639563 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  obtain ⟨⟨h1nf, h2nf, h3nf⟩, hok1, hok2⟩ := chain_ok hok hnf hs₁ hs₂ hs₃ heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have hae : (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧).evm = s₀.evm := evm_insert
+  have hf1 : Clear.KeccakFuel.Fuel s₁.evm (k + 2) :=
+    storage_array_index_access_bytes32_dyn_ptr_5303_fuel haok h1nf
+      (by rw [hae]; exact hf) (Spec_ok_unfold haok h1nf hs₁)
+  have hf2 : Clear.KeccakFuel.Fuel s₂.evm (k + 1) :=
+    storage_array_index_access_bytes32_dyn_ptr_fuel hok1 h2nf hf1 (Spec_ok_unfold hok1 h2nf hs₂)
+  have hf3 : Clear.KeccakFuel.Fuel s₃.evm k :=
+    update_storage_value_bytes32_to_bytes32_fuel hok2 h3nf hf2 (Spec_ok_unfold hok2 h3nf hs₃)
+  subst heq
+  simpa only [evm_insert] using hf3
+
+/-- **THE LEAF WRITE PRESERVES EVERY LOW SLOT.**
+
+The one slot this block writes is the leaf's, and the leaf's slot is a keccak image --
+so no constant-numbered slot of the tree can be the target.  The caller supplies the
+keccak configuration, two units of fuel, the fact that `c` is a literal slot number, and
+one genuine obligation: that `var_index` is below `2 ^ 32`.  That last one is unavoidable
+here and is NOT the bounds check -- the leaf's slot is `keccak(level) + var_index`, so a
+wide enough index could in principle wrap onto a constant-numbered slot.  What the caller
+does not owe is the bounds check itself, since both accessors' `_slot_not_low` hold on
+either branch of their guards.
+
+This is the piece that lets `fun_updateLeaf`'s own storage frame close: the leaf write is
+the only `sstore` on the path that is not already accounted for. -/
+lemma block_2668411367195639563_sload_of_low {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 2)
+    (hj : (s₀["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_block_2668411367195639563 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  obtain ⟨⟨h1nf, h2nf, h3nf⟩, hok1, hok2⟩ := chain_ok hok hnf hs₁ hs₂ hs₃ heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have hae : (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧).evm = s₀.evm := evm_insert
+  -- the window and one unit of fuel reach the second accessor, which is where the
+  -- written slot is minted
+  obtain ⟨hR1, hC1⟩ := storage_array_index_access_bytes32_dyn_ptr_5303_config haok h1nf
+    (by rw [hae]; exact hR) (by rw [hae]; exact hC) (Spec_ok_unfold haok h1nf hs₁)
+  have hf1 : Clear.KeccakFuel.Fuel s₁.evm 1 :=
+    storage_array_index_access_bytes32_dyn_ptr_5303_fuel haok h1nf
+      (by rw [hae]; exact hf) (Spec_ok_unfold haok h1nf hs₁)
+  -- the index crosses the first accessor untouched, so the caller's bound is the one
+  -- the second accessor needs
+  have hidx : s₁["var_index"]!! = s₀["var_index"]!! := by
+    rw [storage_array_index_access_bytes32_dyn_ptr_5303_frame haok h1nf (by decide) (by decide)
+      (Spec_ok_unfold haok h1nf hs₁), lookup_insert_of_ne (by decide)]
+  have hne : s₂["_4"]!! ≠ c :=
+    storage_array_index_access_bytes32_dyn_ptr_slot_not_low hok1 h2nf hR1 hC1 hf1
+      (by rw [hidx]; exact hj) hcl (Spec_ok_unfold hok1 h2nf hs₂)
+  subst heq
+  rw [evm_insert,
+    update_storage_value_bytes32_to_bytes32_sload_frame hok2 h3nf (Ne.symm hne)
+      (Spec_ok_unfold hok2 h3nf hs₃),
+    storage_array_index_access_bytes32_dyn_ptr_sload hok1 h2nf (Spec_ok_unfold hok1 h2nf hs₂),
+    storage_array_index_access_bytes32_dyn_ptr_5303_sload haok h1nf
+      (Spec_ok_unfold haok h1nf hs₁), hae]
 
 end
 
