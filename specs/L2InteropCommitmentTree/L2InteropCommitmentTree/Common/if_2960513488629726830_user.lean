@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 import specs.StorageFrame
 import specs.StateOk
@@ -170,6 +171,43 @@ lemma if_2960513488629726830_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀
         (by rw [guardM_evm hok]; exact Clear.KeccakFuel.Fuel.mstore _ _ hf) hspec
     rw [hneg hc, Clear.evm_setEvm_of_isOk hsok]
     exact Clear.KeccakFuel.Fuel.evm_revert _ _ hfe
+
+/-- **CLEAN FLAG.**  The index-bound guard: on the failing branch it encodes a revert
+reason and reverts, and neither step hashes.  A revert is a flag rather than a rollback in
+this model, so it carries the collision bit across like everything else. -/
+lemma if_2960513488629726830_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_2960513488629726830 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨se, hse, hpos, hneg⟩ := h
+  by_cases hc : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!
+  · rw [hpos hc]
+  · have hsnf : ¬ ❓ se := by rw [hneg hc] at hnf; simpa only [isOutOfFuel_setEvm'] using hnf
+    have hspec : A_abi_encode_uint256_uint256 "split_expr_3" _ _ (guardM s₀) se :=
+      Spec_ok_unfold (guardM_isOk hok) hsnf hse
+    have hsok : isOk se := abi_encode_uint256_uint256_isOk hsnf hspec
+    rw [hneg hc, Clear.evm_setEvm_of_isOk hsok, Clear.KeccakClean.clean_evm_revert,
+      abi_encode_uint256_uint256_clean (guardM_isOk hok) hspec, guardM_evm hok,
+      Clear.KeccakClean.clean_mstore]
+
+/-- **FRAME.**  The index-bound guard leaves the caller's bindings alone apart from the two
+scratch slots the revert reason is built in -- so `var_index` and `var_maxNodeNumber` cross
+it and reach the fold. -/
+lemma if_2960513488629726830_frame {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (hv2 : v ≠ "split_expr_2") (hv3 : v ≠ "split_expr_3")
+    (h : A_if_2960513488629726830 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨se, hse, hpos, hneg⟩ := h
+  by_cases hc : s₀["var_index"]!! ≤ s₀["var_maxNodeNumber"]!!
+  · rw [hpos hc]
+  · have hsnf : ¬ ❓ se := by rw [hneg hc] at hnf; simpa only [isOutOfFuel_setEvm'] using hnf
+    have hspec : A_abi_encode_uint256_uint256 "split_expr_3" _ _ (guardM s₀) se :=
+      Spec_ok_unfold (guardM_isOk hok) hsnf hse
+    have hsok : isOk se := abi_encode_uint256_uint256_isOk hsnf hspec
+    rw [hneg hc, Clear.lookup_setEvm hsok,
+      abi_encode_uint256_uint256_frame (guardM_isOk hok) hsnf hv3 hspec]
+    -- and `guardM` is the caller's state with one scratch binding and a memory write
+    unfold guardM
+    rw [Clear.lookup_setEvm (isOk_multifill hok), multifill_cons, multifill_nil,
+      lookup_insert_of_ne hv2]
 
 end
 

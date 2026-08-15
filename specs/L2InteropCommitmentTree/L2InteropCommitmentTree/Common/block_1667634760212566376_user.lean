@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.KeccakFuel
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.StateOk
 
@@ -73,6 +74,13 @@ lemma block_1667634760212566376_fuel {k : ℕ} {s₀ s₉ : State}
   subst h
   simp only [evm_insert]
   exact hf
+
+/-- **CLEAN FLAG.**  This block only zeroes the level counter. -/
+lemma block_1667634760212566376_clean {s₀ s₉ : State}
+    (h : A_block_1667634760212566376 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  subst h
+  simp only [evm_insert]
 
 end
 

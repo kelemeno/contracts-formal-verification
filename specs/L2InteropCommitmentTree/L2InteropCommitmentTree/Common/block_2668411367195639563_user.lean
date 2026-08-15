@@ -269,6 +269,27 @@ lemma block_2668411367195639563_sload_of_low_of_clean {c : Literal} {s₀ s₉ :
     storage_array_index_access_bytes32_dyn_ptr_5303_sload haok h1nf
       (Spec_ok_unfold haok h1nf hs₁), hae]
 
+/-- **CLEAN FLAG, BACKWARDS.**  Two address computations and a write: the accessors hash,
+so this runs in the one direction they give. -/
+lemma block_2668411367195639563_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_2668411367195639563 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  obtain ⟨⟨h1nf, h2nf, h3nf⟩, hok1, hok2⟩ := chain_ok hok hnf hs₁ hs₂ hs₃ heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have hae : (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧).evm = s₀.evm := evm_insert
+  rw [heq, evm_insert] at hclean
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (update_storage_value_bytes32_to_bytes32_clean hok2 h3nf
+      (Spec_ok_unfold hok2 h3nf hs₃)).mp hclean
+  have c1 : Clear.KeccakClean.Clean s₁.evm :=
+    storage_array_index_access_bytes32_dyn_ptr_clean hok1 h2nf c2
+      (Spec_ok_unfold hok1 h2nf hs₂)
+  rw [← hae]
+  exact storage_array_index_access_bytes32_dyn_ptr_5303_clean haok h1nf c1
+    (Spec_ok_unfold haok h1nf hs₁)
+
 end
 
 end L2InteropCommitmentTree.Common

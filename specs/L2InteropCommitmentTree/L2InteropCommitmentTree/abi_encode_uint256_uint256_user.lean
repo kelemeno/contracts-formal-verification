@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 import specs.StateOk
 
@@ -103,6 +104,38 @@ lemma abi_encode_uint256_uint256_fuel {tail : Identifier} {value0 value1 : Liter
   obtain ⟨a, b, c, d, he⟩ := abi_encode_evm_shape hok h
   rw [he]
   exact Clear.KeccakFuel.Fuel.mstore c d (Clear.KeccakFuel.Fuel.mstore a b hf)
+
+/-- **CLEAN FLAG.**  The encoder is two memory writes; it cannot touch the flag. -/
+lemma abi_encode_uint256_uint256_clean {tail : Identifier} {value0 value1 : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨a, b, c, d, he⟩ := abi_encode_evm_shape hok h
+  rw [he, Clear.KeccakClean.clean_mstore, Clear.KeccakClean.clean_mstore]
+
+/-- **FRAME.**  The encoder writes memory, and restores the caller's bindings apart from
+`tail`. -/
+lemma abi_encode_uint256_uint256_frame {tail : Identifier} {value0 value1 : Literal}
+    {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ tail)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  unfold A_abi_encode_uint256_uint256 at h
+  subst h
+  have hrev : isOk (🧟 (((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)🇪⟦
+      Clear.EVMState.mstore (s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧).evm 4
+        ((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)["value0"]!!)⟧)🇪⟦
+      Clear.EVMState.mstore ((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)🇪⟦
+        Clear.EVMState.mstore (s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧).evm 4
+          ((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)["value0"]!!)⟧).evm 36
+        (((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)🇪⟦
+          Clear.EVMState.mstore
+            (s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧).evm 4
+            ((s₀☎️⟦["value0", "value1"],[value0, value1]⟧⟦"tail" ↦ 68⟧)["value0"]!!)⟧)["value1"]!!)⟧)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
 
 end
 
