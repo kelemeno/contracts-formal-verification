@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4006823798342809328
@@ -172,6 +175,55 @@ lemma ALeave_for_2693611967757691411 : ∀ s₀ s₂, isOk s₀ → isLeave s₂
   · exact absurd h2 (by simp [State.isLeave])
   · exact absurd h2 (by simp [State.isLeave])
   · exact absurd hs (by simp)
+
+/-- **ONE ITERATION CARRIES THE FLAG BACK.**
+
+An `Ok` end forces both break guards to have fallen through, so each is the identity and
+the only hashing is inside the copy block.  Same shape as the fold's `ABody_..._clean`;
+the break arms are refuted rather than handled, because a break cannot end `Ok`. -/
+lemma ABody_for_2693611967757691411_clean {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : ABody_for_2693611967757691411 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  rw [heq] at hok9 hclean
+  have h4nf : ¬ ❓ s₄ := Clear.not_isOutOfFuel_of_isOk hok9
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hgc : isOk (levelGuardState s₀) := by
+    unfold levelGuardState; simp only [isOk_insert]; exact hok
+  have hgce : (levelGuardState s₀).evm = s₀.evm := by
+    unfold levelGuardState; simp only [evm_insert]
+  have hg1 := Spec_ok_unfold hgc h1nf h₁
+  by_cases hf1 : (levelGuardState s₀)["split_expr_6"]!! = 0
+  · -- the level-bound break reaches the end, contradicting `Ok`
+    exfalso
+    have e1 : s₁ = 💔(levelGuardState s₀) := hg1.1 hf1
+    have hb1 : isBreak s₁ := by rw [e1]; exact Clear.isBreak_setBreak hgc
+    obtain ⟨be, bst, hj1⟩ := Clear.isJump_Break_of_isBreak hb1
+    exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break
+      (Clear.isJump_of_Spec_of_isJump h₄ (Clear.isJump_of_Spec_of_isJump h₃
+        (Clear.isJump_of_Spec_of_isJump h₂ hj1)))) hok9
+  · have e1 : s₁ = levelGuardState s₀ := hg1.2 hf1
+    have hs1 : isOk s₁ := by rw [e1]; exact hgc
+    have hg2 := Spec_ok_unfold hs1 h2nf h₂
+    by_cases hf2 : s₁["var_oldMaxNodeNumber"]!! = s₁["var_maxNodeNumber"]!!
+    · exfalso
+      have e2 : s₂ = 💔s₁ := hg2.1 hf2
+      have hb2 : isBreak s₂ := by rw [e2]; exact Clear.isBreak_setBreak hs1
+      obtain ⟨be, bst, hj2⟩ := Clear.isJump_Break_of_isBreak hb2
+      exact not_isOk_of_isBreak (Clear.isBreak_of_isJump_Break
+        (Clear.isJump_of_Spec_of_isJump h₄ (Clear.isJump_of_Spec_of_isJump h₃ hj2))) hok9
+    · have e2 : s₂ = s₁ := hg2.2 hf2
+      have hs2 : isOk s₂ := by rw [e2]; exact hs1
+      have a₃ := Spec_ok_unfold hs2 h3nf h₃
+      have hs3 : isOk s₃ := block_7020639558537270069_isOk hs2 h3nf a₃
+      have e4 : s₄.evm = s₃.evm :=
+        block_294889826768454570_evm hs3 h4nf (Spec_ok_unfold hs3 h4nf h₄)
+      rw [e4] at hclean
+      have c2 := block_7020639558537270069_clean_unconditional hs2 h3nf hclean a₃
+      rw [e2, e1, hgce] at c2
+      exact c2
 
 end
 

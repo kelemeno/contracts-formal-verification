@@ -229,6 +229,32 @@ lemma block_7020639558537270069_sload_of_low {c : Literal} {s₀ s₉ : State}
       (by rw [h7]; exact Ne.symm hne) hclow (by rw [esl]; exact hlen _) (by rw [e3]; exact hR2)
       (by rw [e3]; exact hC2) hclean (Spec_ok_unfold hs3 h4nf h₄), esl]
 
+/-- **CLEAN FLAG, BACKWARDS, WITH NO SIDE CONDITION.**  The `hfits`-free companion, built
+on `array_push_clean_unconditional`.  This is the form the loop induction needs: inside the
+loop nobody knows the level array is small, and the flag is supposed to cost nothing. -/
+lemma block_7020639558537270069_clean_unconditional {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_7020639558537270069 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  obtain ⟨h4nf, h3nf, h2nf, h1nf⟩ := b7020_chain hnf h₂ h₃ h₄ heq
+  have a₁ := Spec_ok_unfold hok h1nf h₁
+  have hs1 : isOk s₁ := storage_array_index_access_bytes32_dyn_ptr_isOk h1nf a₁
+  have a₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := storage_array_index_access_bytes32_dyn_ptr_isOk h2nf a₂
+  have hldok : isOk (s₂⟦"split_expr_7" ↦ Clear.EVMState.sload s₂.evm (s₂["_9"]!!)⟧) :=
+    isOk_insert.mpr hs2
+  have a₃ := Spec_ok_unfold hldok h3nf h₃
+  have hs3 : isOk s₃ := extract_from_storage_value_dynamict_bytes32_isOk h3nf a₃
+  have e3 : s₃.evm = s₂.evm := by
+    rw [extract_from_storage_value_dynamict_bytes32_evm hldok a₃, evm_insert]
+  rw [heq] at hclean
+  have c3 : Clear.KeccakClean.Clean s₃.evm :=
+    array_push_clean_unconditional hs3 h4nf hclean (Spec_ok_unfold hs3 h4nf h₄)
+  rw [e3] at c3
+  exact storage_array_index_access_bytes32_dyn_ptr_clean hok h1nf
+    (storage_array_index_access_bytes32_dyn_ptr_clean hs1 h2nf c3 a₂) a₁
+
 end
 
 end L2InteropCommitmentTree.Common
