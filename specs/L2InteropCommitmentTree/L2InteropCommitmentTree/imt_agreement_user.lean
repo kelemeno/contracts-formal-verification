@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakFresh
+import specs.KeccakSlotSep
 
 import specs.KeccakDeterminism
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_update_fold_user
@@ -352,6 +355,125 @@ theorem fold_walk_agree :
     · intro i hi hi'
       rw [hjunkf i hi hi', hjunkv' i hi hi']
     · rw [hflag, hflagv']
+
+/-! ### The pool invariants cross the walk
+
+Companions to `updateStep_lookup_mono` / `updateWalk_lookup_mono`, for the three properties
+the derived (axiom-free) separation route consumes.  Same shape: case on the step's three
+branches, then induct on the level count.
+
+These are what a `_of_config` twin of anything downstream of a walk needs -- without them
+the properties stop at the walk's entry state and the derived route cannot be stated past
+it. -/
+
+lemma separated_updateStep {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated ((updateStep σ ss base i idx maxN cur).2) := by
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      unfold stepEdge nodeStore sideRead
+      exact Clear.StorageFrame.separated_sstore (separated_arrOut (separated_arrOut
+        (separated_accOut (separated_arrOut h))))
+    · rw [if_pos hpar, if_neg hedge]
+      unfold stepEven nodeStore sibRead
+      exact Clear.StorageFrame.separated_sstore (separated_arrOut (separated_arrOut
+        (separated_accOut (separated_arrOut (separated_arrOut h)))))
+  · rw [if_neg hpar]
+    unfold stepOdd nodeStore sibRead
+    exact Clear.StorageFrame.separated_sstore (separated_arrOut (separated_arrOut
+      (separated_accOut (separated_arrOut (separated_arrOut h)))))
+
+lemma separated_updateWalk :
+    ∀ (k : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256},
+    Clear.KeccakSlotSep.Separated σ →
+    Clear.KeccakSlotSep.Separated ((updateWalk ss base k σ i idx maxN cur).1) := by
+  intro k
+  induction k with
+  | zero => intro σ ss base i idx maxN cur h; exact h
+  | succ k ih =>
+    intro σ ss base i idx maxN cur h
+    simp only [updateWalk]
+    exact ih (separated_updateStep h)
+
+/-- `CacheInUsed` first: `CacheInj`'s step lemma consumes it, so the two travel together. -/
+lemma cacheInUsed_updateStep {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed ((updateStep σ ss base i idx maxN cur).2) := by
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      unfold stepEdge nodeStore sideRead
+      exact Clear.StorageFrame.cacheInUsed_sstore (cacheInUsed_arrOut (cacheInUsed_arrOut
+        (Clear.KeccakFresh.cacheInUsed_accOut (cacheInUsed_arrOut h))))
+    · rw [if_pos hpar, if_neg hedge]
+      unfold stepEven nodeStore sibRead
+      exact Clear.StorageFrame.cacheInUsed_sstore (cacheInUsed_arrOut (cacheInUsed_arrOut
+        (Clear.KeccakFresh.cacheInUsed_accOut (cacheInUsed_arrOut (cacheInUsed_arrOut h)))))
+  · rw [if_neg hpar]
+    unfold stepOdd nodeStore sibRead
+    exact Clear.StorageFrame.cacheInUsed_sstore (cacheInUsed_arrOut (cacheInUsed_arrOut
+      (Clear.KeccakFresh.cacheInUsed_accOut (cacheInUsed_arrOut (cacheInUsed_arrOut h)))))
+
+lemma cacheInj_updateStep {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj ((updateStep σ ss base i idx maxN cur).2) := by
+  unfold updateStep
+  by_cases hpar : Fin.land idx 1 = 0
+  · by_cases hedge : maxN = idx
+    · rw [if_pos hpar, if_pos hedge]
+      unfold stepEdge nodeStore sideRead
+      exact Clear.StorageFrame.cacheInj_sstore (cacheInj_arrOut
+        (cacheInUsed_arrOut (Clear.KeccakFresh.cacheInUsed_accOut (cacheInUsed_arrOut hu)))
+        (cacheInj_arrOut (Clear.KeccakFresh.cacheInUsed_accOut (cacheInUsed_arrOut hu))
+          (Clear.KeccakFresh.cacheInj_accOut (cacheInUsed_arrOut hu)
+            (cacheInj_arrOut hu h))))
+    · rw [if_pos hpar, if_neg hedge]
+      unfold stepEven nodeStore sibRead
+      exact Clear.StorageFrame.cacheInj_sstore (cacheInj_arrOut
+        (cacheInUsed_arrOut (Clear.KeccakFresh.cacheInUsed_accOut
+          (cacheInUsed_arrOut (cacheInUsed_arrOut hu))))
+        (cacheInj_arrOut (Clear.KeccakFresh.cacheInUsed_accOut
+            (cacheInUsed_arrOut (cacheInUsed_arrOut hu)))
+          (Clear.KeccakFresh.cacheInj_accOut
+            (cacheInUsed_arrOut (cacheInUsed_arrOut hu))
+            (cacheInj_arrOut (cacheInUsed_arrOut hu) (cacheInj_arrOut hu h)))))
+  · rw [if_neg hpar]
+    unfold stepOdd nodeStore sibRead
+    exact Clear.StorageFrame.cacheInj_sstore (cacheInj_arrOut
+      (cacheInUsed_arrOut (Clear.KeccakFresh.cacheInUsed_accOut
+        (cacheInUsed_arrOut (cacheInUsed_arrOut hu))))
+      (cacheInj_arrOut (Clear.KeccakFresh.cacheInUsed_accOut
+          (cacheInUsed_arrOut (cacheInUsed_arrOut hu)))
+        (Clear.KeccakFresh.cacheInj_accOut
+          (cacheInUsed_arrOut (cacheInUsed_arrOut hu))
+          (cacheInj_arrOut (cacheInUsed_arrOut hu) (cacheInj_arrOut hu h)))))
+
+lemma cacheInUsed_updateWalk :
+    ∀ (k : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256},
+    Clear.KeccakFresh.CacheInUsed σ →
+    Clear.KeccakFresh.CacheInUsed ((updateWalk ss base k σ i idx maxN cur).1) := by
+  intro k
+  induction k with
+  | zero => intro σ ss base i idx maxN cur h; exact h
+  | succ k ih =>
+    intro σ ss base i idx maxN cur h
+    simp only [updateWalk]
+    exact ih (cacheInUsed_updateStep h)
+
+lemma cacheInj_updateWalk :
+    ∀ (k : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256},
+    Clear.KeccakFresh.CacheInUsed σ → Clear.KeccakFresh.CacheInj σ →
+    Clear.KeccakFresh.CacheInj ((updateWalk ss base k σ i idx maxN cur).1) := by
+  intro k
+  induction k with
+  | zero => intro σ ss base i idx maxN cur _ h; exact h
+  | succ k ih =>
+    intro σ ss base i idx maxN cur hu h
+    simp only [updateWalk]
+    exact ih (cacheInUsed_updateStep hu) (cacheInj_updateStep hu h)
 
 end
 

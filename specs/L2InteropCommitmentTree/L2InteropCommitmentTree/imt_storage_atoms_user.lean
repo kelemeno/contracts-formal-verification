@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakFresh
+import specs.KeccakSlotSep
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn__dyn
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.extract_from_storage_value_dynamict_bytes32
@@ -920,6 +923,35 @@ lemma store_call_block
              List.append_assoc, List.cons_append]
   rw [h18, h19, hcur]
   rw [update_storage_call_0]
+
+/-! ### Pool properties across the two accessor atoms
+
+`arrOut` is `keccakOut ∘ mstore` and `accOut` is `keccakOut ∘ mstore ∘ mstore`, so the
+three pool invariants cross both for the reason they cross everything: a step can only
+SHRINK the set of slots a state may produce.  These are the atoms the walk-level versions
+induct over. -/
+
+theorem separated_arrOut {σ : EVMState} {a : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (arrOut σ a).2 :=
+  Clear.KeccakSlotSep.separated_keccakOut (Clear.StorageFrame.separated_mstore h)
+
+theorem cacheInUsed_arrOut {σ : EVMState} {a : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (arrOut σ a).2 :=
+  Clear.KeccakFresh.cacheInUsed_keccakOut (Clear.KeccakFresh.cacheInUsed_mstore 0 a h)
+
+theorem cacheInj_arrOut {σ : EVMState} {a : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (arrOut σ a).2 :=
+  Clear.KeccakFresh.cacheInj_keccakOut (Clear.KeccakFresh.cacheInUsed_mstore 0 a hu)
+    (Clear.KeccakFresh.cacheInj_mstore 0 a h)
+
+theorem separated_accOut {σ : EVMState} {key base : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (accOut σ key base).2 :=
+  Clear.KeccakSlotSep.separated_keccakOut (Clear.StorageFrame.separated_mstore
+    (Clear.StorageFrame.separated_mstore h))
 
 end
 
