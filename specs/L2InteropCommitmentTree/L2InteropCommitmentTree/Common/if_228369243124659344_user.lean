@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.KeccakLowSlot
 import specs.RevertModel
@@ -157,6 +158,19 @@ state passes through untouched, which is what lets a caller reason about the wri
 follows without carrying a reverting branch. -/
 lemma if_228369243124659344_id_of_zero {s₀ s₉ : State} (hz : s₀["offset"]!! = 0)
     (h : A_if_228369243124659344 s₀ s₉) : s₉ = s₀ := h.1 hz
+
+/-- **CLEAN FLAG.**  The non-zero-offset arm builds a revert reason and reverts; neither
+that nor the fall-through hashes, so the flag reads the same at both ends. -/
+lemma if_228369243124659344_clean {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_if_228369243124659344 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  by_cases hg : s₀["offset"]!! = 0
+  · rw [h.1 hg]
+  · rcases s₀ with ⟨evm, store⟩ | _ | _
+    · rw [h.2 hg, evm_tower3, Clear.KeccakClean.clean_evm_revert, evm_tower2,
+        Clear.KeccakClean.clean_mstore, evm_tower1, Clear.KeccakClean.clean_mstore]
+    · exact absurd hok (by simp [isOk])
+    · exact absurd hok (by simp [isOk])
 
 end
 

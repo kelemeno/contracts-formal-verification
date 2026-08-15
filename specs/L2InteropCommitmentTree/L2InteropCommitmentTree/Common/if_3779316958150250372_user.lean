@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.KeccakLowSlot
 import specs.KeccakDistinct
@@ -165,11 +166,39 @@ lemma if_3779316958150250372_frame {v : Identifier} {s₀ s₉ : State} (hok : i
         (Clear.KeccakDeterminism.keccakOut
           (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
       simp only [isOk_setEvm]; exact hok
-    obtain ⟨-, -, -, -, hvars⟩ :=
+    obtain ⟨-, -, -, -, hvars, -⟩ :=
       Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
     -- the loop's frame skips `start`; the remaining inserts come off outermost first
     rw [hgt hg, hvars v hs, lookup_insert_of_ne hs, lookup_insert_of_ne h1,
       lookup_insert_of_ne hd, Clear.lookup_setEvm hmok, Clear.lookup_setEvm hok]
+
+/-- **CLEAN FLAG, BACKWARDS.**  This guard hashes -- it takes `keccak(slot)` to find the
+old array's data region before zeroing it -- so unlike its sibling it runs one way only.
+
+Note the loop underneath contributes an IFF (it only zeroes slots), and the direction is
+lost here rather than there: one `keccakOut` in the guard's own preamble is enough to make
+the whole thing backward-only. -/
+lemma if_3779316958150250372_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_if_3779316958150250372 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨ss, hspec, hle, hgt⟩ := h
+  by_cases hg : s₀["oldLen_1"]!! ≤ 1
+  · rw [hle hg] at hclean; exact hclean
+  · have hssnf : ¬ ❓ ss := by rw [hgt hg] at hnf; exact hnf
+    simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
+    have hmok : isOk (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    have hkok : isOk ((s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧)🇪⟦
+        (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    obtain ⟨-, -, -, -, -, hcl⟩ :=
+      Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
+    rw [hgt hg, hcl] at hclean
+    -- peel the two inserts, the hash, and the memory write
+    simp only [evm_insert] at hclean
+    rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hok] at hclean
+    exact Clear.KeccakClean.clean_of_keccakOut_mstore hclean
 
 end
 
