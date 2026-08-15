@@ -588,6 +588,67 @@ lemma push_element_ne_low_slot_of_clean {array value0 c : Literal} {s₀ : State
   have hsome := Clear.KeccakClean.keccak256_some_of_clean hclean
   exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hidx hlow
 
+/-! ### Whole-call frames for the push
+
+The internal `pushSt_*` lemmas describe the state just after the length write.  These carry
+window and flag across the ENTIRE call, which is what a caller composing the push into a
+larger block needs.  Both go through `array_push_normal`, which collapses the length-overflow
+guard given `hfits` -- the guard's own frames would work too, but the normal form is shorter
+and `hfits` is a hypothesis the caller has to supply for the length result anyway. -/
+
+/-- **KECCAK WINDOW, WHOLE CALL.**  A length write, one address hash, one element write. -/
+lemma array_push_config {array value0 : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  subst heq
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  obtain ⟨hR2, hC2⟩ := storage_array_index_access_bytes32_dyn_ptr_config hstok h2nf hRs hCs
+    (Spec_ok_unfold hstok h2nf h₂)
+  obtain ⟨hR3, hC3⟩ := update_storage_value_bytes32_to_bytes32_config hs2 h3nf hR2 hC2
+    (Spec_ok_unfold hs2 h3nf h₃)
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk
+    (update_storage_value_bytes32_to_bytes32_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃))]
+  exact ⟨hR3, hC3⟩
+
+/-- **CLEAN FLAG, BACKWARDS, WHOLE CALL.**  One hash, inside the address computation. -/
+lemma array_push_clean {array value0 : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  subst heq
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk
+    (update_storage_value_bytes32_to_bytes32_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃))] at hclean
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (update_storage_value_bytes32_to_bytes32_clean hs2 h3nf
+      (Spec_ok_unfold hs2 h3nf h₃)).mp hclean
+  have cst : Clear.KeccakClean.Clean (pushSt s₀ array value0).evm :=
+    storage_array_index_access_bytes32_dyn_ptr_clean hstok h2nf c2
+      (Spec_ok_unfold hstok h2nf h₂)
+  rw [pushSt_evm hok, Clear.KeccakClean.clean_sstore] at cst
+  exact cst
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

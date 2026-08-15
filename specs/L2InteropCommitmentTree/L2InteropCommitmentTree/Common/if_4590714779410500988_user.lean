@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x41
@@ -70,6 +73,39 @@ lemma if_4590714779410500988_id_of_ne {s₀ s₉ : State}
     (h : A_if_4590714779410500988 s₀ s₉) : s₉ = s₀ := by
   obtain ⟨_, _, _, hneg⟩ := h
   exact hneg hne
+
+/-- **STORAGE FRAME.**  Either branch: the panic writes only memory. -/
+lemma if_4590714779410500988_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_4590714779410500988 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["split_expr_0"]!! = 0
+  · rw [hpos hc]
+    exact panic_error_0x41_sload hok (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]
+
+/-- **KECCAK WINDOW.** -/
+lemma if_4590714779410500988_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_4590714779410500988 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["split_expr_0"]!! = 0
+  · rw [hpos hc]
+    exact panic_error_0x41_config hok hR hC
+      (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]; exact ⟨hR, hC⟩
+
+/-- **CLEAN FLAG.** -/
+lemma if_4590714779410500988_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_4590714779410500988 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["split_expr_0"]!! = 0
+  · rw [hpos hc]
+    exact panic_error_0x41_clean hok (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]
 
 end
 
