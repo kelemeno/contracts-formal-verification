@@ -405,6 +405,70 @@ Three instances in one session, all of which produced confident wrong output:
 Prefer a parser to a regex, and **self-test any checker in the FAILING direction** before trusting it
 (`CONTRACTS_DIR=<copy>` exists on the invariant script for exactly this).
 
+## The derived route: getting off the keccak axioms
+
+Four `Clear.KeccakInjective` axioms idealize keccak: `keccak256_inj`, `keccak256_slot_sep`,
+`keccak256_ne_lowSlot`, `keccak256_add_ne_lowSlot`. Most results that depend on them have an
+axiom-free `_of_config` twin that assumes instead that the MODEL's keccak pool is internally
+consistent — its slots pairwise apart (`Separated`), its cache injective (`CacheInj`), both
+clear of the low-slot window (`RangeInWindow` / `CachedInWindow`).
+
+**This is a change of trusted base, not its elimination.** Neither side is discharged at the
+concrete level. The twins' assumptions are weaker and are about the model rather than about
+keccak, which is why they are worth having. `specs/AttackVectors/Audit.lean` states the trade
+where it lists them.
+
+### Whether a site can convert is decided by its SHAPE
+
+| site compares | convertible? | how |
+|---|---|---|
+| a hash vs a CONSTANT | always, one line | `keccak256_{ne,add_ne}_lowSlot_of_config`; bridge the window pair with `noLowInRange_of_window` / `noLowCached_of_window` |
+| two hashes IN ONE STATE | yes, after transport | `cached_off_ne_off` and friends; get both slots cached there first |
+| two hashes ACROSS UNRELATED STATES | **no, not as stated** | the axiom compares slots computed in states with no established relationship; no pool argument reaches across that |
+
+Confirmed instances of the third kind: `Sep32` / `sep32_of_keccak64` (imt_vti), and two of the
+three slots in `fun_registerNewZKChain_value_survives_fun_add` (L1Bridgehub). Converting one
+means restating its hypotheses as cache hits at a common state — an interface change that
+needs the concrete caller's execution thread ESTABLISHED, not assumed.
+
+### Transport is the work, not the separation lemmas
+
+A twin needs its pool facts AT THE STATE WHERE THE HASH HAPPENS, and that state is usually
+below a loop. The separation lemmas already existed; what blocked migration was carrying the
+properties past each walk. The families now exist for `arrOut`, `accOut`, `pushEvm`, the
+padding step/walk, the leaf write, the update step/walk, and the ten weld-chain constructors
+(`imt_insert_gate`), plus `lookup_mono_*` for cache hits (`imt_fidelity`, `imt_weld`).
+
+Place a transport lemma next to the DEFINITION it transports, or at the first file that sees
+both ends. Note `mstore` cache-transport is DEFEQ (so `h` alone typechecks) while `sstore`
+needs a lemma — it cases on the account lookup.
+
+### The `@[reducible]` weld states are a heartbeat trap
+
+`wE4`, `wS1`, `wH1`, `wS3`, `wH3`, `wF5`, `wFinal` … are all `@[reducible]`, which `imt_weld`
+needs for its `rfl`-plumbing and every downstream proof pays for. Anything that normalises or
+motive-abstracts over one unfolds the whole dispatcher chain. Rules that follow:
+
+- never rewrite BACKWARD over a weld state — abstracting a big term out of a goal is the
+  expensive direction, substituting a variable into one is free;
+- push `+ 0` / `add_zero` fixups into lemmas whose states are abstract variables (that is what
+  the zero-offset helpers in `imt_vti` are for);
+- keep a calc running over the abstract cached word; touch the concrete slot once, at the end.
+
+`vtiAt_wFinal_old_of_config` is unproved because of this and nothing else — its mathematics is
+complete and every site typechecks. Measured: no step is pathological (each clears at 800k),
+the anchors fit as one declaration (4M), but factoring them into lemmas MOVES the cost rather
+than removing it, because the `obtain`s cost what the annotations did. The cost is in the
+TYPES. A real fix is a cheaper type — irreducible weld states, or the pool facts bundled into
+one structure — which is a corpus-wide change.
+
+### Verify by `#print axioms`, never by a build passing
+
+`lake build` printing no errors is NOT evidence a result exists or is clean. This has produced
+false greens repeatedly: a stale olean, an error-only grep, and a name that silently failed to
+elaborate all look identical to success. Use `scripts/audit-count.sh`, or a scratch file of
+`#print axioms` lines, and believe the LOOKUP.
+
 ## solc Compilation Notes
 
 - era-contracts requires solc 0.8.28
