@@ -142,6 +142,8 @@ import specs.AttackVectors.AtomicSourceBinding
 import specs.AttackVectors.SelfCallAuthority
 import specs.AttackVectors.DestinationCapstone
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2518866309321428816_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_user
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -383,3 +385,11 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_user
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_sload_of_low_of_clean
 #print axioms L2InteropCommitmentTree.Common.ABody_for_5363593723278629209_preserves_low_of_clean
 #print axioms L2InteropCommitmentTree.Common.block_2668411367195639563_sload_of_low_of_clean
+
+-- Deployed tree, GROWTH path.  Unlike the update path this code writes constant-numbered
+-- slots on purpose -- the height at 0, the defaults array at 3, the levels array at 2 --
+-- so the frame names them rather than claiming none move.  Slot 1 is none of the three,
+-- which is what lets the leaf counter survive a capacity growth.
+#print axioms L2InteropCommitmentTree.Common.if_2518866309321428816_sload_of_ne
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrArrPush_sload_of_low
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_count_of_empty
