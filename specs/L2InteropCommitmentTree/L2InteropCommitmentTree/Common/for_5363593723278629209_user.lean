@@ -59,6 +59,11 @@ body to be shown not to disturb `var_index` or `var_i`. -/
 def AFor_for_5363593723278629209 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → (Ok evm store)["split_expr_5"]!! = 0) ∧
   (isOk s₉ → ¬ (s₉["var_i"]!! < Clear.EVMState.sload s₉.evm (s₉["var_self_slot"]!!))) ∧
+  -- **THE LOOP ALWAYS LANDS `Ok`.**  Not derivable downstream: the caller's final
+  -- `reviveJump` would turn a `break` into an `Ok` too, so the caller cannot tell the two
+  -- apart from its own state.  The induction can -- `ABreak` revives the guard's break
+  -- itself, and `AOk` inherits from the recursive instance.
+  isOk s₉ ∧
   -- **THE FLAG TRAVELS BACK ACROSS THE WHOLE FOLD.**  Needed by the induction itself:
   -- `AOk` has the flag at the END of the loop and must hand it to the iteration at the
   -- START.
@@ -311,7 +316,7 @@ lemma ABreak_for_5363593723278629209 : ∀ s₀ s₂, isOk s₀ → isBreak s₂
       Clear.reviveJump_eq_of_Spec_of_isJump h₂ hj1, e1, Clear.reviveJump_setBreak hgc]
     have hgevm0 : (rootGuardStateGen s₀).evm = s₀.evm := by
       unfold rootGuardStateGen; simp only [evm_insert]
-    refine ⟨?_, ?_, ?_, ?_, 0, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, hgc, ?_, ?_, 0, ?_, ?_, ?_⟩
     · intro evm store hs
       rw [← hs]
       exact hf
@@ -716,7 +721,7 @@ lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
     have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
     have hfor : AFor_for_5363593723278629209 s₄ s₅ :=
       Spec_ok_unfold (P := AFor_for_5363593723278629209) hok4 h5 hspec
-    obtain ⟨k, hidx, hlvl, hrecfrm⟩ := hfor.2.2.2.2
+    obtain ⟨k, hidx, hlvl, hrecfrm⟩ := hfor.2.2.2.2.2
     -- the POST moves the level counter and nothing else
     have hidx4 : s₄["var_index"]!! = (Ok e2 st2 : State)["var_index"]!! := by
       rw [h4, lookup_insert_of_ne (by decide)]
@@ -738,9 +743,9 @@ lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
     have hcb : isOk s₅ → Clear.KeccakClean.Clean s₅.evm →
         Clear.KeccakClean.Clean (Ok e2 st2 : State).evm := by
       intro h5ok hc5
-      have := hfor.2.2.1 h5ok hc5
+      have := hfor.2.2.2.1 h5ok hc5
       rwa [he4] at this
-    refine ⟨hfor.1, hfor.2.1, ?cleanBack, ?cleanFrame, ?budgeted⟩
+    refine ⟨hfor.1, hfor.2.1, hfor.2.2.1, ?cleanBack, ?cleanFrame, ?budgeted⟩
     case cleanBack =>
       -- back across the rest of the fold, then back across this iteration
       intro h5ok hc5
@@ -752,7 +757,7 @@ lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk 
       have hfrm := ABody_for_5363593723278629209_preserves_low_of_clean h0 hok2 hR hC
         (hcb h5ok hc5) hjb hcl hbody
       obtain ⟨hRb, hCb⟩ := ABody_for_5363593723278629209_config h0 hok2 hR hC hbody
-      have hrec := hfor.2.2.2.1 h5ok hc5 (by rw [he4]; exact hRb) (by rw [he4]; exact hCb)
+      have hrec := hfor.2.2.2.2.1 h5ok hc5 (by rw [he4]; exact hRb) (by rw [he4]; exact hCb)
         (hj4 hjb) c hcl
       rw [hrec, he4, hfrm]
     case budgeted =>
