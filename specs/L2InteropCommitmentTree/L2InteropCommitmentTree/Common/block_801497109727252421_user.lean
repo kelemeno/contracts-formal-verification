@@ -30,7 +30,19 @@ stale olean kept the module reporting OK.  Found by scripts/constants-check.sh, 
 looks the CONSTANTS up instead of trusting the module build.
 
 Re-converting it needs the `and` step written as `multifill ["split_expr_2"] [...]`; the
-docstring above is the intended content. -/
+docstring above is the intended content.
+
+SECOND ATTEMPT, 2026-08-15, also reverted -- but it narrowed the search.  Established:
+  * the multifill IS required for `and`, as the note above says;
+  * lookups inside `⟦ ↦ ⟧` must be PARENTHESISED or the notation mis-parses
+    (`unexpected token ']!!'`);
+  * with those two fixed the file PARSES and the mismatch moves to `exact hc.symm`, so
+    what remains is a discrepancy in the step SHAPES, not the syntax;
+  * making every primop step a multifill (add/not/and/add/gt) does NOT close it either.
+So the next attempt should read the true shape off the goal rather than guess: dump the
+"but is expected to have type" side of that mismatch in full and transcribe it verbatim.
+Do not trust `lake build` here -- an intermediate run reported "Build completed
+successfully" for the still-broken file, the same false green that let 4f6e6e7 land. -/
 def A_block_801497109727252421 (s₀ s₉ : State) : Prop := block_801497109727252421_concrete_of_code.1 s₀ s₉
 
 lemma block_801497109727252421_abs_of_concrete {s₀ s₉ : State} :
