@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakDistinct
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.allocate_memory
@@ -63,6 +67,76 @@ lemma block_5267003775473151689_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf 
 lemma block_5267003775473151689_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_block_5267003775473151689 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_5267003775473151689_isOk hok hnf h)
+
+/-! ### Growing the tree, step three
+
+Allocate one word of scratch memory, put the new default node in it, and push that word
+onto the LEVELS array at slot 2.  So this block writes slot 2's length and one keccak
+image -- the third and last of the growth path's deliberate low-slot writes. -/
+
+private lemma b5267_parts {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) {s₁ s₂ : State}
+    (h₁ : Spec (A_allocate_memory "expr_mpos" 32) (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧) s₁)
+    (h₂ : Spec (A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr 2
+      ((s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧)["expr_mpos"]!!))
+      (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧) s₂)
+    (heq : s₉ = s₂) :
+    ¬ ❓ s₁ ∧ isOk (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧) ∧ isOk s₁ := by
+  have h1nf : ¬ ❓ s₁ := by
+    intro hoo
+    rw [heq] at hnf
+    exact hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂
+      (by simpa only [isOutOfFuel_setEvm'] using hoo))
+  have hin : isOk (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧) := by simpa [isOk_insert] using hok
+  exact ⟨h1nf, hin, allocate_memory_isOk h1nf (Spec_ok_unfold hin h1nf h₁)⟩
+
+/-- **KECCAK WINDOW.**  Allocation keeps it, and the push keeps it. -/
+lemma block_5267003775473151689_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_block_5267003775473151689 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  obtain ⟨h1nf, hin, hs1⟩ := b5267_parts hok hnf h₁ h₂ heq
+  rw [heq] at hnf ⊢
+  have hine : (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧).evm = s₀.evm := by simp only [evm_insert]
+  have hsl1 : ∀ q : Literal, Clear.EVMState.sload s₁.evm q = Clear.EVMState.sload s₀.evm q := by
+    intro q; rw [allocate_memory_sload hin h1nf (Spec_ok_unfold hin h1nf h₁), hine]
+  obtain ⟨hR1, hC1⟩ := allocate_memory_config hin h1nf (by rw [hine]; exact hR)
+    (by rw [hine]; exact hC) (Spec_ok_unfold hin h1nf h₁)
+  have hmok : isOk (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧) := by
+    simpa only [isOk_setEvm] using hs1
+  have hme : (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧).evm
+      = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
+    Clear.evm_setEvm_of_isOk hs1
+  exact arrArrPush_config hmok hnf
+    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits _)
+    (by rw [hme]; exact Clear.StorageFrame.rangeInWindow_mstore hR1)
+    (by rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC1)
+    (Spec_ok_unfold hmok hnf h₂)
+
+/-- **CLEAN FLAG, BACKWARDS.**  Allocation cannot dirty it; the push can. -/
+lemma block_5267003775473151689_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_5267003775473151689 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  obtain ⟨h1nf, hin, hs1⟩ := b5267_parts hok hnf h₁ h₂ heq
+  rw [heq] at hnf hclean
+  have hine : (s₀⟦"_6" ↦ 0⟧⟦"size" ↦ 32⟧).evm = s₀.evm := by simp only [evm_insert]
+  have hsl1 : ∀ q : Literal, Clear.EVMState.sload s₁.evm q = Clear.EVMState.sload s₀.evm q := by
+    intro q; rw [allocate_memory_sload hin h1nf (Spec_ok_unfold hin h1nf h₁), hine]
+  have hmok : isOk (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧) := by
+    simpa only [isOk_setEvm] using hs1
+  have hme : (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧).evm
+      = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
+    Clear.evm_setEvm_of_isOk hs1
+  have c1 := arrArrPush_clean hmok hnf
+    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits _) hclean
+    (Spec_ok_unfold hmok hnf h₂)
+  rw [hme, Clear.KeccakClean.clean_mstore] at c1
+  rw [← hine]
+  exact (allocate_memory_clean hin h1nf (Spec_ok_unfold hin h1nf h₁)).mp c1
 
 end
 

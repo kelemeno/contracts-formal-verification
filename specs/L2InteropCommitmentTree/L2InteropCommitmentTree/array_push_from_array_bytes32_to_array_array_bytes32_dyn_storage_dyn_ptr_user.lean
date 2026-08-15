@@ -240,6 +240,64 @@ lemma arrArrPush_clean {array value0 : Literal} {s₀ s₉ : State}
   rw [pushSt_evm hok, Clear.KeccakClean.clean_sstore] at cst
   exact cst
 
+/-- **KECCAK WINDOW, WHOLE CALL.**  Same six steps as `arrArrPush_clean`, forwards. -/
+lemma arrArrPush_config {array value0 : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+      array value0 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, heq⟩ := arrArrPush_normal hok hnf hfits h
+  have h6nf : ¬ ❓ s₆ := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h5nf : ¬ ❓ s₅ := fun hoo => h6nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₆
+    (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅
+    (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+    (by simpa only [isOutOfFuel_setEvm', isOutOfFuel_insert'] using hoo))
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  have hs3 : isOk s₃ := L2InteropCommitmentTree.Common.if_228369243124659344_isOk hs2
+    (Spec_ok_unfold hs2 h3nf h₃)
+  have honeok : isOk ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)🇪⟦
+      Clear.EVMState.sstore s₃.evm
+        ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)["slot"]!!) 1⟧) := by
+    simp only [isOk_setEvm, isOk_insert]; exact hs3
+  have a₄ := Spec_ok_unfold honeok h4nf h₄
+  have hs4 : isOk s₄ :=
+    L2InteropCommitmentTree.Common.if_3779316958150250372_isOk honeok h4nf a₄
+  have hsrcok : isOk (s₄⟦"srcPtr" ↦ s₄["value0"]!!⟧) := isOk_insert.mpr hs4
+  have a₅ := Spec_ok_unfold hsrcok h5nf h₅
+  have hs5 : isOk s₅ := array_dataslot_array_bytes32_dyn_storage_ptr_isOk h5nf a₅
+  have a₆ := Spec_ok_unfold (isOk_insert.mpr hs5) h6nf h₆
+  -- forwards from the length write
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  obtain ⟨hR2, hC2⟩ := storage_array_index_access_bytes32_dyn_ptr_config hstok h2nf hRs hCs
+    (Spec_ok_unfold hstok h2nf h₂)
+  obtain ⟨hR3, hC3⟩ := L2InteropCommitmentTree.Common.if_228369243124659344_config hs2 hR2 hC2
+    (Spec_ok_unfold hs2 h3nf h₃)
+  have hone : ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)🇪⟦
+      Clear.EVMState.sstore s₃.evm
+        ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)["slot"]!!) 1⟧).evm
+      = Clear.EVMState.sstore s₃.evm
+          ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)["slot"]!!) 1 :=
+    Clear.evm_setEvm_of_isOk (isOk_insert.mpr hs3)
+  obtain ⟨hR4, hC4⟩ := L2InteropCommitmentTree.Common.if_3779316958150250372_config honeok h4nf
+    (by rw [hone]; exact Clear.StorageFrame.rangeInWindow_sstore hR3)
+    (by rw [hone]; exact Clear.StorageFrame.cachedInWindow_sstore hC3) a₄
+  obtain ⟨hR5, hC5⟩ := array_dataslot_array_bytes32_dyn_storage_ptr_config hsrcok
+    (by simp only [evm_insert]; exact hR4) (by simp only [evm_insert]; exact hC4) a₅
+  obtain ⟨hR6, hC6⟩ := a₆.2.2.2.1 ⟨by simp only [evm_insert]; exact hR5,
+    by simp only [evm_insert]; exact hC5⟩
+  rw [heq, evm_setStore, Clear.evm_reviveJump_of_isOk a₆.2.1]
+  exact ⟨hR6, hC6⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
