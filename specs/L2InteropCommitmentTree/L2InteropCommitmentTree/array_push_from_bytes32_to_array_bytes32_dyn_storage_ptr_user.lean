@@ -5,6 +5,7 @@ import specs.KeccakDistinct
 import specs.KeccakFuel
 import specs.KeccakInjective
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4590714779410500988
@@ -562,6 +563,30 @@ lemma array_push_sload_frame_of_low_slot {array value0 : Literal} {q : Literal}
     hok hqlow hidx hR hC hf
   rw [pushSt_evm hok] at hne
   exact fun hc => hne hc.symm
+
+/-- **THE PUSHED ELEMENT'S SLOT IS NEVER A LOW SLOT** -- paid for by the clean flag.
+
+Same as `push_element_ne_low_slot` with the two units of pool replaced by the collision
+flag on the state the hash produced.  Stated this way the result composes with everything
+else on the tree paths, which all now trade in the flag: a caller that has to mix a budget
+and a flag ends up owing both, and the budget half is the one it cannot always pay. -/
+lemma push_element_ne_low_slot_of_clean {array value0 c : Literal} {s₀ : State}
+    (hok : isOk s₀)
+    (hlow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean (Clear.KeccakDeterminism.keccakOut
+      ((pushSt s₀ array value0).evm.mstore 0 array) 0 32).2) :
+    (Clear.KeccakDeterminism.keccakOut
+        ((pushSt s₀ array value0).evm.mstore 0 array) 0 32).1
+      + Clear.EVMState.sload s₀.evm array ≠ c := by
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := array) hRs
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := array) hCs
+  -- the flag says the hash found the pool non-empty, which is all the budget ever bought
+  have hsome := Clear.KeccakClean.keccak256_some_of_clean hclean
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hidx hlow
 
 end
 
