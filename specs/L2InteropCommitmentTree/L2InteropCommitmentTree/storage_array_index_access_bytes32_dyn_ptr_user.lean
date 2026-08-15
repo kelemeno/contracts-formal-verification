@@ -662,6 +662,82 @@ lemma storage_array_index_access_bytes32_dyn_ptr_slot_not_low
   rw [hko]
   exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hj hcl
 
+/-- The result state's evm IS the hash's post-state, on either branch of the guard. -/
+private lemma evm_arrIdxResultState {ss : State} (hok : isOk ss) :
+    (arrIdxResultState ss).evm
+      = (Clear.KeccakDeterminism.keccakOut
+          (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2 := by
+  unfold arrIdxResultState
+  have hmok : isOk (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hok
+  simp only [primCall_keccakOut, multifill_cons, multifill_nil, evm_insert]
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hok]
+
+/-- **THE SAME RESULT, PAID FOR BY THE CLEAN FLAG RATHER THAN BY FUEL.**
+
+The indexed sibling of `..._5303_slot_not_low_of_clean`, and the one the fold body needs:
+an exhausted keccak pool raises `hash_collision` instead of leaving the `Ok` world, so a
+clear flag on the state in hand witnesses that the hash genuinely succeeded.
+
+The index bound `hj` stays -- unlike the clean flag it is not about whether the hash ran,
+but about the `+ index` that follows it, which could in principle wrap a fresh high hash
+back down onto a constant-numbered slot. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean
+    {slot offset : Identifier} {array index c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : s₉.evm.hash_collision = false)
+    (hj : index.val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hgce : (arrIdxGuardState array index s₀).evm = s₀.evm := arrIdxGuardState_evm hok
+  have hgci : (arrIdxGuardState array index s₀)["index"]!! = index :=
+    arrIdxGuardState_index hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  -- both branches: `Ok`, same window, same `index` -- no fuel needed now
+  have hboth : isOk ss ∧ (Clear.KeccakLowSlot.RangeInWindow ss.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow ss.evm) ∧ ss["index"]!! = index := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      have hspa := Spec_ok_unfold hgcok hssnf hsp
+      refine ⟨panic_error_0x32_isOk hgcok hspa, ?_, ?_⟩
+      · exact panic_error_0x32_config hgcok (by rw [hgce]; exact hR) (by rw [hgce]; exact hC) hspa
+      · rw [panic_error_0x32_frame hgcok hspa]; exact hgci
+    · have hss : ss = arrIdxGuardState array index s₀ := hga.1 hflag
+      subst hss
+      exact ⟨hgcok, ⟨by rw [hgce]; exact hR, by rw [hgce]; exact hC⟩, hgci⟩
+  obtain ⟨hssok, ⟨hRss, hCss⟩, hidx⟩ := hboth
+  have hrsok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  have hrev : isOk (🧟(arrIdxResultState ss)) := by
+    rw [revive_of_ok hrsok]; exact hrsok
+  -- the caller's clear flag is the hash's own post-state flag
+  have hcl2 : (Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2.hash_collision = false := by
+    rw [heq] at hclean
+    simpa only [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrsok,
+      evm_arrIdxResultState hssok] using hclean
+  have hsome := Clear.KeccakDeterminism.keccakOut_some_of_clean hcl2
+  subst heq
+  rw [lookup_insert' (isOk_insert.mpr (isOk_setStore_of_isOk hrev)),
+    slot_arrIdxResultState hssok, hidx]
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
+  exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hj hcl
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
