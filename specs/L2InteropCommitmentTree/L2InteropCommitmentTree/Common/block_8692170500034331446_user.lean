@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.KeccakFuel
 import specs.FinBits
 import specs.StorageFrame
+import specs.KeccakClean
 import specs.KeccakLowSlot
 import specs.KeccakDistinct
 import specs.StateOk
@@ -143,6 +144,17 @@ lemma block_8692170500034331446_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s
     exact Clear.KeccakFuel.Fuel.sstore _ _ hf
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
+
+/-- **CLEAN FLAG.**  A mask computation and one `sstore`: nothing here can raise the
+collision flag, so it reads the same at both ends. -/
+lemma block_8692170500034331446_clean {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_block_8692170500034331446 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  unfold A_block_8692170500034331446 at h
+  subst h
+  simp only [multifill_cons, multifill_nil, evm_insert]
+  rw [Clear.evm_setEvm_of_isOk (by simp only [isOk_insert]; exact hok)]
+  exact Clear.KeccakClean.clean_sstore _ _ _
 
 end
 

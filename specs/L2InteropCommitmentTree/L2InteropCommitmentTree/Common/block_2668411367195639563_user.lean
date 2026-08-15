@@ -3,6 +3,7 @@ import specs.StorageFrame
 import specs.StateOk
 import specs.KeccakFuel
 import specs.KeccakLowSlot
+import specs.KeccakClean
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr_5303
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.storage_array_index_access_bytes32_dyn_ptr
@@ -215,6 +216,51 @@ lemma block_2668411367195639563_sload_of_low {c : Literal} {s₀ s₉ : State}
   have hne : s₂["_4"]!! ≠ c :=
     storage_array_index_access_bytes32_dyn_ptr_slot_not_low hok1 h2nf hR1 hC1 hf1
       (by rw [hidx]; exact hj) hcl (Spec_ok_unfold hok1 h2nf hs₂)
+  subst heq
+  rw [evm_insert,
+    update_storage_value_bytes32_to_bytes32_sload_frame hok2 h3nf (Ne.symm hne)
+      (Spec_ok_unfold hok2 h3nf hs₃),
+    storage_array_index_access_bytes32_dyn_ptr_sload hok1 h2nf (Spec_ok_unfold hok1 h2nf hs₂),
+    storage_array_index_access_bytes32_dyn_ptr_5303_sload haok h1nf
+      (Spec_ok_unfold haok h1nf hs₁), hae]
+
+/-- **THE LEAF WRITE PRESERVES EVERY LOW SLOT -- WITHOUT A FUEL BUDGET.**
+
+Same conclusion as `_sload_of_low`, but the keccak side condition is discharged by the
+collision flag on the state in hand rather than by three units of fuel counted in advance.
+
+This is the version that composes upward.  A fuel budget has to be decided before the call,
+and the enclosing function's budget would have to cover the fold as well -- `6 * k` for a
+trip count `k` that only the loop's own induction reveals, and which no caller outside the
+loop can name.  The flag is checked at the end, so it costs the caller nothing to state. -/
+lemma block_2668411367195639563_sload_of_low_of_clean {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (hj : (s₀["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_block_2668411367195639563 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₁, hs₁, s₂, hs₂, s₃, hs₃, heq⟩ := h
+  obtain ⟨⟨h1nf, h2nf, h3nf⟩, hok1, hok2⟩ := chain_ok hok hnf hs₁ hs₂ hs₃ heq
+  have haok : isOk (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧) := isOk_insert.mpr hok
+  have hae : (s₀⟦"_1" ↦ s₀["var_self_slot"]!! + 2⟧).evm = s₀.evm := evm_insert
+  obtain ⟨hR1, hC1⟩ := storage_array_index_access_bytes32_dyn_ptr_5303_config haok h1nf
+    (by rw [hae]; exact hR) (by rw [hae]; exact hC) (Spec_ok_unfold haok h1nf hs₁)
+  -- walk the flag back to the second accessor's output, which is where the written slot
+  -- was minted: the final insert and the writer are both transparent to it
+  have hclean2 : Clear.KeccakClean.Clean s₂.evm := by
+    rw [heq] at hclean
+    rw [evm_insert] at hclean
+    exact (update_storage_value_bytes32_to_bytes32_clean hok2 h3nf
+      (Spec_ok_unfold hok2 h3nf hs₃)).mp hclean
+  have hidx : s₁["var_index"]!! = s₀["var_index"]!! := by
+    rw [storage_array_index_access_bytes32_dyn_ptr_5303_frame haok h1nf (by decide) (by decide)
+      (Spec_ok_unfold haok h1nf hs₁), lookup_insert_of_ne (by decide)]
+  have hne : s₂["_4"]!! ≠ c :=
+    storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean hok1 h2nf hR1 hC1
+      hclean2 (by rw [hidx]; exact hj) hcl (Spec_ok_unfold hok1 h2nf hs₂)
   subst heq
   rw [evm_insert,
     update_storage_value_bytes32_to_bytes32_sload_frame hok2 h3nf (Ne.symm hne)
