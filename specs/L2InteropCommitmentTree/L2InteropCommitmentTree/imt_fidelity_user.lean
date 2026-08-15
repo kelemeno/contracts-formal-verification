@@ -1338,6 +1338,142 @@ theorem newLeafStage_decode
     decodeLeaf_sstore_outside hcacheF hne0 hne2
   rw [hstep1, hstep2, hcopy]
 
+/-- **DERIVED** companion to `newLeafStage_decode`.  Its only axiom use is the two
+`vtiSlot_ne_leafSlot_add` calls at the end; the derived twin of that wants the pool pair at
+the vti-threaded state, which is `evm` plus four `mstore`s, one accessor, three `sstore`s and
+one more accessor. -/
+theorem newLeafStage_decode_of_config
+    {evm : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated evm)
+    (hused : Clear.KeccakFresh.CacheInUsed evm)
+    (hinjc : Clear.KeccakFresh.CacheInj evm) :
+    let P := evm.mload 64
+    let E4 := (((evm.mstore 64 (P + 96)).mstore P V).mstore
+        (P + 32) NI4).mstore (P + 64) NV5
+    let EK := (accOut E4 IX1 4).2
+    let SL := (accOut E4 IX1 4).1
+    let E5 := ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64))
+    (accOut E4 IX1 4).2.hash_collision = false →
+    (accOut E5 V 5).2.hash_collision = false →
+    (EK.lookupAccount EK.execution_env.code_owner).isSome →
+    96 ≤ P.val →
+    P.val + 128 ≤ 2 ^ 256 →
+    decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) IX1
+      = ⟨V, NV5⟩ := by
+  intro P E4 EK SL E5 hclean4 hcleanV hacc hplow hnw
+  have hE4 : E4 = (((evm.mstore 64 (P + 96)).mstore P V).mstore
+      (P + 32) NI4).mstore (P + 64) NV5 := rfl
+  have hEK : EK = (accOut E4 IX1 4).2 := rfl
+  have hSL : SL = (accOut E4 IX1 4).1 := rfl
+  have hE5 : E5 = ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64)) := rfl
+  have hsz : UInt256.size = 2 ^ 256 := by norm_num
+  have hv64 : (P + 64).val = P.val + 64 := by
+    show (P.val + ((64 : UInt256)).val) % UInt256.size = P.val + 64
+    have h64 : ((64 : UInt256)).val = 64 := rfl
+    rw [h64]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hv32 : (P + 32).val = P.val + 32 := by
+    show (P.val + ((32 : UInt256)).val) % UInt256.size = P.val + 32
+    have h32 : ((32 : UInt256)).val = 32 := rfl
+    rw [h32]
+    exact Nat.mod_eq_of_lt (by omega)
+  -- field readbacks on the copy-accessor thread
+  have hf2 : EK.mload (P + 64) = NV5 := by
+    rw [hEK]
+    rw [accOut_mload_high (by rw [hv64]; omega) (by rw [hv64]; omega)]
+    rw [hE4]
+    exact mload_mstore_self_at _ _ _ (by rw [hv64]; omega)
+  have hf0 : EK.mload P = V := by
+    rw [hEK]
+    rw [accOut_mload_high (by omega) (by omega)]
+    rw [hE4]
+    rw [mload_mstore_outside _ (P + 64) NV5 P (by rw [hv64]; omega) (by omega)
+      (Or.inl (by rw [hv64]; omega))]
+    rw [mload_mstore_outside _ (P + 32) NI4 P (by rw [hv32]; omega) (by omega)
+      (Or.inl (by rw [hv32]))]
+    exact mload_mstore_self_at _ _ _ (by omega)
+  -- the copy's writes land at the thread-stable slot
+  have hcache : Finmap.lookup (accInterval EK IX1 4) EK.keccak_map = some SL := by
+    rw [hEK, hSL]
+    exact cached_accThread hclean4
+  have hsl : leafSlot EK IX1 = SL := by
+    rw [hEK, hSL]
+    exact leafSlot_accThread hclean4
+  -- (a) the copy decodes to the new leaf (the retargetStage_decode shape)
+  have hcopy : decodeLeaf E5 IX1 = ⟨V, NV5⟩ := by
+    have hwrite := decodeLeaf_after_write (σ := EK) (n := IX1)
+      (v := EK.mload P) (ni := EK.mload (P + 32)) (nv := EK.mload (P + 64))
+      hacc hcache
+    rw [hsl] at hwrite
+    rw [hE5, hwrite, hf0, hf2]
+  -- (b) cache and cleanliness transport onto the copy-written state E5
+  have hcacheE5 : Finmap.lookup (accInterval E5 IX1 4) E5.keccak_map
+      = some SL := by
+    rw [hE5]
+    exact cache_sstore (cache_sstore (cache_sstore hcache))
+  have hcollE5 : E5.hash_collision = false := by
+    rw [hE5, hash_collision_sstore', hash_collision_sstore',
+        hash_collision_sstore', hEK]
+    exact hclean4
+  have hcleanE5 : (accOut E5 IX1 4).2.hash_collision = false := by
+    rw [accOut_of_cached hcacheE5]
+    show ((E5.mstore 0 IX1).mstore 32 4).hash_collision = false
+    rw [hash_collision_mstore, hash_collision_mstore]
+    exact hcollE5
+  -- the decode survives the vti accessor thread
+  have hstep2 : decodeLeaf (accOut E5 V 5).2 IX1 = decodeLeaf E5 IX1 :=
+    decodeLeaf_accOut_frame hcacheE5 hcleanE5 hcleanV
+  -- the IX1 cache and the vti cache at the vti-threaded state
+  have hcacheF : Finmap.lookup (accInterval (accOut E5 V 5).2 IX1 4)
+      ((accOut E5 V 5).2).keccak_map = some SL := by
+    rw [accInterval_accOut_frame]
+    exact cached_after_accOut hcacheE5
+  have hcvF : Finmap.lookup (accInterval (accOut E5 V 5).2 V 5)
+      ((accOut E5 V 5).2).keccak_map = some ((accOut E5 V 5).1) := by
+    rw [show accInterval (accOut E5 V 5).2 V 5 = accInterval E5 V 5 from
+      accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)]
+    exact accOut_caches_of_clean hcleanV
+  have hsepE4 : Clear.KeccakSlotSep.Separated E4 :=
+    Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsep)))
+  have husedE4 : Clear.KeccakFresh.CacheInUsed E4 :=
+    Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ hused)))
+  have hinjE4 : Clear.KeccakFresh.CacheInj E4 :=
+    Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+      (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ hinjc)))
+  have hsepE5 : Clear.KeccakSlotSep.Separated E5 :=
+    Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore
+      (Clear.StorageFrame.separated_sstore (separated_accOut hsepE4)))
+  have husedE5 : Clear.KeccakFresh.CacheInUsed E5 :=
+    Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore
+      (Clear.StorageFrame.cacheInUsed_sstore (Clear.KeccakFresh.cacheInUsed_accOut husedE4)))
+  have hinjE5 : Clear.KeccakFresh.CacheInj E5 :=
+    Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore
+      (Clear.StorageFrame.cacheInj_sstore (Clear.KeccakFresh.cacheInj_accOut husedE4 hinjE4)))
+  have hsepF : Clear.KeccakSlotSep.Separated (accOut E5 V 5).2 := separated_accOut hsepE5
+  have hinjF : Clear.KeccakFresh.CacheInj (accOut E5 V 5).2 :=
+    Clear.KeccakFresh.cacheInj_accOut husedE5 hinjE5
+  -- the final vti write misses the leaf fields
+  have hvti : vtiSlot (accOut E5 V 5).2 V = (accOut E5 V 5).1 := by
+    show (accOut (accOut E5 V 5).2 V 5).1 = (accOut E5 V 5).1
+    exact accOut_agree_value (fun _ hx1 _ => (accOut_junk_window hx1).symm)
+      (accOut_caches_of_clean hcleanV)
+  have hne0 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 IX1 := by
+    have h := vtiSlot_ne_leafSlot_add_of_config (k := 0) hsepF hinjF hcvF hcacheF (by decide)
+    rw [hvti] at h
+    simpa using h
+  have hne2 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 IX1 + 2 := by
+    have h := vtiSlot_ne_leafSlot_add_of_config (k := 2) hsepF hinjF hcvF hcacheF (by decide)
+    rw [hvti] at h
+    exact h
+  have hstep1 : decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) IX1
+      = decodeLeaf (accOut E5 V 5).2 IX1 :=
+    decodeLeaf_sstore_outside hcacheF hne0 hne2
+  rw [hstep1, hstep2, hcopy]
+
 /-- **NEW-LEAF-STAGE FRAME (other indices)**: on the same staged state, every
 OTHER cached index `m ≠ IX1` decodes unchanged.  ANCHOR NOTE: the frame is
 against `E4` (the post-staging memory state), not the raw `evm` — the
@@ -3718,44 +3854,34 @@ lemma padWalk_sload_leaf_of_config :
     exact padStep_sload_leaf_of_config hsep hused hinj hci hcσ hk h0.1 h0.2.1 h0.2.2
 
 
-/-! ### The glue sequence on the derived route -- `keccak256_inj` eliminated
+/-! ### The glue sequence, AXIOM-FREE
 
-`glueSeq_leafSetOf'` reaches the keccak idealizations at five places in its own body: three
-direct `keccak_off_ne_off` calls, plus `leafSlot_add_ne_low` and `decodeLeaf_stage_outside`.
-All five hold their inputs as cache HITS or as CLEAN hash steps, so all five have derived
-companions -- but two sit BELOW a walk, and one separates a slot the code has just MINTED,
-which no cache-hit lemma can reach.
-
-This twin closes all five.  It carries `Separated`, `CacheInUsed` and `CacheInj` across the
-update walk, the padding walk and the leaf write (transport added alongside), converts the
-minted-vs-cached sites through `arrSlot_ne_accSlot_of_clean`, and extends the anchor cache
-pack with an `H1` component -- the first walk's entry state, which the quad pack never
-reached.
-
-**What that buys, exactly.**  Two of the four idealizations drop out -- including
-`keccak256_inj`, the strongest, and the only one asserting global injectivity of the hash.
-Measured:
+`glueSeq_leafSetOf'` is the sequence-level capstone: the real insert glue-write order over the
+deployed state chain equals `imtInsert` on the abstract leaf set.  It reached all four keccak
+idealizations.  This twin reaches none.
 
     glueSeq_leafSetOf'            inj, slot_sep, add_ne_lowSlot, ne_lowSlot
-    glueSeq_leafSetOf'_of_config       slot_sep
+    glueSeq_leafSetOf'_of_config  --  (propext, Quot.sound, Classical.choice)
 
-`keccak256_add_ne_lowSlot` went the same way as the walk low-slot frames it came from: the
-window pair (`RangeInWindow` / `CachedInWindow`) transported across both walks, then
-`keccak256_add_ne_lowSlot_of_config` at each of the eight sites -- three in the `E4` copy
-chain, three in the `F4` one, and one per leaf write.
+**What it took.**  Five sites in the body were direct, but two sat BELOW a walk and one
+separated a slot the code had just MINTED -- which no cache-hit lemma reaches.  So the
+migration was mostly TRANSPORT, not substitution:
 
-**What remains, and where.**  One axiom, and it comes from no site in this proof's body --
-every site here is derived.  It arrives through three helper lemmas it calls:
+  * the pool triple (`Separated`, `CacheInUsed`, `CacheInj`) and the window pair
+    (`RangeInWindow`, `CachedInWindow`) carried across `arrOut`, `accOut`, `pushEvm`, the
+    padding step and walk, the leaf write, and the update step and walk;
+  * `arrSlot_ne_accSlot_of_clean`, the fresh-vs-cached bridge: a collision-free `keccakOut`
+    caches its own preimage, so a MINTED slot is a cache hit in the post-state, where an
+    earlier hit rides along by monotonicity -- and their windows differ in length (32 for an
+    array base, 64 for a mapping entry);
+  * derived twins of the walk low-slot frames, the walk leaf-slot frames, and
+    `newLeafStage_decode`, each threading what the site below it needs.
 
-    keccak256_slot_sep    updateWalk_sload_leaf, padWalk_sload_leaf, newLeafStage_decode
-
-All three are leaf-slot frames across the walks -- the same shape as the low-slot ones, but
-separating a hashed slot from another hashed slot rather than from a constant, so they want
-`Separated` and `CacheInj` (already transported) rather than the window pair.
-
-The added hypotheses are all things a concrete caller already tracks: the three pool
-properties at the three entry states, the low-slot window config at `evm`, and one more
-anchor in the cache pack. -/
+**What the added hypotheses are.**  Nothing exotic: the pool triple and the window pair at
+the three entry states (`evm`, `H1`, `H3`), and two more anchors in the cache pack -- the
+E4-anchored accessor interval cached at `H1` and at `H3`.  The walk frames pin their slots at
+`E4`, so a hit at a walk's own interval is the wrong list; the pack has to say the value
+agrees. A concrete caller tracks all of it already. -/
 
 set_option maxHeartbeats 1600000 in
 theorem glueSeq_leafSetOf'_of_config
@@ -4139,7 +4265,8 @@ theorem glueSeq_leafSetOf'_of_config
     exact ⟨congrArg AbsLeaf.key h, congrArg AbsLeaf.nextKey h⟩
   -- ===== the S3 copy values (newLeafStage_decode, slot re-pinned) =====
   have hdecS3 : decodeLeaf S3 NI = ⟨V, NV5⟩ :=
-    newLeafStage_decode (evm := S2) (V := V) (NI4 := NI4) (NV5 := NV5) (IX1 := NI)
+    newLeafStage_decode_of_config (evm := S2) hsepS2 husedS2 hinjS2
+      (V := V) (NI4 := NI4) (NV5 := NV5) (IX1 := NI)
       hcleanF hcleanV haccFK hplow2 hnw2
   have hslotS3NI : leafSlot S3 NI = wc := by
     have h : Finmap.lookup (accInterval S3 NI 4) S3.keccak_map = some wc := by
