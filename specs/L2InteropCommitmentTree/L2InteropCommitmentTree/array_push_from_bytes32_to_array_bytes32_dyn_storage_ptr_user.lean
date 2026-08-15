@@ -734,6 +734,55 @@ lemma array_push_length_of_low_slot_of_clean {array value0 : Literal} {s₀ s₉
     storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf (Spec_ok_unfold hstok h2nf h₂),
     pushSt_evm hok, Clear.StorageFrame.sload_sstore_self hacc]
 
+/-- **CLEAN FLAG, BACKWARDS, WITH NO SIDE CONDITION AT ALL.**
+
+`array_push_clean` routes through `array_push_normal` and so inherits its `hfits`.  That is
+avoidable: the length write, the address computation and the element write all run
+UNCONDITIONALLY -- the guard decides whether to panic first, not whether the rest happens --
+so the flag can be walked back through the guard itself, whose `_clean` is an iff.
+
+The trick is to prove `isOk` and `.evm` of the guard's input tower INLINE rather than via
+`isOk_pushGc`/`pushGc_evm`.  Those are stated about the simplified `pushGc`, which reads
+`sload s₀.evm array` where the spec's tower reads `sload f.evm (f["array"]!!)` through the
+initcall -- equal, but not defeq, and bridging them is the work `array_push_normal` exists
+to do.  Elaborating the side goals against the tower itself sidesteps it entirely.
+
+Worth having because a caller inside a loop may not know the array is small; the flag is
+supposed to be the hypothesis that costs nothing, and this keeps that promise. -/
+lemma array_push_clean_unconditional {array value0 : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
+  have hgcok : isOk (s₀☎️⟦["array", "value0"],[array, value0]⟧) := isOk_initcall_of_isOk hok
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂
+    (by simpa only [isOutOfFuel_setEvm', isOutOfFuel_insert'] using hoo))
+  have a₁ := Spec_ok_unfold (by simp only [isOk_insert]; exact hgcok) h1nf h₁
+  have hs1 : isOk s₁ := L2InteropCommitmentTree.Common.if_4590714779410500988_isOk
+    (by simp only [isOk_insert]; exact hgcok) h1nf a₁
+  have hincok : isOk (s₁⟦"split_expr_1" ↦ s₁["oldLen"]!! + 1⟧) := isOk_insert.mpr hs1
+  have hstok : isOk ((s₁⟦"split_expr_1" ↦ s₁["oldLen"]!! + 1⟧)🇪⟦Clear.EVMState.sstore s₁.evm
+      ((s₁⟦"split_expr_1" ↦ s₁["oldLen"]!! + 1⟧)["array"]!!)
+      ((s₁⟦"split_expr_1" ↦ s₁["oldLen"]!! + 1⟧)["split_expr_1"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hincok
+  have a₂ := Spec_ok_unfold hstok h2nf h₂
+  have hs2 : isOk s₂ := storage_array_index_access_bytes32_dyn_ptr_isOk h2nf a₂
+  rw [heq, evm_setStore, Clear.evm_reviveJump_of_isOk
+    (update_storage_value_bytes32_to_bytes32_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃))] at hclean
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (update_storage_value_bytes32_to_bytes32_clean hs2 h3nf
+      (Spec_ok_unfold hs2 h3nf h₃)).mp hclean
+  have cst := storage_array_index_access_bytes32_dyn_ptr_clean hstok h2nf c2 a₂
+  rw [Clear.evm_setEvm_of_isOk hincok, Clear.KeccakClean.clean_sstore] at cst
+  have cgc := (L2InteropCommitmentTree.Common.if_4590714779410500988_clean
+    (by simp only [isOk_insert]; exact hgcok) h1nf a₁).mp cst
+  simpa only [evm_insert, Clear.evm_initcall hok] using cgc
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
