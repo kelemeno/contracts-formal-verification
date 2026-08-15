@@ -1725,6 +1725,30 @@ theorem updateLeaf_call
   rw [setStore_ok]
   try simp only [multifill_cons, multifill_nil, insert_Ok]
 
+/-! ## The pool invariants cross the leaf write
+
+`leafWriteEvm` is two array hashes and a store, so all three properties the derived
+separation route consumes pass straight through it. -/
+
+lemma separated_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (leafWriteEvm σ ss idx leaf) := by
+  unfold leafWriteEvm
+  exact Clear.StorageFrame.separated_sstore (separated_arrOut (separated_arrOut h))
+
+lemma cacheInUsed_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (leafWriteEvm σ ss idx leaf) := by
+  unfold leafWriteEvm
+  exact Clear.StorageFrame.cacheInUsed_sstore (cacheInUsed_arrOut (cacheInUsed_arrOut h))
+
+lemma cacheInj_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (leafWriteEvm σ ss idx leaf) := by
+  unfold leafWriteEvm
+  exact Clear.StorageFrame.cacheInj_sstore
+    (cacheInj_arrOut (cacheInUsed_arrOut hu) (cacheInj_arrOut hu h))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
