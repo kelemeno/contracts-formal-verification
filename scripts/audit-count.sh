@@ -45,7 +45,30 @@ for e in re.split(r"\n(?=')", txt):
 if 'sorryAx' in txt:
     print('!! sorryAx PRESENT — a listed result is not proven')
 
-print(f"total   : {len(clean) + len(dirty)}")
+total = len(clean) + len(dirty)
+
+# A ledger that SHRINKS looks better by every other measure printed here: fewer
+# entries, same or higher clean ratio.  Deleting a `#print axioms` line is
+# therefore an invisible regression unless the count is pinned.  The baseline
+# file records the high-water mark; raise it deliberately when adding entries.
+import os
+bl_path = os.path.join(os.path.dirname(sys.argv[1]), '') or ''
+bl_file = 'specs/AttackVectors/AUDIT_BASELINE'
+baseline = None
+if os.path.exists(bl_file):
+    try:
+        baseline = int(open(bl_file).read().split('#')[0].strip())
+    except ValueError:
+        baseline = None
+if baseline is not None and total < baseline:
+    print(f"!! LEDGER SHRANK: {total} entries, baseline {baseline}")
+    print("!! an entry was removed from Audit.lean, or a name stopped resolving.")
+    print("!! this is a regression even though the clean RATIO may have improved.")
+    _shrank = True
+else:
+    _shrank = False
+
+print(f"total   : {total}")
 print(f"clean   : {len(clean)}")
 print(f"axioms  : {len(dirty)}")
 for n, a in sorted(dirty):
@@ -54,4 +77,6 @@ for n, a in sorted(dirty):
         print(f"      {x}")
 for u in unparsed:
     print("UNPARSED:", u)
+if _shrank:
+    sys.exit(1)
 PY
