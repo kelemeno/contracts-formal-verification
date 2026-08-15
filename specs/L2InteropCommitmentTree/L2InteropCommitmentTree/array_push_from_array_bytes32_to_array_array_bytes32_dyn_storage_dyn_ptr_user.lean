@@ -174,6 +174,34 @@ lemma arrArrPush_normal {array value0 : Literal} {s₀ s₉ : State} (hok : isOk
   rw [hsteq, pushSt_array hok, pushSt_oldLen hok] at h₂
   exact ⟨s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, heq⟩
 
+/-! ### Recipe for the storage frame (not yet written)
+
+`arrArrPush_sload_of_low` -- "a literal slot `c` other than `array` is untouched" -- is the
+last piece the capacity guard needs.  Two findings from a drafting pass, recorded so the
+next attempt is one pass rather than three:
+
+**The offset guard COLLAPSES.**  `if_228369243124659344` reverts when `offset ≠ 0`, but a
+`bytes32` element sits at offset 0, so `storage_array_index_access_bytes32_dyn_ptr_offset`
+gives `s₂["offset"]!! = 0` and `if_228369243124659344_id_of_zero` then yields `s₃ = s₂`
+outright.  `subst` it and the chain loses a step -- much better than framing the revert
+branch, and it is why that guard never got a `_frame` lemma.
+
+**Four writes, four separations, all of the form "a literal is not a keccak image":**
+  * the length write lands on `array` -- excluded by the caller's `c ≠ array`;
+  * the element address -- `storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean`;
+  * the truncation guard zeroes an INTERVAL `[keccak(slot)+1, keccak(slot)+oldLen)`, and
+    `if_3779316958150250372_sload` wants `c < keccak(...) + 1`.  A `≠` cannot close an
+    interval; `Clear.KeccakLowSlot.keccak256_lt_add_of_config` gives exactly that strict
+    bound and exists for this reason;
+  * the copy loop writes `dstSlot + p` for `p < 1`, and `array_dataslot_..._val` says
+    `dstSlot = (keccakOut (mstore src.evm 0 (src["slot"]!!)) 0 32).1` -- note `mstore` takes
+    THREE arguments here (state, position 0, value); omitting the position gives a
+    "function expected" error pointing at the wrong term.
+
+The window facts each separation needs must be propagated to ITS state: `pushSt_config` for
+the accessor, then the accessor's and the guards' `_config` onward to `src`.  The clean flag
+walks back the other way, as in `arrArrPush_clean` directly below. -/
+
 /-- **CLEAN FLAG, BACKWARDS.**  The nested push, end to end.
 
 Six steps, and the flag walks back through all of them: the element-copy loop (an iff, it
