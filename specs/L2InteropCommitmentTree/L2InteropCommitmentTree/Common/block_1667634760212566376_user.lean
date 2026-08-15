@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
+import specs.KeccakLowSlot
 import specs.StorageFrame
 import specs.StateOk
 
@@ -44,6 +46,33 @@ lemma block_1667634760212566376_not_break {s₀ s₉ : State} (hok : isOk s₀)
 lemma block_1667634760212566376_frame {v : Identifier} {s₀ s₉ : State} (hv : v ≠ "var_i")
     (h : A_block_1667634760212566376 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
   rw [h, lookup_insert_of_ne hv]
+
+/-- **STORAGE FRAME.**  The block that zeroes the level counter is a single variable insert;
+it touches no storage. -/
+lemma block_1667634760212566376_sload {q : UInt256} {s₀ s₉ : State}
+    (h : A_block_1667634760212566376 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  subst h
+  simp only [evm_insert]
+
+/-- **CONFIG FRAME.**  Same reason: the keccak window cannot move. -/
+lemma block_1667634760212566376_config {s₀ s₉ : State}
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_block_1667634760212566376 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  subst h
+  simp only [evm_insert]
+  exact ⟨hR, hC⟩
+
+/-- **FUEL FRAME.**  And it spends no pool. -/
+lemma block_1667634760212566376_fuel {k : ℕ} {s₀ s₉ : State}
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_block_1667634760212566376 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  subst h
+  simp only [evm_insert]
+  exact hf
 
 end
 
