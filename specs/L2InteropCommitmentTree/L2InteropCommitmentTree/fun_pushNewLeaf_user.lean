@@ -136,8 +136,16 @@ Slot 1 holds the number of leaves.  `pushNewLeaf` increments it, and nothing dow
 disturbs it: the guards are identities here, and `updateLeaf` writes only keccak images,
 which `fun_updateLeaf_sload_of_low_of_clean` rules out as slot 1.
 
-`hcap` says the tree has room, i.e. `1 <<< height` did not wrap to zero -- with an empty
-tree that is exactly "the count is not already the capacity". -/
+The capacity path is no longer excluded: the guard's frames say it moves slots 0, 2 and 3
+and ten scratch bindings, none of which is slot 1 or `_1`, so the count is tracked THROUGH
+a growth rather than around it.  What replaces `hcap` is the growth path's standing
+address-arithmetic assumption -- no array near `2 ^ 64` entries, none reaching `2 ^ 32` --
+which is about `keccak(array) + index` wrapping onto a low slot, not about any bounds
+check.
+
+`hempty` remains, and with it the restriction to the first leaf: the depth-extension guard
+is what needs the tree non-empty, and its storage frame is the one genuinely blocked on a
+per-iteration length bound. -/
 lemma fun_pushNewLeaf_count_of_empty
     {var_newRoot : Identifier} {var_leaf : Literal} {s₀ s₉ : State} {act : Account}
     (hok : isOk s₀) (hnf : ¬ ❓ s₉)
@@ -146,7 +154,9 @@ lemma fun_pushNewLeaf_count_of_empty
     (hclean : Clear.KeccakClean.Clean s₉.evm)
     (hempty : Clear.EVMState.sload s₀.evm 1 = 0)
     (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
-    (hcap : (1 : UInt256) <<< (Clear.EVMState.sload s₀.evm 0) ≠ 0)
+    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hlen : ∀ q : Literal,
+      (Clear.EVMState.sload s₀.evm q).val < Clear.KeccakInjective.lowSlotBound)
     (h : A_fun_pushNewLeaf var_newRoot var_leaf s₀ s₉) :
     Clear.EVMState.sload s₉.evm 1 = Clear.EVMState.sload s₀.evm 1 + 1 := by
   obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
@@ -213,37 +223,77 @@ lemma fun_pushNewLeaf_count_of_empty
     rw [hcapdef, multifill_cons, multifill_nil, lookup_insert' hlvok, hlvdef,
       lookup_insert' hstok, hste,
       Clear.KeccakDistinct.sload_sstore_of_ne _ (by decide), hs1e]
-  have hne1 : cap["_1"]!! ≠ cap["split_expr_1"]!! := by
-    rw [hcap1, hcap2]; exact fun hcon => hcap hcon.symm
-  have hs2 : s₂ = cap :=
-    L2InteropCommitmentTree.Common.if_2518866309321428816_id_of_ne hne1
-      (Spec_ok_unfold hcapok h2nf h₂)
+  -- the capacity guard may or may not fire; either way its frames carry what is needed
+  have a₂ := Spec_ok_unfold hcapok h2nf h₂
+  have hs2ok : isOk s₂ := L2InteropCommitmentTree.Common.if_2518866309321428816_isOk hcapok
+    h2nf a₂
+  -- the size assumptions, moved to the state the guard actually sees
+  have hcapsl : ∀ q : Literal, q ≠ 1 →
+      Clear.EVMState.sload cap.evm q = Clear.EVMState.sload s₀.evm q := by
+    intro q hq
+    rw [hcape, hste, Clear.KeccakDistinct.sload_sstore_of_ne _ hq, hs1e]
+  have hcapfits : ∀ q : Literal, Clear.EVMState.sload cap.evm q < 18446744073709551616 := by
+    intro q
+    by_cases hq : q = 1
+    · rw [hq, hcape, hste, hstore, hs1v, hac, hempty]; decide
+    · rw [hcapsl q hq]; exact hfits q
+  have hcaplen : ∀ q : Literal,
+      (Clear.EVMState.sload cap.evm q).val < Clear.KeccakInjective.lowSlotBound := by
+    intro q
+    by_cases hq : q = 1
+    · rw [hq, hcape, hste, hstore, hs1v, hac, hempty]; exact oneLtLowSlot
+    · rw [hcapsl q hq]; exact hlen q
+  have hRcap : Clear.KeccakLowSlot.RangeInWindow cap.evm := by
+    rw [hcape, hste]; exact Clear.StorageFrame.rangeInWindow_sstore hR1
+  have hCcap : Clear.KeccakLowSlot.CachedInWindow cap.evm := by
+    rw [hcape, hste]; exact Clear.StorageFrame.cachedInWindow_sstore hC1
   set g2 := s₂⟦"split_expr_4" ↦ (decide (s₂["_1"]!! = 0)).toUInt256⟧ with hg2def
-  have hg2ok : isOk g2 := by rw [hg2def, hs2]; exact isOk_insert.mpr hcapok
+  have hg2ok : isOk g2 := by rw [hg2def]; exact isOk_insert.mpr hs2ok
+  -- `_1` crosses the guard, so the tree is still empty when the second guard reads it
+  have hs2_1 : s₂["_1"]!! = 0 := by
+    rw [L2InteropCommitmentTree.Common.if_2518866309321428816_frame hcapok h2nf
+      (by decide) a₂, hcap1]
   have hne2 : g2["split_expr_4"]!! ≠ 0 := by
-    rw [hg2def, lookup_insert' (by rw [hs2]; exact hcapok), hs2, hcap1]
+    rw [hg2def, lookup_insert' hs2ok, hs2_1]
     decide
   have hs3 : s₃ = g2 :=
     L2InteropCommitmentTree.Common.if_8492884752647891302_id_of_ne hne2
       (Spec_ok_unfold hg2ok h3nf h₃)
   -- the fold's own frame: `updateLeaf` writes only keccak images, so not slot 1
-  have hg2e : g2.evm = cap.evm := by rw [hg2def, evm_insert, hs2]
+  have hg2e : g2.evm = s₂.evm := by rw [hg2def, evm_insert]
   have he9 : s₉.evm = s₄.evm := by
     rw [heq, evm_insert, evm_setStore,
       Clear.evm_reviveJump_of_isOk (fun_updateLeaf_isOk h4nf
         (Spec_ok_unfold (by rw [hs3]; exact hg2ok) h4nf h₄))]
-  have hidx : s₃["_1"]!! = 0 := by rw [hs3, hg2def, lookup_insert_of_ne (by decide), hs2, hcap1]
+  -- the flag at the guard's output: walk it back through updateLeaf and the second guard
+  have hcleanCap : Clear.KeccakClean.Clean s₂.evm := by
+    have c3 : Clear.KeccakClean.Clean s₃.evm :=
+      fun_updateLeaf_clean (by rw [hs3]; exact hg2ok) h4nf (by rw [← he9]; exact hclean)
+        (Spec_ok_unfold (by rw [hs3]; exact hg2ok) h4nf h₄)
+    rw [hs3, hg2e] at c3
+    exact c3
+  have hidx : s₃["_1"]!! = 0 := by
+    rw [hs3, hg2def, lookup_insert_of_ne (by decide), hs2_1]
   have hRst : Clear.KeccakLowSlot.RangeInWindow st.evm := by
     rw [hste]; exact Clear.StorageFrame.rangeInWindow_sstore hR1
   have hCst : Clear.KeccakLowSlot.CachedInWindow st.evm := by
     rw [hste]; exact Clear.StorageFrame.cachedInWindow_sstore hC1
   have hul := fun_updateLeaf_sload_of_low_of_clean (c := 1)
     (by rw [hs3]; exact hg2ok) h4nf
-    (by rw [hs3, hg2e, hcape]; exact hRst) (by rw [hs3, hg2e, hcape]; exact hCst)
+    (by rw [hs3, hg2e]
+        exact (L2InteropCommitmentTree.Common.if_2518866309321428816_config hcapok h2nf
+          hcapfits hcaplen hRcap hCcap hcleanCap a₂).1)
+    (by rw [hs3, hg2e]
+        exact (L2InteropCommitmentTree.Common.if_2518866309321428816_config hcapok h2nf
+          hcapfits hcaplen hRcap hCcap hcleanCap a₂).2)
     (by rw [← he9]; exact hclean)
     (by rw [hidx]; exact zeroLtLowSlot) (by exact oneLtLowSlot)
     (Spec_ok_unfold (by rw [hs3]; exact hg2ok) h4nf h₄)
-  rw [he9, hul, hs3, hg2e, hcape, hste, hstore, hs1v, hac, hempty]
+  rw [he9, hul, hs3, hg2e,
+    L2InteropCommitmentTree.Common.if_2518866309321428816_sload_of_ne hcapok h2nf
+      (by decide) (by decide) (by decide) oneLtLowSlot hcapfits hcaplen hRcap hCcap
+      hcleanCap a₂,
+    hcape, hste, hstore, hs1v, hac, hempty]
 
 end
 

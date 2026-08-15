@@ -203,6 +203,68 @@ lemma fun_updateLeaf_sload_of_low_of_clean
     L2InteropCommitmentTree.Common.if_2960513488629726830_sload hs1 h2nf a₂,
     checked_sub_uint256_sload hbok h1nf a₁, hbe]
 
+/-- **CLEAN FLAG, BACKWARDS, ACROSS THE WHOLE UPDATE.**
+
+Companion to `_sload_of_low_of_clean`: that one CONSUMES the flag, this one carries it
+back to the caller, which is what a caller needs in order to establish the flag at
+whatever earlier point its own frames are stated. -/
+lemma fun_updateLeaf_clean
+    {var_ : Identifier} {var_self_slot var_index var_itemHash : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_fun_updateLeaf var_ var_self_slot var_index var_itemHash s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  set b := ((s₀☎️⟦["var_self_slot", "var_index", "var_itemHash"],[var_self_slot, var_index,
+      var_itemHash]⟧)⟦"split_expr_0" ↦
+        (s₀☎️⟦["var_self_slot", "var_index", "var_itemHash"],[var_self_slot, var_index,
+          var_itemHash]⟧)["var_self_slot"]!! + 1⟧)⟦"split_expr_1" ↦
+      Clear.EVMState.sload (s₀☎️⟦["var_self_slot", "var_index", "var_itemHash"],
+        [var_self_slot, var_index, var_itemHash]⟧).evm
+        (((s₀☎️⟦["var_self_slot", "var_index", "var_itemHash"],[var_self_slot, var_index,
+          var_itemHash]⟧)⟦"split_expr_0" ↦
+            (s₀☎️⟦["var_self_slot", "var_index", "var_itemHash"],[var_self_slot, var_index,
+              var_itemHash]⟧)["var_self_slot"]!! + 1⟧)["split_expr_0"]!!)⟧ with hbdef
+  have hbok : isOk b := by
+    rw [hbdef]; exact isOk_insert.mpr (isOk_insert.mpr (isOk_initcall_of_isOk hok))
+  have hbe : b.evm = s₀.evm := by
+    rw [hbdef]; simp only [evm_insert]; exact Clear.evm_initcall hok
+  have h5nf : ¬ ❓ s₅ := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have a₁ := Spec_ok_unfold hbok h1nf h₁
+  have hs1 : isOk s₁ := checked_sub_uint256_isOk hbok h1nf a₁
+  have a₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := L2InteropCommitmentTree.Common.if_2960513488629726830_isOk hs1 h2nf a₂
+  have a₃ := Spec_ok_unfold hs2 h3nf h₃
+  have hs3 : isOk s₃ :=
+    L2InteropCommitmentTree.Common.block_2668411367195639563_isOk hs2 h3nf a₃
+  have a₄ := Spec_ok_unfold hs3 h4nf h₄
+  have hs4 : isOk s₄ :=
+    L2InteropCommitmentTree.Common.block_1667634760212566376_isOk hs3 a₄
+  have a₅ := Spec_ok_unfold hs4 h5nf h₅
+  have hs5 : isOk s₅ := a₅.2.2.1
+  have he9 : s₉.evm = s₅.evm := by
+    rw [heq, evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hs5),
+      evm_insert]
+  rw [he9] at hclean
+  have c4 : Clear.KeccakClean.Clean s₄.evm := a₅.2.2.2.1 hs5 hclean
+  have c3 : Clear.KeccakClean.Clean s₃.evm :=
+    (L2InteropCommitmentTree.Common.block_1667634760212566376_clean a₄).mp c4
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    L2InteropCommitmentTree.Common.block_2668411367195639563_clean hs2 h3nf c3 a₃
+  have c1 : Clear.KeccakClean.Clean s₁.evm :=
+    (L2InteropCommitmentTree.Common.if_2960513488629726830_clean hs1 h2nf a₂).mp c2
+  have cb := (checked_sub_uint256_clean hbok h1nf a₁).mp c1
+  rw [hbe] at cb
+  exact cb
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
