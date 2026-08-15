@@ -42,6 +42,11 @@ abbrev Clean (σ : EVMState) : Prop := σ.hash_collision = false
 @[simp] theorem clean_evm_return (σ : EVMState) (p n : UInt256) :
     Clean (σ.evm_return p n) ↔ Clean σ := Iff.rfl
 
+/-- A revert is a flag in this model, not a rollback -- so it carries the collision flag
+across unchanged, exactly as it carries the storage. -/
+@[simp] theorem clean_evm_revert (σ : EVMState) (p n : UInt256) :
+    Clean (σ.evm_revert p n) ↔ Clean σ := Iff.rfl
+
 /-- **The one step that can break it**, and the direction that matters: a clean post-state
 forces a clean pre-state, because the only way the flag can turn on is a hash that found the
 pool empty. -/

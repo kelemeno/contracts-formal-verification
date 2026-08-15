@@ -2,6 +2,7 @@ import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -354,6 +355,43 @@ lemma storage_array_index_access_bytes32_dyn_ptr_5303_slot_not_low_of_clean
   have := Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config (j := 0) c hRm hCm hsome
     zero_lt_lowSlotBound hcl
   simpa using this
+
+/-- **CLEAN FLAG, BACKWARDS.**  One hash, so this direction only: a clean result proves the
+hash found the pool non-empty, hence the state it ran from was clean too.  The converse is
+false, which is the whole point -- a clean input says nothing about whether the hash will
+succeed, while a clean output says it did. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_clean
+    {slot offset : Identifier} {array : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := gState_isOk (array := array) hok
+  have hge := gState_evm (array := array) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      Clear.KeccakPrimOps.primCall_keccakOut, isOutOfFuel_multifill', isOutOfFuel_setEvm']
+    exact hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_isOk hgok hssnf hga
+  have hrok : isOk ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧) := by
+    simp only [isOk_insert, Clear.KeccakPrimOps.primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hssok)
+  have hcl2 : Clear.KeccakClean.Clean (Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2 := by
+    rw [heq] at hclean
+    simpa only [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrok,
+      resultOf_evm hssok] using hclean
+  have hss : Clear.KeccakClean.Clean ss.evm :=
+    Clear.KeccakClean.clean_of_keccakOut_mstore hcl2
+  rw [← hge]
+  exact (L2InteropCommitmentTree.Common.if_6945705467323769142_clean hgok hssnf hga).mp hss
 
 end
 

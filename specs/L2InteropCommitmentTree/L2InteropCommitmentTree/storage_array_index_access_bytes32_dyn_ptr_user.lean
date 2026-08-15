@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.KeccakFresh
 import specs.KeccakSlotSep
 import specs.KeccakPrimOps
@@ -737,6 +738,51 @@ lemma storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean
   have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
   have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
   exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config _ _ hRm hCm hsome hj hcl
+
+/-- **CLEAN FLAG, BACKWARDS.**  As for the index-zero variant: one hash, so a clean result
+proves the pool was non-empty when it ran, and therefore that the state it ran from was
+clean.  Holds on both branches of the bounds check -- the address computation runs either
+way, and a panic never hashes. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_clean
+    {slot offset : Identifier} {array index : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr slot offset array index s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hf0 : isOk (s₀☎️⟦["array", "index"],[array, index]⟧) := isOk_initcall_of_isOk hok
+  have hgcok : isOk (arrIdxGuardState array index s₀) := by
+    unfold arrIdxGuardState; simpa [isOk_insert] using hf0
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      isOutOfFuel_arrIdxResultState]
+    exact hoo
+  have hgce : (arrIdxGuardState array index s₀).evm = s₀.evm := arrIdxGuardState_evm hok
+  have hga := Spec_ok_unfold hgcok hssnf hg
+  have hssok : isOk ss := by
+    by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+    · obtain ⟨sp, hsp, hss⟩ := hga.2 hflag
+      subst hss
+      exact panic_error_0x32_isOk hgcok (Spec_ok_unfold hgcok hssnf hsp)
+    · rw [hga.1 hflag]; exact hgcok
+  have hrsok : isOk (arrIdxResultState ss) := isOk_arrIdxResultState hssok
+  have hcl2 : Clear.KeccakClean.Clean (Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2 := by
+    rw [heq] at hclean
+    simpa only [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrsok,
+      evm_arrIdxResultState hssok] using hclean
+  have hss : Clear.KeccakClean.Clean ss.evm :=
+    Clear.KeccakClean.clean_of_keccakOut_mstore hcl2
+  -- walk it back past the guard: the panic branch never hashes, the other is the identity
+  rw [← hgce]
+  by_cases hflag : (arrIdxGuardState array index s₀)["split_expr_1"]!! = 0
+  · obtain ⟨sp, hsp, hsseq⟩ := hga.2 hflag
+    rw [hsseq] at hss hssnf
+    exact (panic_error_0x32_clean hgcok (Spec_ok_unfold hgcok hssnf hsp)).mp hss
+  · rw [← hga.1 hflag]; exact hss
 
 end
 

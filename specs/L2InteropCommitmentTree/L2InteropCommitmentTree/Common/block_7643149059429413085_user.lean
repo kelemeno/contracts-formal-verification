@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
@@ -83,6 +84,15 @@ lemma block_7643149059429413085_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s
   obtain ⟨s, hs, heq⟩ := h
   rw [heq] at hnf ⊢
   exact update_storage_value_bytes32_to_bytes32_fuel hok hnf hf (Spec_ok_unfold hok hnf hs)
+
+/-- **CLEAN FLAG.**  The fold's write is `update_storage_value` and nothing else, so it
+never hashes: the flag reads the same at both ends. -/
+lemma block_7643149059429413085_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_7643149059429413085 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact update_storage_value_bytes32_to_bytes32_clean hok hnf (Spec_ok_unfold hok hnf hs)
 
 end
 

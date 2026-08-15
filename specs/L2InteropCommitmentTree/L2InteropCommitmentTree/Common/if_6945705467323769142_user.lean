@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakLowSlot
@@ -102,6 +103,17 @@ lemma if_6945705467323769142_frame {v : Identifier} {s₀ s₉ : State} (hok : i
     rw [hfire hc]
     exact panic_error_0x32_frame hok (Spec_ok_unfold hok hpnf hsp)
   · rw [hid hc]
+
+/-- **CLEAN FLAG.**  Either branch: a panic never hashes, and the other branch is the
+caller's own state. -/
+lemma if_6945705467323769142_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_6945705467323769142 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hp, hyes, hno⟩ := h
+  by_cases hc : s₀["split_expr_0"]!! = 0
+  · rw [hyes hc] at hnf ⊢
+    exact panic_error_0x32_clean hok (Spec_ok_unfold hok hnf hp)
+  · rw [hno hc]
 
 end
 
