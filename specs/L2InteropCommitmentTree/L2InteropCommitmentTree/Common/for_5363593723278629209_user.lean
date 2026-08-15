@@ -59,7 +59,16 @@ def AFor_for_5363593723278629209 (s₀ s₉ : State) : Prop :=
   (∀ evm store, s₉ = Ok evm store → (Ok evm store)["split_expr_5"]!! = 0) ∧
   (isOk s₉ → ¬ (s₉["var_i"]!! < Clear.EVMState.sload s₉.evm (s₉["var_self_slot"]!!))) ∧
   ∃ k : ℕ, s₉["var_index"]!! = Clear.FoldRightPeel.idxAt (s₀["var_index"]!!) k ∧
-    s₉["var_i"]!! = Clear.FoldRightPeel.lvlAt (s₀["var_i"]!!) k
+    s₉["var_i"]!! = Clear.FoldRightPeel.lvlAt (s₀["var_i"]!!) k ∧
+    -- **STEP 3: the whole fold leaves every low slot alone.**  The budget is tied to the
+    -- TRIP COUNT `k`, not to a storage value: tying it to the level count in storage would
+    -- be circular, since that value's preservation is what is being proved.  Six units per
+    -- iteration, and the `∀ n` is what lets the recursive instance apply at a smaller one.
+    (isOk s₉ → ∀ n : ℕ, 6 * k ≤ n → Clear.KeccakFuel.Fuel s₀.evm n →
+      RangeInWindow s₀.evm → CachedInWindow s₀.evm →
+      (s₀["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound →
+      ∀ c : Literal, c.val < Clear.KeccakInjective.lowSlotBound →
+        Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c)
 
 /-- Loop body: break if the levels are exhausted, take the index's parity, fold one
 level, advance to the parent, and store the new node. -/
@@ -243,33 +252,6 @@ lemma AZero_for_5363593723278629209 : ∀ s₀, isOk s₀ → ACond_for_53635937
   unfold ACond_for_5363593723278629209 at hcond
   exact absurd hcond (by decide)
 
-lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_5363593723278629209 s₀ = 0 → ABody_for_5363593723278629209 s₀ s₂ → APost_for_5363593723278629209 s₂ s₄ → Spec AFor_for_5363593723278629209 s₄ s₅ → AFor_for_5363593723278629209 s₀ s₅ := by
-  intro s₀ s₂ s₄ s₅ h0 h2 h5 _hcond hbody hpost hspec
-  rcases s₂ with ⟨e2, st2⟩ | _ | _
-  · have hok2 : isOk (Ok e2 st2 : State) := by simp [isOk]
-    have h4 : s₄ = (Ok e2 st2)⟦"var_i" ↦ ((Ok e2 st2)["var_i"]!! + 1)⟧ := hpost e2 st2 rfl
-    have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
-    have hfor : AFor_for_5363593723278629209 s₄ s₅ :=
-      Spec_ok_unfold (P := AFor_for_5363593723278629209) hok4 h5 hspec
-    refine ⟨hfor.1, hfor.2.1, ?_⟩
-    obtain ⟨k, hidx, hlvl⟩ := hfor.2.2
-    -- the POST moves the level counter and nothing else
-    have hidx4 : s₄["var_index"]!! = (Ok e2 st2 : State)["var_index"]!! := by
-      rw [h4, lookup_insert_of_ne (by decide)]
-    have hlvl4 : s₄["var_i"]!! = (Ok e2 st2 : State)["var_i"]!! + 1 := by
-      rw [h4, lookup_insert' hok2]
-    -- the BODY halves the index and leaves the counter alone
-    have hbidx : (Ok e2 st2 : State)["var_index"]!! = Fin.shiftRight (s₀["var_index"]!!) 1 :=
-      ABody_for_5363593723278629209_index h0 hok2 hbody
-    have hbi : (Ok e2 st2 : State)["var_i"]!! = s₀["var_i"]!! :=
-      ABody_for_5363593723278629209_var_i h0 hok2 hbody
-    -- so one more iteration is one more step of BOTH abstract sequences
-    exact ⟨k + 1,
-      by rw [hidx, hidx4, hbidx, Clear.FoldRightPeel.idxAt_succ_start],
-      by rw [hlvl, hlvl4, hbi, Clear.FoldRightPeel.lvlAt_succ_start]⟩
-  · exact absurd h2 (by simp [isOk])
-  · exact absurd h2 (by simp [isOk])
-
 /-- **Refuted, not proved.**  This body contains no `continue`, so the hypothesis is
 impossible: the body ends `Ok` or `Break`, and a `Break` is not a `Continue`. -/
 lemma AContinue_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isContinue s₂ → ¬ ACond_for_5363593723278629209 s₀ = 0 → ABody_for_5363593723278629209 s₀ s₂ → Spec APost_for_5363593723278629209 (🧟s₂) s₄ → Spec AFor_for_5363593723278629209 s₄ s₅ → AFor_for_5363593723278629209 s₀ s₅ := by
@@ -310,7 +292,7 @@ lemma ABreak_for_5363593723278629209 : ∀ s₀ s₂, isOk s₀ → isBreak s₂
       Clear.reviveJump_eq_of_Spec_of_isJump h₄ hj3,
       Clear.reviveJump_eq_of_Spec_of_isJump h₃ hj2,
       Clear.reviveJump_eq_of_Spec_of_isJump h₂ hj1, e1, Clear.reviveJump_setBreak hgc]
-    refine ⟨?_, ?_, 0, ?_, ?_⟩
+    refine ⟨?_, ?_, 0, ?_, ?_, ?_⟩
     · intro evm store hs
       rw [← hs]
       exact hf
@@ -332,6 +314,10 @@ lemma ABreak_for_5363593723278629209 : ∀ s₀ s₂, isOk s₀ → isBreak s₂
     · simp only [Clear.FoldRightPeel.lvlAt_zero]
       unfold rootGuardStateGen
       rw [lookup_insert_of_ne (by decide), lookup_insert_of_ne (by decide)]
+    · -- broke on entry: no iteration ran, so nothing was written
+      intro _ _ _ _ _ _ _ _ _
+      unfold rootGuardStateGen
+      simp only [evm_insert]
   · exfalso
     have e1 : s₁ = rootGuardStateGen s₀ := hg.2 hf
     have hs1 : isOk s₁ := by rw [e1]; exact hgc
@@ -573,6 +559,51 @@ lemma ABody_for_5363593723278629209_fuel {k : ℕ} {s₀ s₉ : State} (hok : is
     have hfu4 : Clear.KeccakFuel.Fuel s₄.evm (k + 1) :=
       block_8439353917263816235_fuel hs3 h4nf hfu3 (Spec_ok_unfold hs3 h4nf h₄)
     exact block_7643149059429413085_fuel hs4 h5nf hfu4 (Spec_ok_unfold hs4 h5nf h₅)
+
+
+/-- **The inductive step, including the storage frame.**  Placed after the body lemmas
+because it uses them; the closure lemmas may appear in any order within the module. -/
+lemma AOk_for_5363593723278629209 : ∀ s₀ s₂ s₄ s₅, isOk s₀ → isOk s₂ → ¬ ❓ s₅ → ¬ ACond_for_5363593723278629209 s₀ = 0 → ABody_for_5363593723278629209 s₀ s₂ → APost_for_5363593723278629209 s₂ s₄ → Spec AFor_for_5363593723278629209 s₄ s₅ → AFor_for_5363593723278629209 s₀ s₅ := by
+  intro s₀ s₂ s₄ s₅ h0 h2 h5 _hcond hbody hpost hspec
+  rcases s₂ with ⟨e2, st2⟩ | _ | _
+  · have hok2 : isOk (Ok e2 st2 : State) := by simp [isOk]
+    have h4 : s₄ = (Ok e2 st2)⟦"var_i" ↦ ((Ok e2 st2)["var_i"]!! + 1)⟧ := hpost e2 st2 rfl
+    have hok4 : isOk s₄ := by rw [h4]; simp [isOk, State.insert]
+    have hfor : AFor_for_5363593723278629209 s₄ s₅ :=
+      Spec_ok_unfold (P := AFor_for_5363593723278629209) hok4 h5 hspec
+    refine ⟨hfor.1, hfor.2.1, ?_⟩
+    obtain ⟨k, hidx, hlvl, hrecfrm⟩ := hfor.2.2
+    -- the POST moves the level counter and nothing else
+    have hidx4 : s₄["var_index"]!! = (Ok e2 st2 : State)["var_index"]!! := by
+      rw [h4, lookup_insert_of_ne (by decide)]
+    have hlvl4 : s₄["var_i"]!! = (Ok e2 st2 : State)["var_i"]!! + 1 := by
+      rw [h4, lookup_insert' hok2]
+    -- the BODY halves the index and leaves the counter alone
+    have hbidx : (Ok e2 st2 : State)["var_index"]!! = Fin.shiftRight (s₀["var_index"]!!) 1 :=
+      ABody_for_5363593723278629209_index h0 hok2 hbody
+    have hbi : (Ok e2 st2 : State)["var_i"]!! = s₀["var_i"]!! :=
+      ABody_for_5363593723278629209_var_i h0 hok2 hbody
+    -- so one more iteration is one more step of BOTH abstract sequences
+    refine ⟨k + 1,
+      by rw [hidx, hidx4, hbidx, Clear.FoldRightPeel.idxAt_succ_start],
+      by rw [hlvl, hlvl4, hbi, Clear.FoldRightPeel.lvlAt_succ_start], ?_⟩
+    -- the frame: this iteration writes no low slot, and the rest of the fold is the
+    -- recursive instance at a budget six units smaller
+    intro h5ok n hn hfu hR hC hjb c hcl
+    have hfrm := ABody_for_5363593723278629209_preserves_low h0 hok2 hR hC
+      (hfu.mono (by omega)) hjb hcl hbody
+    have hbfu : Clear.KeccakFuel.Fuel (Ok e2 st2 : State).evm (n - 6) :=
+      ABody_for_5363593723278629209_fuel h0 hok2 (hfu.mono (by omega)) hbody
+    obtain ⟨hRb, hCb⟩ := ABody_for_5363593723278629209_config h0 hok2 hR hC hbody
+    have he4 : s₄.evm = (Ok e2 st2 : State).evm := by rw [h4]; simp only [evm_insert]
+    have hj4 : (s₄["var_index"]!!).val < Clear.KeccakInjective.lowSlotBound := by
+      rw [hidx4, hbidx]
+      exact Clear.FinBits.shiftRight_one_lt_of_lt hjb
+    have hrec := hrecfrm h5ok (n - 6) (by omega) (by rw [he4]; exact hbfu)
+      (by rw [he4]; exact hRb) (by rw [he4]; exact hCb) hj4 c hcl
+    rw [hrec, he4, hfrm]
+  · exact absurd h2 (by simp [isOk])
+  · exact absurd h2 (by simp [isOk])
 
 end
 
