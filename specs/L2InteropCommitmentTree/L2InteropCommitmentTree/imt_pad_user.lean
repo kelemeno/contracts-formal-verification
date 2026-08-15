@@ -1445,6 +1445,96 @@ theorem pushNewLeaf_call_grow
   rw [show pushGrowBase evm = growEvm (evm.sstore 1 (evm.sload 1 + 1))
       ((evm.sstore 1 (evm.sload 1 + 1)).sload 0) from rfl]
 
+/-! ## The pool invariants cross the PADDING walk
+
+`padWalk_lookup_mono` carries cache HITS across the padding loop; these carry the three
+properties the derived separation route consumes.  Both are needed together: a hit is
+useless to `cached_off_ne_off` without `Separated` and `CacheInj` in the same state.
+
+The padding step is all `arrOut` and `sstore` — `pushEvm` is two stores around one array
+hash — so each proof is a straight composition of the atom lemmas, then an induction on
+the level count. -/
+
+lemma separated_pushEvm {σ : EVMState} {arr v : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (pushEvm σ arr v) := by
+  unfold pushEvm
+  exact Clear.StorageFrame.separated_sstore
+    (separated_arrOut (Clear.StorageFrame.separated_sstore h))
+
+lemma cacheInUsed_pushEvm {σ : EVMState} {arr v : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (pushEvm σ arr v) := by
+  unfold pushEvm
+  exact Clear.StorageFrame.cacheInUsed_sstore
+    (cacheInUsed_arrOut (Clear.StorageFrame.cacheInUsed_sstore h))
+
+lemma cacheInj_pushEvm {σ : EVMState} {arr v : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (pushEvm σ arr v) := by
+  unfold pushEvm
+  exact Clear.StorageFrame.cacheInj_sstore
+    (cacheInj_arrOut (Clear.StorageFrame.cacheInUsed_sstore hu)
+      (Clear.StorageFrame.cacheInj_sstore h))
+
+lemma separated_padStep {σ : EVMState} {i : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (padStep σ i) := by
+  unfold padStep
+  exact separated_pushEvm (separated_arrOut (separated_arrOut h))
+
+lemma cacheInUsed_padStep {σ : EVMState} {i : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (padStep σ i) := by
+  unfold padStep
+  exact cacheInUsed_pushEvm (cacheInUsed_arrOut (cacheInUsed_arrOut h))
+
+lemma cacheInj_padStep {σ : EVMState} {i : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (padStep σ i) := by
+  unfold padStep
+  exact cacheInj_pushEvm (cacheInUsed_arrOut (cacheInUsed_arrOut hu))
+    (cacheInj_arrOut (cacheInUsed_arrOut hu) (cacheInj_arrOut hu h))
+
+/-- **The padding walk preserves slot separation** (`padWalk_lookup_mono` twin). -/
+lemma separated_padWalk :
+    ∀ (k : ℕ) {σ : EVMState} {i om m : UInt256},
+    Clear.KeccakSlotSep.Separated σ →
+    Clear.KeccakSlotSep.Separated ((padWalk k σ i om m).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ i om m h
+    simp only [padWalk]
+    exact ih (separated_padStep h)
+
+/-- **The padding walk preserves cache-in-used.** -/
+lemma cacheInUsed_padWalk :
+    ∀ (k : ℕ) {σ : EVMState} {i om m : UInt256},
+    Clear.KeccakFresh.CacheInUsed σ →
+    Clear.KeccakFresh.CacheInUsed ((padWalk k σ i om m).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ i om m h
+    simp only [padWalk]
+    exact ih (cacheInUsed_padStep h)
+
+/-- **The padding walk preserves cache injectivity.** -/
+lemma cacheInj_padWalk :
+    ∀ (k : ℕ) {σ : EVMState} {i om m : UInt256},
+    Clear.KeccakFresh.CacheInUsed σ → Clear.KeccakFresh.CacheInj σ →
+    Clear.KeccakFresh.CacheInj ((padWalk k σ i om m).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ i om m hu h
+    simp only [padWalk]
+    exact ih (cacheInUsed_padStep hu) (cacheInj_padStep hu h)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
