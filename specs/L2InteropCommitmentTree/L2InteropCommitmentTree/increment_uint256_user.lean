@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2896693009130145472
@@ -124,6 +126,70 @@ lemma increment_uint256_sload {ret : Identifier} {value : Literal} {q : UInt256}
   rw [hguard]
   simp only [evm_insert]
   exact Clear.evm_initcall hok ▸ rfl
+
+/-- **FRAME.**  Only `ret` moves: the overflow guard restores the caller's bindings. -/
+lemma increment_uint256_frame {ret : Identifier} {value : Literal} {v : Identifier}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ ret)
+    (h : A_increment_uint256 ret value s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨ss, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 (ss⟦"ret" ↦ ss["value"]!! + 1⟧)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
+/-- The state the overflow guard sees: the argument bound and the sentinel loaded. -/
+private def incG (value : Literal) (s₀ : State) : State :=
+  s₀☎️⟦["value"],[value]⟧⟦"split_expr_0" ↦ UInt256.lnot 0⟧
+
+private lemma incG_isOk {value : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (incG value s₀) := isOk_insert.mpr (isOk_initcall_of_isOk hok)
+
+private lemma incG_evm {value : Literal} {s₀ : State} (hok : isOk s₀) :
+    (incG value s₀).evm = s₀.evm := by
+  simp only [incG, evm_insert]; exact Clear.evm_initcall hok
+
+/-- **KECCAK WINDOW.**  An increment and an overflow check: no hashing, no storage. -/
+lemma increment_uint256_config {ret : Identifier} {value : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_increment_uint256 ret value s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := incG_isOk (value := value) hok
+  have hge := incG_evm (value := value) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_isOk hgok hssnf hga
+  obtain ⟨hRs, hCs⟩ := L2InteropCommitmentTree.Common.if_2896693009130145472_config hgok hssnf
+    (by rw [hge]; exact hR) (by rw [hge]; exact hC) hga
+  rw [heq, evm_insert, evm_setStore,
+    Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hssok), evm_insert]
+  exact ⟨hRs, hCs⟩
+
+/-- **CLEAN FLAG.**  Same reason: nothing here hashes. -/
+lemma increment_uint256_clean {ret : Identifier} {value : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_increment_uint256 ret value s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := incG_isOk (value := value) hok
+  have hge := incG_evm (value := value) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_isOk hgok hssnf hga
+  rw [heq, evm_insert, evm_setStore,
+    Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hssok), evm_insert,
+    L2InteropCommitmentTree.Common.if_2896693009130145472_clean hgok hssnf hga, hge]
 
 end
 

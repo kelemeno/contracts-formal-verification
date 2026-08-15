@@ -1,4 +1,6 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakLowSlot
+import specs.KeccakClean
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x11
 
@@ -72,6 +74,28 @@ lemma if_2896693009130145472_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk
     rw [hfire hg]
     exact panic_error_0x11_sload hok (Spec_ok_unfold hok hpnf hsp)
   · rw [hid hg]
+
+/-- **KECCAK WINDOW.**  Either branch: the overflow panic only writes memory. -/
+lemma if_2896693009130145472_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_2896693009130145472 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["value"]!! = s₀["split_expr_0"]!!
+  · rw [hpos hc]
+    exact panic_error_0x11_config hok hR hC (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]; exact ⟨hR, hC⟩
+
+/-- **CLEAN FLAG.**  Neither branch hashes. -/
+lemma if_2896693009130145472_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_2896693009130145472 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["value"]!! = s₀["split_expr_0"]!!
+  · rw [hpos hc]
+    exact panic_error_0x11_clean hok (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]
 
 end
 
