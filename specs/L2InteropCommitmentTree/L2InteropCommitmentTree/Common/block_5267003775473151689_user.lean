@@ -91,7 +91,7 @@ private lemma b5267_parts {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s�
 
 /-- **KECCAK WINDOW.**  Allocation keeps it, and the push keeps it. -/
 lemma block_5267003775473151689_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
-    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hfits : Clear.EVMState.sload s₀.evm 2 < 18446744073709551616)
     (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
     (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
     (h : A_block_5267003775473151689 s₀ s₉) :
@@ -110,14 +110,14 @@ lemma block_5267003775473151689_config {s₀ s₉ : State} (hok : isOk s₀) (hn
       = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
     Clear.evm_setEvm_of_isOk hs1
   exact arrArrPush_config hmok hnf
-    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits _)
+    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits)
     (by rw [hme]; exact Clear.StorageFrame.rangeInWindow_mstore hR1)
     (by rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC1)
     (Spec_ok_unfold hmok hnf h₂)
 
 /-- **CLEAN FLAG, BACKWARDS.**  Allocation cannot dirty it; the push can. -/
 lemma block_5267003775473151689_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
-    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hfits : Clear.EVMState.sload s₀.evm 2 < 18446744073709551616)
     (hclean : Clear.KeccakClean.Clean s₉.evm)
     (h : A_block_5267003775473151689 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
   obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
@@ -132,7 +132,7 @@ lemma block_5267003775473151689_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf
       = Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!) :=
     Clear.evm_setEvm_of_isOk hs1
   have c1 := arrArrPush_clean hmok hnf
-    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits _) hclean
+    (by rw [hme, Clear.StorageFrame.sload_mstore, hsl1]; exact hfits) hclean
     (Spec_ok_unfold hmok hnf h₂)
   rw [hme, Clear.KeccakClean.clean_mstore] at c1
   rw [← hine]
