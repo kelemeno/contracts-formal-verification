@@ -151,6 +151,81 @@ lemma if_2518866309321428816_sload_of_ne {c : Literal} {s₀ s₉ : State}
       hsl2 c hc3 hclow, hsl1 c hc0]
   · rw [hno hg]
 
+/-- **FRAME.**  Growing the tree touches ten scratch bindings and no others.  Notably `_1`,
+the leaf count read before the guard, is not among them -- which is what lets a caller
+track the count THROUGH a growth rather than only around it. -/
+lemma if_2518866309321428816_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ∉ (["expr", "split_expr_2", "_3", "_4", "split_expr_3", "_5", "expr_1",
+      "size", "_6", "expr_mpos"] : List Identifier))
+    (h : A_if_2518866309321428816 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hv
+  obtain ⟨he, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hv
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, hyes, hno⟩ := h
+  by_cases hg : s₀["_1"]!! = s₀["split_expr_1"]!!
+  · obtain ⟨h3nf, h2nf, h1nf⟩ := cap_nf hnf h₂ h₃ hyes hg
+    rw [hyes hg]
+    have a₁ := Spec_ok_unfold hok h1nf h₁
+    have hs1 : isOk s₁ := block_6359192996994294239_isOk hok h1nf a₁
+    have a₂ := Spec_ok_unfold hs1 h2nf h₂
+    have hs2 : isOk s₂ := block_3221258955042269759_isOk hs1 h2nf a₂
+    rw [block_5267003775473151689_frame hs2 h3nf h9 h8 h10 (Spec_ok_unfold hs2 h3nf h₃),
+      block_3221258955042269759_frame hs1 h2nf h6 h7 h8 h9 a₂,
+      block_6359192996994294239_frame hok h1nf he h2 h3 h4 h5 a₁]
+  · rw [hno hg]
+
+lemma if_2518866309321428816_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_2518866309321428816 s₀ s₉) : isOk s₉ := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, hyes, hno⟩ := h
+  by_cases hg : s₀["_1"]!! = s₀["split_expr_1"]!!
+  · obtain ⟨h3nf, h2nf, h1nf⟩ := cap_nf hnf h₂ h₃ hyes hg
+    rw [hyes hg]
+    have hs1 : isOk s₁ := block_6359192996994294239_isOk hok h1nf (Spec_ok_unfold hok h1nf h₁)
+    have hs2 : isOk s₂ :=
+      block_3221258955042269759_isOk hs1 h2nf (Spec_ok_unfold hs1 h2nf h₂)
+    exact block_5267003775473151689_isOk hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  · rw [hno hg]; exact hok
+
+set_option maxHeartbeats 1600000 in
+/-- **KECCAK WINDOW.**  Each block keeps it; the size bounds come from the storage frames
+of the blocks before, which is why this could not be stated before those existed. -/
+lemma if_2518866309321428816_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hlen : ∀ q : Literal,
+      (Clear.EVMState.sload s₀.evm q).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_if_2518866309321428816 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, hyes, hno⟩ := h
+  by_cases hg : s₀["_1"]!! = s₀["split_expr_1"]!!
+  · obtain ⟨h3nf, h2nf, h1nf⟩ := cap_nf hnf h₂ h₃ hyes hg
+    rw [hyes hg] at hclean ⊢
+    have a₁ := Spec_ok_unfold hok h1nf h₁
+    have hs1 : isOk s₁ := block_6359192996994294239_isOk hok h1nf a₁
+    obtain ⟨hR1, hC1⟩ := block_6359192996994294239_config hok h1nf hR hC a₁
+    have a₂ := Spec_ok_unfold hs1 h2nf h₂
+    have hs2 : isOk s₂ := block_3221258955042269759_isOk hs1 h2nf a₂
+    have hsl1 : ∀ q : Literal, q ≠ 0 →
+        Clear.EVMState.sload s₁.evm q = Clear.EVMState.sload s₀.evm q :=
+      fun q hq => block_6359192996994294239_sload_of_ne hok h1nf hq a₁
+    have c2 : Clear.KeccakClean.Clean s₂.evm :=
+      block_5267003775473151689_clean hs2 h3nf hclean (Spec_ok_unfold hs2 h3nf h₃)
+    have hsl2 : ∀ q : Literal, q ≠ 3 → q.val < Clear.KeccakInjective.lowSlotBound →
+        Clear.EVMState.sload s₂.evm q = Clear.EVMState.sload s₁.evm q := by
+      intro q hq hlow
+      exact block_3221258955042269759_sload_of_ne hs1 h2nf
+        (by rw [hsl1 3 (by decide)]; exact hfits 3) hq hlow
+        (by rw [hsl1 3 (by decide)]; exact hlen 3) hR1 hC1 c2 a₂
+    obtain ⟨hR2, hC2⟩ := block_3221258955042269759_config hs1 h2nf
+      (by rw [hsl1 3 (by decide)]; exact hfits 3) hR1 hC1 a₂
+    exact block_5267003775473151689_config hs2 h3nf
+      (by rw [hsl2 2 (by decide) (by show (2:ℕ) < 2^32; norm_num), hsl1 2 (by decide)]
+          exact hfits 2)
+      hR2 hC2 (Spec_ok_unfold hs2 h3nf h₃)
+  · rw [hno hg]; exact ⟨hR, hC⟩
+
 end
 
 end L2InteropCommitmentTree.Common
