@@ -3546,37 +3546,36 @@ along the walk. -/
 set_option maxHeartbeats 4000000
 
 
-/-! ### The leaf-slot walk frames on the derived route
+/-! ### The cached-slot walk frames on the derived route
 
-`nodeStore_sload_leaf` and its walk closures are the last `keccak_off_ne_off` users under
-`glueSeq`.  Each separates a slot the step has just MINTED (a 32-byte array base) from a
-leaf-field slot pinned at a reference state `σᵣ` (a 64-byte mapping entry).
+Each walk step MINTS a 32-byte array base and stores at it.  These say such a store never
+reaches a slot that is a CACHED 64-byte hash -- a mapping entry, whatever the mapping.  The
+leaf-field frames are the `base = 4` instance; the `valueToIndex` frames are `base = 5`, and
+the statement is over the preimage window directly (`mkInterval ms q 64`) so both are the
+same lemma.
 
-`arrSlot_ne_accSlot_of_clean` does that from the pool invariants, but it needs the leaf hit
-in the MINTING state's cache, not only at `σᵣ`.  So each twin takes one extra hypothesis:
-the same value `w` cached at the step's own entry state.  The walk inductions carry it with
-`updateStep_lookup_mono` / `padStep_lookup_mono`, exactly as they carry the pool triple. -/
+`arrSlot_ne_cached64_of_clean` does the separation from the pool invariants, but it needs
+the hit in the MINTING state's cache.  So each takes the hit at the step's own entry state;
+the walk inductions carry it with `updateStep_lookup_mono` / `padStep_lookup_mono`, exactly
+as they carry the pool triple. -/
 
-/-- **DERIVED** companion to `nodeStore_sload_leaf`. -/
-lemma nodeStore_sload_leaf_of_config
-    {σ σᵣ : EVMState} {base l j v i k w : UInt256}
+/-- **DERIVED** companion to `nodeStore_sload_leaf`, generalised. -/
+lemma nodeStore_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {base l j v q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
     (hclean : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).2.hash_collision = false)
     (hcleanA : (arrOut σ base).2.hash_collision = false)
-    (hci : Finmap.lookup (accInterval σᵣ i 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ i 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hj : j.val < Clear.KeccakInjective.lowSlotBound)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
-    (nodeStore σ base l j v).sload (leafSlot σᵣ i + k)
-      = σ.sload (leafSlot σᵣ i + k) := by
+    (nodeStore σ base l j v).sload (w + k)
+      = σ.sload (w + k) := by
   unfold nodeStore
-  obtain ⟨-, hvi⟩ := leafSlot_keccak hci
   have hne : (arrOut (arrOut σ base).2 ((arrOut σ base).1 + l)).1 + j
-      ≠ leafSlot σᵣ i + k := by
-    rw [hvi]
-    exact arrSlot_ne_accSlot_of_clean (σ₀ := σᵣ) (key := i) (base := 4)
+      ≠ w + k := by
+    exact arrSlot_ne_cached64_of_clean (ms := ms) (q := q)
       (separated_arrOut (separated_arrOut hsep))
       (cacheInj_arrOut (cacheInUsed_arrOut hused) (cacheInj_arrOut hused hinj))
       hclean (arrOut_mono_f hcσ) hj hk
@@ -3585,18 +3584,17 @@ lemma nodeStore_sload_leaf_of_config
   rw [sload_arrOut_of_clean _ hcleanA]
 
 /-- **DERIVED** companion to `stepOdd_sload_leaf`. -/
-lemma stepOdd_sload_leaf_of_config
-    {σ σᵣ : EVMState} {base i idx cur li k w : UInt256}
+lemma stepOdd_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {base i idx cur q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
-    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
     (hfin : oddFinClean σ base i idx cur) :
-    ((stepOdd σ base i idx cur).2).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((stepOdd σ base i idx cur).2).sload (w + k)
+      = σ.sload (w + k) := by
   unfold oddFinClean at hfin
   have h4 := arrOut_clean_bw hfin
   have h3 := arrOut_clean_bw h4
@@ -3612,35 +3610,34 @@ lemma stepOdd_sload_leaf_of_config
       (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).2 :=
     Clear.KeccakFresh.cacheInj_accOut (cacheInUsed_arrOut (cacheInUsed_arrOut hused))
       (cacheInj_arrOut (cacheInUsed_arrOut hused) (cacheInj_arrOut hused hinj))
-  have hcσ' : Finmap.lookup (accInterval σᵣ li 4)
+  have hcσ' : Finmap.lookup (mkInterval ms q 64)
       ((accOut (sibRead σ base i (idx - 1)).2
         (sibRead σ base i (idx - 1)).1 cur).2).keccak_map = some w :=
     accOut_lookup_mono (arrOut_mono_f (arrOut_mono_f hcσ))
   show (nodeStore (accOut (sibRead σ base i (idx - 1)).2
       (sibRead σ base i (idx - 1)).1 cur).2 base (i + 1) (Fin.shiftRight idx 1)
       (accOut (sibRead σ base i (idx - 1)).2 (sibRead σ base i (idx - 1)).1 cur).1).sload
-        (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
-  rw [nodeStore_sload_leaf_of_config hsep' hused' hinj' hfin h4 hci hcσ' hj hk]
+        (w + k)
+    = σ.sload (w + k)
+  rw [nodeStore_sload_cached_of_config hsep' hused' hinj' hfin h4 hcσ' hj hk]
   rw [sload_accOut_of_clean _ h3]
-  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload (w + k)
+    = σ.sload (w + k)
   rw [sload_arrOut_of_clean _ h2]
   rw [sload_arrOut_of_clean _ h1]
 
 /-- **DERIVED** companion to `stepEven_sload_leaf`. -/
-lemma stepEven_sload_leaf_of_config
-    {σ σᵣ : EVMState} {base i idx cur li k w : UInt256}
+lemma stepEven_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {base i idx cur q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
-    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
     (hfin : evenFinClean σ base i idx cur) :
-    ((stepEven σ base i idx cur).2).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((stepEven σ base i idx cur).2).sload (w + k)
+      = σ.sload (w + k) := by
   unfold evenFinClean at hfin
   have h4 := arrOut_clean_bw hfin
   have h3 := arrOut_clean_bw h4
@@ -3656,35 +3653,34 @@ lemma stepEven_sload_leaf_of_config
       (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).2 :=
     Clear.KeccakFresh.cacheInj_accOut (cacheInUsed_arrOut (cacheInUsed_arrOut hused))
       (cacheInj_arrOut (cacheInUsed_arrOut hused) (cacheInj_arrOut hused hinj))
-  have hcσ' : Finmap.lookup (accInterval σᵣ li 4)
+  have hcσ' : Finmap.lookup (mkInterval ms q 64)
       ((accOut (sibRead σ base i (idx + 1)).2 cur
         (sibRead σ base i (idx + 1)).1).2).keccak_map = some w :=
     accOut_lookup_mono (arrOut_mono_f (arrOut_mono_f hcσ))
   show (nodeStore (accOut (sibRead σ base i (idx + 1)).2 cur
       (sibRead σ base i (idx + 1)).1).2 base (i + 1) (Fin.shiftRight idx 1)
       (accOut (sibRead σ base i (idx + 1)).2 cur (sibRead σ base i (idx + 1)).1).1).sload
-        (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
-  rw [nodeStore_sload_leaf_of_config hsep' hused' hinj' hfin h4 hci hcσ' hj hk]
+        (w + k)
+    = σ.sload (w + k)
+  rw [nodeStore_sload_cached_of_config hsep' hused' hinj' hfin h4 hcσ' hj hk]
   rw [sload_accOut_of_clean _ h3]
-  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
+  show ((arrOut (arrOut σ base).2 ((arrOut σ base).1 + i)).2).sload (w + k)
+    = σ.sload (w + k)
   rw [sload_arrOut_of_clean _ h2]
   rw [sload_arrOut_of_clean _ h1]
 
 /-- **DERIVED** companion to `stepEdge_sload_leaf`. -/
-lemma stepEdge_sload_leaf_of_config
-    {σ σᵣ : EVMState} {ss base i idx cur li k w : UInt256}
+lemma stepEdge_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {ss base i idx cur q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
-    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hj : (Fin.shiftRight idx 1).val < Clear.KeccakInjective.lowSlotBound)
     (hfin : edgeFinClean σ ss base i idx cur) :
-    ((stepEdge σ ss base i idx cur).2).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((stepEdge σ ss base i idx cur).2).sload (w + k)
+      = σ.sload (w + k) := by
   unfold edgeFinClean at hfin
   have h4 := arrOut_clean_bw hfin
   have h3 := arrOut_clean_bw h4
@@ -3699,89 +3695,86 @@ lemma stepEdge_sload_leaf_of_config
       (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).2 :=
     Clear.KeccakFresh.cacheInj_accOut (cacheInUsed_arrOut hused)
       (cacheInj_arrOut hused hinj)
-  have hcσ' : Finmap.lookup (accInterval σᵣ li 4)
+  have hcσ' : Finmap.lookup (mkInterval ms q 64)
       ((accOut (sideRead σ (ss + 3) i).2 cur
         (sideRead σ (ss + 3) i).1).2).keccak_map = some w :=
     accOut_lookup_mono (arrOut_mono_f hcσ)
   show (nodeStore (accOut (sideRead σ (ss + 3) i).2 cur
       (sideRead σ (ss + 3) i).1).2 base (i + 1) (Fin.shiftRight idx 1)
       (accOut (sideRead σ (ss + 3) i).2 cur (sideRead σ (ss + 3) i).1).1).sload
-        (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
-  rw [nodeStore_sload_leaf_of_config hsep' hused' hinj' hfin h4 hci hcσ' hj hk]
+        (w + k)
+    = σ.sload (w + k)
+  rw [nodeStore_sload_cached_of_config hsep' hused' hinj' hfin h4 hcσ' hj hk]
   rw [sload_accOut_of_clean _ h3]
-  show ((arrOut σ (ss + 3)).2).sload (leafSlot σᵣ li + k)
-    = σ.sload (leafSlot σᵣ li + k)
+  show ((arrOut σ (ss + 3)).2).sload (w + k)
+    = σ.sload (w + k)
   rw [sload_arrOut_of_clean _ h2]
 
 /-- **DERIVED** companion to `updateStep_sload_leaf`. -/
-lemma updateStep_sload_leaf_of_config
-    {σ σᵣ : EVMState} {ss base i idx maxN cur li k w : UInt256}
+lemma updateStep_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {ss base i idx maxN cur q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
-    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hok : StepLowOK ss base (σ, i, idx, maxN, cur)) :
-    ((updateStep σ ss base i idx maxN cur).2).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((updateStep σ ss base i idx maxN cur).2).sload (w + k)
+      = σ.sload (w + k) := by
   obtain ⟨hj, hflag⟩ := hok
   unfold updateStep
   by_cases hpar : Fin.land idx 1 = 0
   · by_cases hedge : maxN = idx
     · rw [if_pos hpar, if_pos hedge]
       rw [if_pos hpar, if_pos hedge] at hflag
-      exact stepEdge_sload_leaf_of_config hsep hused hinj hci hcσ hk hj hflag
+      exact stepEdge_sload_cached_of_config hsep hused hinj hcσ hk hj hflag
     · rw [if_pos hpar, if_neg hedge]
       rw [if_pos hpar, if_neg hedge] at hflag
-      exact stepEven_sload_leaf_of_config hsep hused hinj hci hcσ hk hj hflag
+      exact stepEven_sload_cached_of_config hsep hused hinj hcσ hk hj hflag
   · rw [if_neg hpar]
     rw [if_neg hpar] at hflag
-    exact stepOdd_sload_leaf_of_config hsep hused hinj hci hcσ hk hj hflag
+    exact stepOdd_sload_cached_of_config hsep hused hinj hcσ hk hj hflag
 
 /-- **THE WALK PRESERVES THE LEAF-SLOT FAMILY — DERIVED.** -/
-lemma updateWalk_sload_leaf_of_config :
-    ∀ (kk : ℕ) {σ σᵣ : EVMState} {ss base i idx maxN cur li k w : UInt256},
+lemma updateWalk_sload_cached_of_config :
+    ∀ (kk : ℕ) {σ : EVMState} {ms : MachineState} {ss base i idx maxN cur q k w : UInt256},
     Clear.KeccakSlotSep.Separated σ →
     Clear.KeccakFresh.CacheInUsed σ →
     Clear.KeccakFresh.CacheInj σ →
-    Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w →
-    Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w →
+    Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w →
     k.val < Clear.KeccakInjective.lowSlotBound →
     (∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) →
-    ((updateWalk ss base kk σ i idx maxN cur).1).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload (w + k)
+      = σ.sload (w + k) := by
   intro kk
   induction kk with
   | zero =>
-    intro σ σᵣ ss base i idx maxN cur li k w _ _ _ _ _ _ _
+    intro σ ms ss base i idx maxN cur q k w _ _ _ _ _ _
     rfl
   | succ kk ih =>
-    intro σ σᵣ ss base i idx maxN cur li k w hsep hused hinj hci hcσ hk hok
+    intro σ ms ss base i idx maxN cur q k w hsep hused hinj hcσ hk hok
     have h0 := hok 0 (by omega)
     simp only [updateWalk] at h0 ⊢
     rw [ih (separated_updateStep hsep) (cacheInUsed_updateStep hused)
-      (cacheInj_updateStep hused hinj) hci (updateStep_lookup_mono hcσ) hk (by
+      (cacheInj_updateStep hused hinj) (updateStep_lookup_mono hcσ) hk (by
       intro j hj
       have := hok (j+1) (by omega)
       simpa only [updateWalk] using this)]
-    exact updateStep_sload_leaf_of_config hsep hused hinj hci hcσ hk h0
+    exact updateStep_sload_cached_of_config hsep hused hinj hcσ hk h0
 
 /-- **DERIVED** companion to `padStep_sload_leaf`. -/
-lemma padStep_sload_leaf_of_config
-    {σ σᵣ : EVMState} {i li k w : UInt256}
+lemma padStep_sload_cached_of_config
+    {σ : EVMState} {ms : MachineState} {i q k w : UInt256}
     (hsep : Clear.KeccakSlotSep.Separated σ)
     (hused : Clear.KeccakFresh.CacheInUsed σ)
     (hinj : Clear.KeccakFresh.CacheInj σ)
-    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
-    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
     (hk : k.val < Clear.KeccakInjective.lowSlotBound)
     (hi : i.val < Clear.KeccakInjective.lowSlotBound)
     (hlen : (((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i)).val
       < Clear.KeccakInjective.lowSlotBound)
     (hfin : padFinClean σ i) :
-    ((padStep σ i).sload (leafSlot σᵣ li + k)) = σ.sload (leafSlot σᵣ li + k) := by
+    ((padStep σ i).sload (w + k)) = σ.sload (w + k) := by
   unfold padFinClean at hfin
   have hE1 : (((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
       ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))).hash_collision
@@ -3790,14 +3783,12 @@ lemma padStep_sload_leaf_of_config
   have hB : ((arrOut (arrOut σ 2).2 3).2).hash_collision = false := by
     rwa [hash_collision_sstore'] at hE1
   have hA : ((arrOut σ 2).2).hash_collision = false := arrOut_clean_bw hB
-  obtain ⟨-, hvi⟩ := leafSlot_keccak hci
   have hne1 : (arrOut ((arrOut (arrOut σ 2).2 3).2.sstore ((arrOut σ 2).1 + i)
       ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut σ 2).1 + i) + 1))
       ((arrOut σ 2).1 + i)).1
       + ((arrOut (arrOut σ 2).2 3).2).sload ((arrOut σ 2).1 + i)
-      ≠ leafSlot σᵣ li + k := by
-    rw [hvi]
-    refine arrSlot_ne_accSlot_of_clean (σ₀ := σᵣ) (key := li) (base := 4)
+      ≠ w + k := by
+    refine arrSlot_ne_cached64_of_clean (ms := ms) (q := q)
       (separated_arrOut (Clear.StorageFrame.separated_sstore
         (separated_arrOut (separated_arrOut hsep))))
       (cacheInj_arrOut
@@ -3808,16 +3799,15 @@ lemma padStep_sload_leaf_of_config
       hfin ?_ hlen hk
     rw [keccak_map_sstore']
     exact arrOut_mono_f (arrOut_mono_f hcσ)
-  have hne2 : (arrOut σ 2).1 + i ≠ leafSlot σᵣ li + k := by
-    rw [hvi]
-    exact arrSlot_ne_accSlot_of_clean (σ₀ := σᵣ) (key := li) (base := 4)
+  have hne2 : (arrOut σ 2).1 + i ≠ w + k := by
+    exact arrSlot_ne_cached64_of_clean (ms := ms) (q := q)
       (separated_arrOut hsep)
       (cacheInj_arrOut hused hinj)
       hA hcσ hi hk
   show ((pushEvm (arrOut (arrOut σ 2).2 3).2 ((arrOut σ 2).1 + i)
       ((arrOut (arrOut σ 2).2 3).2.sload ((arrOut (arrOut σ 2).2 3).1 + i))).sload
-        (leafSlot σᵣ li + k))
-    = σ.sload (leafSlot σᵣ li + k)
+        (w + k))
+    = σ.sload (w + k)
   unfold pushEvm
   rw [sload_sstore_ne hne1]
   rw [sload_arrOut_of_clean _ hfin]
@@ -3826,33 +3816,67 @@ lemma padStep_sload_leaf_of_config
   rw [sload_arrOut_of_clean _ hA]
 
 /-- **THE PADDING WALK PRESERVES THE LEAF-SLOT FAMILY — DERIVED.** -/
-lemma padWalk_sload_leaf_of_config :
-    ∀ (kk : ℕ) {σ σᵣ : EVMState} {i om m li k w : UInt256},
+lemma padWalk_sload_cached_of_config :
+    ∀ (kk : ℕ) {σ : EVMState} {ms : MachineState} {i om m q k w : UInt256},
     Clear.KeccakSlotSep.Separated σ →
     Clear.KeccakFresh.CacheInUsed σ →
     Clear.KeccakFresh.CacheInj σ →
-    Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w →
-    Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w →
+    Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w →
     k.val < Clear.KeccakInjective.lowSlotBound →
     (∀ j, j < kk → PadLowOK (padWalk j σ i om m)) →
-    ((padWalk kk σ i om m).1).sload (leafSlot σᵣ li + k)
-      = σ.sload (leafSlot σᵣ li + k) := by
+    ((padWalk kk σ i om m).1).sload (w + k)
+      = σ.sload (w + k) := by
   intro kk
   induction kk with
   | zero =>
-    intro σ σᵣ i om m li k w _ _ _ _ _ _ _
+    intro σ ms i om m q k w _ _ _ _ _ _
     rfl
   | succ kk ih =>
-    intro σ σᵣ i om m li k w hsep hused hinj hci hcσ hk hok
+    intro σ ms i om m q k w hsep hused hinj hcσ hk hok
     have h0 := hok 0 (by omega)
     simp only [padWalk] at h0 ⊢
     rw [ih (separated_padStep hsep) (cacheInUsed_padStep hused)
-      (cacheInj_padStep hused hinj) hci (padStep_lookup_mono hcσ) hk (by
+      (cacheInj_padStep hused hinj) (padStep_lookup_mono hcσ) hk (by
       intro j hj
       have := hok (j+1) (by omega)
       simpa only [padWalk] using this)]
-    exact padStep_sload_leaf_of_config hsep hused hinj hci hcσ hk h0.1 h0.2.1 h0.2.2
+    exact padStep_sload_cached_of_config hsep hused hinj hcσ hk h0.1 h0.2.1 h0.2.2
 
+/-! ### The leaf-slot walk frames on the derived route
+
+The `base = 4` instance of the cached-slot family above: `leafSlot σᵣ i` IS the cached word,
+so each of these is the general lemma with the slot rewritten.  They exist because the glue
+sequence's frames are stated in terms of `leafSlot`, and the concrete callers think that way. -/
+
+/-- **DERIVED** companion to `updateWalk_sload_leaf`. -/
+lemma updateWalk_sload_leaf_of_config
+    (kk : ℕ) {σ σᵣ : EVMState} {ss base i idx maxN cur li k w : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ)
+    (hused : Clear.KeccakFresh.CacheInUsed σ)
+    (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
+    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (hok : ∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) :
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload (leafSlot σᵣ li + k)
+      = σ.sload (leafSlot σᵣ li + k) := by
+  rw [(leafSlot_keccak hci).2]
+  exact updateWalk_sload_cached_of_config kk hsep hused hinj hcσ hk hok
+
+/-- **DERIVED** companion to `padWalk_sload_leaf`. -/
+lemma padWalk_sload_leaf_of_config
+    (kk : ℕ) {σ σᵣ : EVMState} {i om m li k w : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ)
+    (hused : Clear.KeccakFresh.CacheInUsed σ)
+    (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hci : Finmap.lookup (accInterval σᵣ li 4) σᵣ.keccak_map = some w)
+    (hcσ : Finmap.lookup (accInterval σᵣ li 4) σ.keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (hok : ∀ j, j < kk → PadLowOK (padWalk j σ i om m)) :
+    ((padWalk kk σ i om m).1).sload (leafSlot σᵣ li + k)
+      = σ.sload (leafSlot σᵣ li + k) := by
+  rw [(leafSlot_keccak hci).2]
+  exact padWalk_sload_cached_of_config kk hsep hused hinj hcσ hk hok
 
 /-! ### The glue sequence, AXIOM-FREE
 

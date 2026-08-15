@@ -1059,6 +1059,29 @@ theorem cachedInWindow_accOut {σ : EVMState} {key base : UInt256}
     (Clear.KeccakLowSlot.cachedInWindow_mstore 32 base
       (Clear.KeccakLowSlot.cachedInWindow_mstore 0 key hC))
 
+
+/-- **A FRESHLY MINTED ARRAY SLOT NEVER MEETS A CACHED 64-BYTE SLOT.**  `arrSlot_ne_accSlot_of_clean`
+stated over an accessor interval; this is the same fact over the preimage window directly, so it
+applies to any 64-byte hash -- a leaves entry (`base = 4`), a `valueToIndex` entry (`base = 5`), or
+any other mapping. -/
+theorem arrSlot_ne_cached64_of_clean
+    {σ : EVMState} {ms : MachineState} {a q w j k : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated (arrOut σ a).2)
+    (hinj : Clear.KeccakFresh.CacheInj (arrOut σ a).2)
+    (hclean : (arrOut σ a).2.hash_collision = false)
+    (hcache : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    (arrOut σ a).1 + j ≠ w + k := by
+  have hfresh : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+      (arrOut σ a).2.keccak_map = some (arrOut σ a).1 :=
+    keccakOut_caches_of_clean (σ := σ.mstore 0 a) (p := 0) (n := 32) hclean
+  have hcarry : Finmap.lookup (mkInterval ms q 64) (arrOut σ a).2.keccak_map = some w :=
+    keccakOut_lookup_mono (σ := σ.mstore 0 a) (p := 0) (n := 32)
+      (by rw [keccak_map_mstore]; exact hcache)
+  exact Clear.KeccakSlotSep.cached_off_ne_off_of_len_ne hsep hinj hfresh hcarry
+    (by decide) hj hk
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
