@@ -3391,6 +3391,570 @@ along the walk. -/
 
 set_option maxHeartbeats 4000000
 
+
+/-! ### The glue sequence on the derived route -- `keccak256_inj` eliminated
+
+`glueSeq_leafSetOf'` reaches the keccak idealizations at five places in its own body: three
+direct `keccak_off_ne_off` calls, plus `leafSlot_add_ne_low` and `decodeLeaf_stage_outside`.
+All five hold their inputs as cache HITS or as CLEAN hash steps, so all five have derived
+companions -- but two sit BELOW a walk, and one separates a slot the code has just MINTED,
+which no cache-hit lemma can reach.
+
+This twin closes all five.  It carries `Separated`, `CacheInUsed` and `CacheInj` across the
+update walk, the padding walk and the leaf write (transport added alongside), converts the
+minted-vs-cached sites through `arrSlot_ne_accSlot_of_clean`, and extends the anchor cache
+pack with an `H1` component -- the first walk's entry state, which the quad pack never
+reached.
+
+**What that buys, exactly.**  `keccak256_inj` -- the strongest of the four idealizations, and
+the only one asserting global injectivity of the hash -- drops out entirely.  Measured:
+
+    glueSeq_leafSetOf'            inj, slot_sep, add_ne_lowSlot, ne_lowSlot
+    glueSeq_leafSetOf'_of_config       slot_sep, add_ne_lowSlot, ne_lowSlot
+
+**What remains, and where.**  The three survivors do not come from this proof's body at all
+-- every site here is derived.  They arrive through six helper lemmas it calls:
+
+    keccak256_slot_sep        updateWalk_sload_leaf, padWalk_sload_leaf, newLeafStage_decode
+    keccak256_add_ne_lowSlot  updateWalk_sload_one,  padWalk_sload_one
+    keccak256_ne_lowSlot      leafCount_vtiWrite
+
+Each is a walk-level storage frame of the same shape as the ones already converted, and the
+transport they need across the walks now exists.  They are the next tier, not a wall.
+
+The added hypotheses are all things a concrete caller already tracks: the three pool
+properties at the three entry states, the low-slot window config at `evm`, and one more
+anchor in the cache pack. -/
+
+set_option maxHeartbeats 1600000 in
+theorem glueSeq_leafSetOf'_of_config
+    {evm H1 H3 : EVMState} {LM NI V IX NI4 NV5 : UInt256}
+    {ss₀ idx₀ hl₀ : UInt256}
+    {ss₁ base₁ i₁ idx₁ maxN₁ cur₁ : UInt256} {kk₁ : ℕ}
+    {ip om mp : UInt256} {kp : ℕ}
+    {ssw nidx hl : UInt256}
+    {ss₂ base₂ i₂ idx₂ maxN₂ cur₂ : UInt256} {kk₂ : ℕ}
+    (hsepE : Clear.KeccakSlotSep.Separated evm)
+    (husedE : Clear.KeccakFresh.CacheInUsed evm)
+    (hinjE : Clear.KeccakFresh.CacheInj evm)
+    (hRw : Clear.KeccakLowSlot.RangeInWindow evm)
+    (hCw : Clear.KeccakLowSlot.CachedInWindow evm)
+    (hsepH1 : Clear.KeccakSlotSep.Separated H1)
+    (husedH1 : Clear.KeccakFresh.CacheInUsed H1)
+    (hinjH1 : Clear.KeccakFresh.CacheInj H1)
+    (hsepH3 : Clear.KeccakSlotSep.Separated H3)
+    (husedH3 : Clear.KeccakFresh.CacheInUsed H3)
+    (hinjH3 : Clear.KeccakFresh.CacheInj H3) :
+    let P1 := evm.mload 64
+    let E4 := (((evm.mstore 64 (P1 + 96)).mstore P1 (evm.mload LM)).mstore
+        (P1 + 32) NI).mstore (P1 + 64) V
+    let EK := (accOut E4 IX 4).2
+    let SL := (accOut E4 IX 4).1
+    let S1 := ((EK.sstore SL (EK.mload P1)).sstore
+        (SL + 1) (EK.mload (P1 + 32))).sstore (SL + 2) (EK.mload (P1 + 64))
+    let L0 := leafWriteEvm H1 ss₀ idx₀ hl₀
+    let S2 := (updateWalk ss₁ base₁ kk₁ L0 i₁ idx₁ maxN₁ cur₁).1
+    let P2 := S2.mload 64
+    let F4 := (((S2.mstore 64 (P2 + 96)).mstore P2 V).mstore
+        (P2 + 32) NI4).mstore (P2 + 64) NV5
+    let FK := (accOut F4 NI 4).2
+    let SL2 := (accOut F4 NI 4).1
+    let F5 := ((FK.sstore SL2 (FK.mload P2)).sstore
+        (SL2 + 1) (FK.mload (P2 + 32))).sstore (SL2 + 2) (FK.mload (P2 + 64))
+    let S3 := (accOut F5 V 5).2.sstore ((accOut F5 V 5).1) NI
+    let SB := H3.sstore 1 (H3.sload 1 + 1)
+    let SP := (padWalk kp SB ip om mp).1
+    let SW := leafWriteEvm SP ssw nidx hl
+    let SF := (updateWalk ss₂ base₂ kk₂ SW i₂ idx₂ maxN₂ cur₂).1
+    -- window guard and count arithmetic
+    IX.val < (evm.sload 1).val →
+    (evm.sload 1).val + 1 < 2 ^ 256 →
+    NI = evm.sload 1 →
+    -- guard-phase read-backs binding the staged values to σ₀-decodes
+    evm.mload LM = (decodeLeaf evm IX).key →
+    NV5 = (decodeLeaf evm IX).nextKey →
+    -- the interleaved hash steps are storage-transparent
+    (∀ t : UInt256, H1.sload t = S1.sload t) →
+    (∀ t : UInt256, H3.sload t = S3.sload t) →
+    -- allocator bounds per staging segment
+    96 ≤ P1.val → P1.val + 128 ≤ 2 ^ 256 →
+    96 ≤ P2.val → P2.val + 128 ≤ 2 ^ 256 →
+    -- cleanliness per accessor / arrOut scratch
+    (accOut E4 IX 4).2.hash_collision = false →
+    (accOut F4 NI 4).2.hash_collision = false →
+    (accOut F5 V 5).2.hash_collision = false →
+    (arrOut H1 (ss₀ + 2)).2.hash_collision = false →
+    (arrOut (arrOut H1 (ss₀ + 2)).2 (arrOut H1 (ss₀ + 2)).1).2.hash_collision
+      = false →
+    (arrOut SP (ssw + 2)).2.hash_collision = false →
+    (arrOut (arrOut SP (ssw + 2)).2 (arrOut SP (ssw + 2)).1).2.hash_collision
+      = false →
+    -- account presence where `sload_sstore_self` fires
+    (EK.lookupAccount EK.execution_env.code_owner).isSome →
+    (FK.lookupAccount FK.execution_env.code_owner).isSome →
+    (H3.lookupAccount H3.execution_env.code_owner).isSome →
+    -- the level-0 element indices are small
+    idx₀.val < Clear.KeccakInjective.lowSlotBound →
+    nidx.val < Clear.KeccakInjective.lowSlotBound →
+    -- the quad-anchor cache pack (see the section comment)
+    (∀ m : ℕ, m ≤ (evm.sload 1).val → ∃ wm,
+      Finmap.lookup (accInterval evm (m : UInt256) 4) evm.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval E4 (m : UInt256) 4) E4.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval F4 (m : UInt256) 4) F4.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval H3 (m : UInt256) 4) H3.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval H1 (m : UInt256) 4) H1.keccak_map = some wm) →
+    -- decode injectivity below the count at σ₀
+    (∀ m : ℕ, m < (evm.sload 1).val → ∀ m' : ℕ, m' < (evm.sload 1).val →
+      decodeLeaf evm (m : UInt256) = decodeLeaf evm (m' : UInt256) → m = m') →
+    -- the walks' low-slot packs
+    (∀ j, j < kk₁ →
+      StepLowOK ss₁ base₁ (updateWalk ss₁ base₁ j L0 i₁ idx₁ maxN₁ cur₁)) →
+    (∀ j, j < kp → PadLowOK (padWalk j SB ip om mp)) →
+    (∀ j, j < kk₂ →
+      StepLowOK ss₂ base₂ (updateWalk ss₂ base₂ j SW i₂ idx₂ maxN₂ cur₂)) →
+    leafSetOf SF = imtInsert (leafSetOf evm) (decodeLeaf evm IX) V := by
+  intro P1 E4 EK SL S1 L0 S2 P2 F4 FK SL2 F5 S3 SB SP SW SF
+  intro hwlt hnw hNI hkey hnv hH1s hH3s hplow1 hnw1 hplow2 hnw2
+  intro hclean4 hcleanF hcleanV hcleanB1 hcleanB2 hcleanA1 hcleanA2
+  intro haccEK haccFK haccH3 hidx₀ hnidx
+  intro hcach hinj hok₁ hokp hok₂
+  -- definitional handles on the chain
+  have hEKd : EK = (accOut E4 IX 4).2 := rfl
+  have hSLd : SL = (accOut E4 IX 4).1 := rfl
+  have hS1d : S1 = ((EK.sstore SL (EK.mload P1)).sstore
+      (SL + 1) (EK.mload (P1 + 32))).sstore (SL + 2) (EK.mload (P1 + 64)) := rfl
+  have hL0d : L0 = leafWriteEvm H1 ss₀ idx₀ hl₀ := rfl
+  have hS2d : S2 = (updateWalk ss₁ base₁ kk₁ L0 i₁ idx₁ maxN₁ cur₁).1 := rfl
+  have hFKd : FK = (accOut F4 NI 4).2 := rfl
+  have hSL2d : SL2 = (accOut F4 NI 4).1 := rfl
+  have hF5d : F5 = ((FK.sstore SL2 (FK.mload P2)).sstore
+      (SL2 + 1) (FK.mload (P2 + 32))).sstore (SL2 + 2) (FK.mload (P2 + 64)) := rfl
+  have hS3d : S3 = (accOut F5 V 5).2.sstore ((accOut F5 V 5).1) NI := rfl
+  have hSBd : SB = H3.sstore 1 (H3.sload 1 + 1) := rfl
+  have hSPd : SP = (padWalk kp SB ip om mp).1 := rfl
+  have hSWd : SW = leafWriteEvm SP ssw nidx hl := rfl
+  have hSFd : SF = (updateWalk ss₂ base₂ kk₂ SW i₂ idx₂ maxN₂ cur₂).1 := rfl
+  -- the staging `mstore`s are storage-transparent
+  have hE4s : ∀ t : UInt256, E4.sload t = evm.sload t := fun _ => rfl
+  have hF4s : ∀ t : UInt256, F4.sload t = S2.sload t := fun _ => rfl
+  -- casts
+  have hIXcast : ((IX.val : ℕ) : UInt256) = IX := Fin.cast_val_eq_self IX
+  have hccast : (((evm.sload 1).val : ℕ) : UInt256) = evm.sload 1 :=
+    Fin.cast_val_eq_self (evm.sload 1)
+  -- ===== pool invariants transported to every state the separations need =====
+  have hsepE4 : Clear.KeccakSlotSep.Separated E4 :=
+    Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsepE)))
+  have husedE4 : Clear.KeccakFresh.CacheInUsed E4 :=
+    Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _
+        (Clear.KeccakFresh.cacheInUsed_mstore _ _ husedE)))
+  have hinjE4 : Clear.KeccakFresh.CacheInj E4 :=
+    Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+      (Clear.KeccakFresh.cacheInj_mstore _ _
+        (Clear.KeccakFresh.cacheInj_mstore _ _ hinjE)))
+  have hRwE4 : Clear.KeccakLowSlot.RangeInWindow E4 :=
+    Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _
+      (Clear.KeccakLowSlot.rangeInWindow_mstore _ _
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRw)))
+  have hCwE4 : Clear.KeccakLowSlot.CachedInWindow E4 :=
+    Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _
+      (Clear.KeccakLowSlot.cachedInWindow_mstore _ _
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCw)))
+  -- the first walk: H1 → leafWriteEvm → updateWalk
+  have hsepS2 : Clear.KeccakSlotSep.Separated S2 :=
+    separated_updateWalk kk₁ (separated_leafWriteEvm hsepH1)
+  have husedS2 : Clear.KeccakFresh.CacheInUsed S2 :=
+    cacheInUsed_updateWalk kk₁ (cacheInUsed_leafWriteEvm husedH1)
+  have hinjS2 : Clear.KeccakFresh.CacheInj S2 :=
+    cacheInj_updateWalk kk₁ (cacheInUsed_leafWriteEvm husedH1)
+      (cacheInj_leafWriteEvm husedH1 hinjH1)
+  -- the padding walk: H3 → sstore → padWalk
+  have hsepSP : Clear.KeccakSlotSep.Separated SP :=
+    separated_padWalk kp (Clear.StorageFrame.separated_sstore hsepH3)
+  have husedSP : Clear.KeccakFresh.CacheInUsed SP :=
+    cacheInUsed_padWalk kp (Clear.StorageFrame.cacheInUsed_sstore husedH3)
+  have hinjSP : Clear.KeccakFresh.CacheInj SP :=
+    cacheInj_padWalk kp (Clear.StorageFrame.cacheInUsed_sstore husedH3)
+      (Clear.StorageFrame.cacheInj_sstore hinjH3)
+  -- the anchor caches of the window index and the count
+  obtain ⟨w, hw0, hw4, hwF, hwH, hwH1⟩ := hcach IX.val (le_of_lt hwlt)
+  rw [hIXcast] at hw0 hw4 hwF hwH hwH1
+  obtain ⟨wc, hc0, hc4, hcF, hcH, hcH1⟩ := hcach (evm.sload 1).val (le_refl _)
+  rw [hccast] at hc0 hc4 hcF hcH hcH1
+  clear hw0 hc0
+  -- slot pinning at the anchors
+  have hvw4 : leafSlot E4 IX = w := (leafSlot_keccak hw4).2
+  have hkw4 := (leafSlot_keccak hw4).1
+  have hvc4 : leafSlot E4 (evm.sload 1) = wc := (leafSlot_keccak hc4).2
+  have hkcF := (leafSlot_keccak hcF).1
+  have haccw : (accOut E4 IX 4).1 = w := hvw4
+  have haccwc : (accOut F4 NI 4).1 = wc := by
+    rw [hNI]
+    exact (leafSlot_keccak hcF).2
+  -- collision-flag backchain to the F4 anchor
+  have hcolF4 : F4.hash_collision = false := accOut_clean_backward hcleanF
+  -- ===== the count chain: SF.sload 1 = count + 1 =====
+  have hcntS1 : S1.sload 1 = evm.sload 1 := by
+    rw [hS1d, hEKd, hSLd]
+    refine (copyChain_sload_ne hclean4 ?_ ?_ ?_).trans (hE4s 1)
+    · rw [haccw]
+      exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkw4 (by decide)
+    · rw [haccw]
+      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 1 1 hkw4
+        (by decide) (by decide)
+    · rw [haccw]
+      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 2 1 hkw4
+        (by decide) (by decide)
+  have hcntS2 : S2.sload 1 = evm.sload 1 := by
+    rw [hS2d, updateWalk_sload_one kk₁ hok₁, hL0d]
+    have hne : (arrOut (arrOut H1 (ss₀ + 2)).2 (arrOut H1 (ss₀ + 2)).1).1 + idx₀
+        ≠ (1 : UInt256) :=
+      Clear.KeccakInjective.keccak256_add_ne_lowSlot idx₀ 1 (arrOut_pair hcleanB2)
+        hidx₀ (by decide)
+    rw [leafWrite_sload_ne hcleanB1 hcleanB2 hne, hH1s 1]
+    exact hcntS1
+  have hcntF5 : F5.sload 1 = evm.sload 1 := by
+    rw [hF5d, hFKd, hSL2d]
+    refine (copyChain_sload_ne hcleanF ?_ ?_ ?_).trans ((hF4s 1).trans hcntS2)
+    · rw [haccwc]
+      exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkcF (by decide)
+    · rw [haccwc]
+      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 1 1 hkcF
+        (by decide) (by decide)
+    · rw [haccwc]
+      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 2 1 hkcF
+        (by decide) (by decide)
+  -- the vti write slot, pinned to the accessor's own output
+  have hcvF' : Finmap.lookup (accInterval (accOut F5 V 5).2 V 5)
+      ((accOut F5 V 5).2).keccak_map = some ((accOut F5 V 5).1) := by
+    rw [show accInterval (accOut F5 V 5).2 V 5 = accInterval F5 V 5 from
+      accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)]
+    exact accOut_caches_of_clean hcleanV
+  have hvtiSlot : vtiSlot (accOut F5 V 5).2 V = (accOut F5 V 5).1 :=
+    accOut_agree_value (fun _ hx1 _ => (accOut_junk_window hx1).symm)
+      (accOut_caches_of_clean hcleanV)
+  have hcntS3 : S3.sload 1 = evm.sload 1 := by
+    rw [hS3d]
+    have h := leafCount_vtiWrite (σ := (accOut F5 V 5).2) (v := V) (u := NI) hcvF'
+    rw [hvtiSlot] at h
+    rw [h, sload_accOut_of_clean 1 hcleanV]
+    exact hcntF5
+  have hcntSB : SB.sload 1 = evm.sload 1 + 1 := by
+    rw [hSBd, sload_sstore_self haccH3, hH3s 1, hcntS3]
+  have hcntSP : SP.sload 1 = evm.sload 1 + 1 := by
+    rw [hSPd, padWalk_sload_one kp hokp]
+    exact hcntSB
+  have hcntSW : SW.sload 1 = evm.sload 1 + 1 := by
+    rw [hSWd]
+    have hne : (arrOut (arrOut SP (ssw + 2)).2 (arrOut SP (ssw + 2)).1).1 + nidx
+        ≠ (1 : UInt256) :=
+      Clear.KeccakInjective.keccak256_add_ne_lowSlot nidx 1 (arrOut_pair hcleanA2)
+        hnidx (by decide)
+    rw [leafWrite_sload_ne hcleanA1 hcleanA2 hne]
+    exact hcntSP
+  have hcntSF : SF.sload 1 = evm.sload 1 + 1 := by
+    rw [hSFd, updateWalk_sload_one kk₂ hok₂]
+    exact hcntSW
+  have hcval : (SF.sload 1).val = (evm.sload 1).val + 1 := by
+    rw [hcntSF]
+    show ((evm.sload 1).val + (1 : UInt256).val) % 2 ^ 256 = (evm.sload 1).val + 1
+    have h1v : ((1 : UInt256)).val = 1 := rfl
+    rw [h1v]
+    exact Nat.mod_eq_of_lt hnw
+  -- ===== junk-window frames (E4 → S1, F4 → S3, H3 → SF) =====
+  have hjS1 : ∀ b : UInt256, 64 ≤ b.val →
+      Finmap.lookup b S1.machine_state.memory
+        = Finmap.lookup b E4.machine_state.memory := by
+    intro b hb
+    rw [hS1d, machine_state_sstore', machine_state_sstore', machine_state_sstore',
+        hEKd, accOut_junk_window hb]
+  have hjS3 : ∀ b : UInt256, 64 ≤ b.val →
+      Finmap.lookup b S3.machine_state.memory
+        = Finmap.lookup b F4.machine_state.memory := by
+    intro b hb
+    rw [hS3d, machine_state_sstore', accOut_junk_window hb, hF5d,
+        machine_state_sstore', machine_state_sstore', machine_state_sstore',
+        hFKd, accOut_junk_window hb]
+  have hjSF : ∀ b : UInt256, 64 ≤ b.val →
+      Finmap.lookup b SF.machine_state.memory
+        = Finmap.lookup b H3.machine_state.memory := by
+    intro b hb
+    rw [hSFd, updateWalk_junk kk₂ hb, hSWd]
+    unfold leafWriteEvm
+    rw [machine_state_sstore', arrOut_junk_f hb, arrOut_junk_f hb,
+        hSPd, padWalk_junk kp hb, hSBd, machine_state_sstore']
+  have hIntS1 : ∀ i : UInt256, accInterval S1 i 4 = accInterval E4 i 4 :=
+    fun _ => accInterval_eq (fun b hb1 _ => hjS1 b hb1)
+  have hIntS3 : ∀ i : UInt256, accInterval S3 i 4 = accInterval F4 i 4 :=
+    fun _ => accInterval_eq (fun b hb1 _ => hjS3 b hb1)
+  have hIntSF : ∀ i : UInt256, accInterval SF i 4 = accInterval H3 i 4 :=
+    fun _ => accInterval_eq (fun b hb1 _ => hjSF b hb1)
+  -- ===== cache-monotonicity chains =====
+  have hmonoS1 : ∀ (I : List UInt256) (u : UInt256),
+      Finmap.lookup I E4.keccak_map = some u →
+      Finmap.lookup I S1.keccak_map = some u := by
+    intro I u hI
+    rw [hS1d, keccak_map_sstore', keccak_map_sstore', keccak_map_sstore', hEKd]
+    exact cached_after_accOut hI
+  have hmonoS3 : ∀ (I : List UInt256) (u : UInt256),
+      Finmap.lookup I F4.keccak_map = some u →
+      Finmap.lookup I S3.keccak_map = some u := by
+    intro I u hI
+    rw [hS3d, keccak_map_sstore']
+    refine cached_after_accOut ?_
+    rw [hF5d, keccak_map_sstore', keccak_map_sstore', keccak_map_sstore', hFKd]
+    exact cached_after_accOut hI
+  have hmonoSF : ∀ (I : List UInt256) (u : UInt256),
+      Finmap.lookup I H3.keccak_map = some u →
+      Finmap.lookup I SF.keccak_map = some u := by
+    intro I u hI
+    rw [hSFd]
+    refine updateWalk_lookup_mono kk₂ ?_
+    rw [hSWd]
+    unfold leafWriteEvm
+    rw [keccak_map_sstore']
+    refine arrOut_mono_f (arrOut_mono_f ?_)
+    rw [hSPd]
+    refine padWalk_lookup_mono kp ?_
+    rw [hSBd, keccak_map_sstore']
+    exact hI
+  -- final-state slot pinning (H3-anchored caches survive to SF)
+  have hslotSF : ∀ n u : UInt256,
+      Finmap.lookup (accInterval H3 n 4) H3.keccak_map = some u →
+      leafSlot SF n = u := by
+    intro n u hn
+    have h : Finmap.lookup (accInterval SF n 4) SF.keccak_map = some u := by
+      rw [hIntSF n]
+      exact hmonoSF _ _ hn
+    exact (leafSlot_keccak h).2
+  -- ===== the S1 copy values (retargetStage_decode, slot re-pinned) =====
+  have hdecS1 : decodeLeaf S1 IX = ⟨evm.mload LM, V⟩ :=
+    retargetStage_decode (evm := evm) (LM := LM) (NI := NI) (V := V) (IX := IX)
+      hclean4 haccEK hplow1 hnw1
+  have hslotS1IX : leafSlot S1 IX = w := by
+    have h : Finmap.lookup (accInterval S1 IX 4) S1.keccak_map = some w := by
+      rw [hIntS1 IX]
+      exact hmonoS1 _ _ hw4
+    exact (leafSlot_keccak h).2
+  have hS1fields : S1.sload w = evm.mload LM ∧ S1.sload (w + 2) = V := by
+    have h := hdecS1
+    unfold decodeLeaf at h
+    rw [hslotS1IX] at h
+    exact ⟨congrArg AbsLeaf.key h, congrArg AbsLeaf.nextKey h⟩
+  -- ===== the S3 copy values (newLeafStage_decode, slot re-pinned) =====
+  have hdecS3 : decodeLeaf S3 NI = ⟨V, NV5⟩ :=
+    newLeafStage_decode (evm := S2) (V := V) (NI4 := NI4) (NV5 := NV5) (IX1 := NI)
+      hcleanF hcleanV haccFK hplow2 hnw2
+  have hslotS3NI : leafSlot S3 NI = wc := by
+    have h : Finmap.lookup (accInterval S3 NI 4) S3.keccak_map = some wc := by
+      rw [hIntS3 NI, hNI]
+      exact hmonoS3 _ _ hcF
+    exact (leafSlot_keccak h).2
+  have hS3fields : S3.sload wc = V ∧ S3.sload (wc + 2) = NV5 := by
+    have h := hdecS3
+    unfold decodeLeaf at h
+    rw [hslotS3NI] at h
+    exact ⟨congrArg AbsLeaf.key h, congrArg AbsLeaf.nextKey h⟩
+  -- ===== the S3 → SF tail frame at any E4-anchored leaf slot =====
+  have htail : ∀ n u k : UInt256,
+      Finmap.lookup (accInterval E4 n 4) E4.keccak_map = some u →
+      Finmap.lookup (accInterval H3 n 4) H3.keccak_map = some u →
+      k.val < Clear.KeccakInjective.lowSlotBound →
+      SF.sload (leafSlot E4 n + k) = S3.sload (leafSlot E4 n + k) := by
+    intro n u k hcE hcH3 hk
+    rw [hSFd, updateWalk_sload_leaf kk₂ hcE hk hok₂, hSWd]
+    have hne : (arrOut (arrOut SP (ssw + 2)).2 (arrOut SP (ssw + 2)).1).1 + nidx
+        ≠ leafSlot E4 n + k := by
+      obtain ⟨_, hvi⟩ := leafSlot_keccak hcE
+      rw [hvi]
+      refine arrSlot_ne_accSlot_of_clean (σ₀ := H3) (key := n) (base := 4)
+        (separated_arrOut (separated_arrOut hsepSP))
+        (cacheInj_arrOut (cacheInUsed_arrOut husedSP) (cacheInj_arrOut husedSP hinjSP))
+        hcleanA2 (arrOut_mono_f (padWalk_lookup_mono kp ?_)) hnidx hk
+      rw [keccak_map_sstore']
+      exact hcH3
+    rw [leafWrite_sload_ne hcleanA1 hcleanA2 hne,
+        hSPd, padWalk_sload_leaf kp hcE hk hokp,
+        hSBd, sload_sstore_ne (Ne.symm
+          (leafSlot_add_ne_low_of_config k 1 hRwE4 hCwE4 hcE hk (by decide)))]
+    exact hH3s _
+  -- ===== the S1 → S2 walk-1 frame at any E4-anchored leaf slot =====
+  have htail1 : ∀ n u k : UInt256,
+      Finmap.lookup (accInterval E4 n 4) E4.keccak_map = some u →
+      Finmap.lookup (accInterval H1 n 4) H1.keccak_map = some u →
+      k.val < Clear.KeccakInjective.lowSlotBound →
+      S2.sload (leafSlot E4 n + k) = S1.sload (leafSlot E4 n + k) := by
+    intro n u k hcE hcH1 hk
+    rw [hS2d, updateWalk_sload_leaf kk₁ hcE hk hok₁, hL0d]
+    have hne : (arrOut (arrOut H1 (ss₀ + 2)).2 (arrOut H1 (ss₀ + 2)).1).1 + idx₀
+        ≠ leafSlot E4 n + k := by
+      obtain ⟨_, hvi⟩ := leafSlot_keccak hcE
+      rw [hvi]
+      exact arrSlot_ne_accSlot_of_clean (σ₀ := H1) (key := n) (base := 4)
+        (separated_arrOut (separated_arrOut hsepH1))
+        (cacheInj_arrOut (cacheInUsed_arrOut husedH1) (cacheInj_arrOut husedH1 hinjH1))
+        hcleanB2 (arrOut_mono_f hcH1) hidx₀ hk
+    rw [leafWrite_sload_ne hcleanB1 hcleanB2 hne]
+    exact hH1s _
+  -- ===== the S2 → S3 middle frame for non-count indices =====
+  have hmid : ∀ n u : UInt256,
+      Finmap.lookup (accInterval F4 n 4) F4.keccak_map = some u →
+      n ≠ NI →
+      S3.sload u = S2.sload u ∧ S3.sload (u + 2) = S2.sload (u + 2) := by
+    intro n u hcFn hne
+    have hcleann : (accOut F4 n 4).2.hash_collision = false := by
+      rw [accOut_of_cached hcFn]
+      show ((F4.mstore 0 n).mstore 32 4).hash_collision = false
+      rw [hash_collision_mstore, hash_collision_mstore]
+      exact hcolF4
+    have hdec : decodeLeaf S3 n = decodeLeaf F4 n :=
+      decodeLeaf_stage_outside_of_config (evm := S2) hsepS2 husedS2 hinjS2
+        (V := V) (NI4 := NI4) (NV5 := NV5)
+        (IX1 := NI) (m := n) (wm := u) hcleanF hcleanV hcFn hcleann hne
+    have hsS3 : leafSlot S3 n = u := by
+      have h : Finmap.lookup (accInterval S3 n 4) S3.keccak_map = some u := by
+        rw [hIntS3 n]
+        exact hmonoS3 _ _ hcFn
+      exact (leafSlot_keccak h).2
+    have hsF4 : leafSlot F4 n = u := (leafSlot_keccak hcFn).2
+    unfold decodeLeaf at hdec
+    rw [hsS3, hsF4] at hdec
+    exact ⟨(congrArg AbsLeaf.key hdec).trans (hF4s u),
+           (congrArg AbsLeaf.nextKey hdec).trans (hF4s (u + 2))⟩
+  -- ===== per-index: below-count, non-window =====
+  have houtside : ∀ m : ℕ, m < (evm.sload 1).val → m ≠ IX.val →
+      decodeLeaf SF (m : UInt256) = decodeLeaf evm (m : UInt256) := by
+    intro m hm hmIX
+    obtain ⟨wm, hm0, hm4, hmF, hmH, hmH1⟩ := hcach m (le_of_lt hm)
+    have hmval : ((m : UInt256)).val = m :=
+      Nat.mod_eq_of_lt (lt_trans hm (evm.sload 1).isLt)
+    have hIXnem : IX ≠ (m : UInt256) := by
+      intro h
+      apply hmIX
+      rw [← hmval, ← h]
+    have hmnec : (m : UInt256) ≠ NI := by
+      rw [hNI]
+      apply Fin.ne_of_val_ne
+      rw [hmval]
+      omega
+    have hvm0 : leafSlot evm (m : UInt256) = wm := (leafSlot_keccak hm0).2
+    have hvm4 : leafSlot E4 (m : UInt256) = wm := (leafSlot_keccak hm4).2
+    have hkm4 := (leafSlot_keccak hm4).1
+    -- keccak-injective separations of the S1 copy slots from wm/wm+2
+    have hsep : ∀ a b : UInt256, a.val < Clear.KeccakInjective.lowSlotBound →
+        b.val < Clear.KeccakInjective.lowSlotBound → w + a ≠ wm + b := by
+      intro a b ha hb
+      exact Clear.KeccakSlotSep.cached_off_ne_off hsepE4 hinjE4 hw4 hm4
+        (accInterval_ne hIXnem) ha hb
+    -- SF → S3
+    have htail0 : SF.sload wm = S3.sload wm := by
+      have h := htail (m : UInt256) wm 0 hm4 hmH (by decide)
+      rw [hvm4] at h
+      simpa using h
+    have htail2 : SF.sload (wm + 2) = S3.sload (wm + 2) := by
+      have h := htail (m : UInt256) wm 2 hm4 hmH (by decide)
+      rw [hvm4] at h
+      exact h
+    -- S3 → S2
+    obtain ⟨hmid0, hmid2⟩ := hmid (m : UInt256) wm hmF hmnec
+    -- S2 → S1 (through the interleaved hash + level-0 write)
+    have hwalk0 : S2.sload wm = S1.sload wm := by
+      have h := htail1 (m : UInt256) wm 0 hm4 hmH1 (by decide)
+      rw [hvm4] at h
+      simpa using h
+    have hwalk2 : S2.sload (wm + 2) = S1.sload (wm + 2) := by
+      have h := htail1 (m : UInt256) wm 2 hm4 hmH1 (by decide)
+      rw [hvm4] at h
+      exact h
+    -- S1 → evm
+    have hcopy0 : S1.sload wm = evm.sload wm := by
+      rw [hS1d, hEKd, hSLd]
+      refine (copyChain_sload_ne hclean4 ?_ ?_ ?_).trans (hE4s wm)
+      · rw [haccw]
+        have h := hsep 0 0 (by decide) (by decide)
+        simpa using h
+      · rw [haccw]
+        have h := hsep 1 0 (by decide) (by decide)
+        simpa using h
+      · rw [haccw]
+        have h := hsep 2 0 (by decide) (by decide)
+        simpa using h
+    have hcopy2 : S1.sload (wm + 2) = evm.sload (wm + 2) := by
+      rw [hS1d, hEKd, hSLd]
+      refine (copyChain_sload_ne hclean4 ?_ ?_ ?_).trans (hE4s (wm + 2))
+      · rw [haccw]
+        have h := hsep 0 2 (by decide) (by decide)
+        simpa using h
+      · rw [haccw]
+        exact hsep 1 2 (by decide) (by decide)
+      · rw [haccw]
+        exact hsep 2 2 (by decide) (by decide)
+    -- assemble the m-chain
+    have hSFm : leafSlot SF (m : UInt256) = wm := hslotSF _ _ hmH
+    unfold decodeLeaf
+    rw [hSFm, hvm0, htail0, hmid0, hwalk0, hcopy0, htail2, hmid2, hwalk2, hcopy2]
+  -- ===== per-index: the window leaf =====
+  have hIXneNI : IX ≠ NI := by
+    rw [hNI]
+    exact Fin.ne_of_val_ne (Nat.ne_of_lt hwlt)
+  have hwidx : decodeLeaf SF IX = ⟨(decodeLeaf evm IX).key, V⟩ := by
+    have htail0 : SF.sload w = S3.sload w := by
+      have h := htail IX w 0 hw4 hwH (by decide)
+      rw [hvw4] at h
+      simpa using h
+    have htail2 : SF.sload (w + 2) = S3.sload (w + 2) := by
+      have h := htail IX w 2 hw4 hwH (by decide)
+      rw [hvw4] at h
+      exact h
+    obtain ⟨hmid0, hmid2⟩ := hmid IX w hwF hIXneNI
+    have hwalk0 : S2.sload w = S1.sload w := by
+      have h := htail1 IX w 0 hw4 hwH1 (by decide)
+      rw [hvw4] at h
+      simpa using h
+    have hwalk2 : S2.sload (w + 2) = S1.sload (w + 2) := by
+      have h := htail1 IX w 2 hw4 hwH1 (by decide)
+      rw [hvw4] at h
+      exact h
+    have hSFw : leafSlot SF IX = w := hslotSF _ _ hwH
+    have hstep : decodeLeaf SF IX = ⟨SF.sload w, SF.sload (w + 2)⟩ := by
+      unfold decodeLeaf
+      rw [hSFw]
+    rw [hstep, htail0, hmid0, hwalk0, hS1fields.1, htail2, hmid2, hwalk2,
+        hS1fields.2, hkey]
+  -- ===== per-index: the new leaf at the count =====
+  have hnew : decodeLeaf SF (evm.sload 1) = ⟨V, (decodeLeaf evm IX).nextKey⟩ := by
+    have htail0 : SF.sload wc = S3.sload wc := by
+      have h := htail (evm.sload 1) wc 0 hc4 hcH (by decide)
+      rw [hvc4] at h
+      simpa using h
+    have htail2 : SF.sload (wc + 2) = S3.sload (wc + 2) := by
+      have h := htail (evm.sload 1) wc 2 hc4 hcH (by decide)
+      rw [hvc4] at h
+      exact h
+    have hSFc : leafSlot SF (evm.sload 1) = wc := hslotSF _ _ hcH
+    have hstep : decodeLeaf SF (evm.sload 1) = ⟨SF.sload wc, SF.sload (wc + 2)⟩ := by
+      unfold decodeLeaf
+      rw [hSFc]
+    rw [hstep, htail0, hS3fields.1, htail2, hS3fields.2, hnv]
+  -- ===== assemble the set equation =====
+  unfold leafSetOf
+  rw [hcval, Finset.range_succ, Finset.image_insert, hccast, hnew]
+  have himg : (Finset.range (evm.sload 1).val).image
+        (fun n : ℕ => decodeLeaf SF (n : UInt256))
+      = insert (⟨(decodeLeaf evm IX).key, V⟩ : AbsLeaf)
+          (((Finset.range (evm.sload 1).val).image
+              (fun n : ℕ => decodeLeaf evm (n : UInt256))).erase
+            (decodeLeaf evm ((IX.val : ℕ) : UInt256))) := by
+    refine image_update_erase_insert hwlt houtside ?_ hinj
+    show decodeLeaf SF ((IX.val : ℕ) : UInt256)
+      = (⟨(decodeLeaf evm IX).key, V⟩ : AbsLeaf)
+    rw [hIXcast]
+    exact hwidx
+  rw [himg, hIXcast]
+  unfold imtInsert
+  exact Finset.Insert.comm _ _ _
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
