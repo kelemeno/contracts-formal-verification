@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.increment_uint256
@@ -90,6 +93,157 @@ lemma fun_pushNewLeaf_isOk {var_newRoot : Identifier} {var_leaf : Literal} {s₀
 lemma fun_pushNewLeaf_not_break {var_newRoot : Identifier} {var_leaf : Literal} {s₀ s₉ : State}
     (hnf : ¬ ❓ s₉) (h : A_fun_pushNewLeaf var_newRoot var_leaf s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (fun_pushNewLeaf_isOk hnf h)
+
+/-! ### The leaf counter
+
+`pushNewLeaf` reads the count at slot 1, increments it, writes it back, and only then
+rebuilds the tree.  So "the count went up by one" is really a claim about everything that
+runs AFTER the write: the capacity check, the depth-extension guard, and `updateLeaf`.
+
+`updateLeaf` is the hard one and is now settled -- it writes only keccak images, so it
+cannot touch slot 1.  The two guards are not yet framed, so this is stated for the case
+where both take their identity branch: a tree that is empty and not at capacity.  That is
+the first-leaf path, and it is the one that exercises the whole chain. -/
+
+/-- The entry state: the argument bound and the old count read. -/
+private def entry (var_leaf : Literal) (s₀ : State) : State :=
+  let f := s₀☎️⟦["var_leaf"],[var_leaf]⟧
+  f⟦"_1" ↦ Clear.EVMState.sload f.evm 1⟧
+
+private lemma entry_isOk {var_leaf : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (entry var_leaf s₀) := isOk_insert.mpr (isOk_initcall_of_isOk hok)
+
+private lemma entry_evm {var_leaf : Literal} {s₀ : State} (hok : isOk s₀) :
+    (entry var_leaf s₀).evm = s₀.evm := by
+  simp only [entry, evm_insert]; exact Clear.evm_initcall hok
+
+private lemma entry_count {var_leaf : Literal} {s₀ : State} (hok : isOk s₀) :
+    (entry var_leaf s₀)["_1"]!! = Clear.EVMState.sload s₀.evm 1 := by
+  simp only [entry]
+  rw [lookup_insert' (isOk_initcall_of_isOk hok), Clear.evm_initcall hok]
+
+private lemma zeroLtLowSlot : (0 : UInt256).val < Clear.KeccakInjective.lowSlotBound := by
+  show (0 : ℕ) < 2 ^ 32
+  norm_num
+
+private lemma oneLtLowSlot : (1 : UInt256).val < Clear.KeccakInjective.lowSlotBound := by
+  show (1 : ℕ) < 2 ^ 32
+  norm_num
+
+/-- **THE LEAF COUNT GOES UP BY ONE** -- on the first-leaf path.
+
+Slot 1 holds the number of leaves.  `pushNewLeaf` increments it, and nothing downstream
+disturbs it: the guards are identities here, and `updateLeaf` writes only keccak images,
+which `fun_updateLeaf_sload_of_low_of_clean` rules out as slot 1.
+
+`hcap` says the tree has room, i.e. `1 <<< height` did not wrap to zero -- with an empty
+tree that is exactly "the count is not already the capacity". -/
+lemma fun_pushNewLeaf_count_of_empty
+    {var_newRoot : Identifier} {var_leaf : Literal} {s₀ s₉ : State} {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (hempty : Clear.EVMState.sload s₀.evm 1 = 0)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hcap : (1 : UInt256) <<< (Clear.EVMState.sload s₀.evm 0) ≠ 0)
+    (h : A_fun_pushNewLeaf var_newRoot var_leaf s₀ s₉) :
+    Clear.EVMState.sload s₉.evm 1 = Clear.EVMState.sload s₀.evm 1 + 1 := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, heq⟩ := h
+  have haok := entry_isOk (var_leaf := var_leaf) hok
+  have hae := entry_evm (var_leaf := var_leaf) hok
+  have hac := entry_count (var_leaf := var_leaf) hok
+  -- nobody ran out of fuel
+  have h4nf : ¬ ❓ s₄ := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  -- each Spec starts from a WRAPPED state, so the wrappers peel on the way back
+  have h2nf : ¬ ❓ s₂ := fun hoo =>
+    h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃
+      (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h1nf : ¬ ❓ s₁ := fun hoo =>
+    h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂
+      (by simpa only [isOutOfFuel_multifill', isOutOfFuel_insert', isOutOfFuel_setEvm']
+        using hoo))
+  have a₁ := Spec_ok_unfold haok h1nf h₁
+  have hs1 : isOk s₁ := increment_uint256_isOk h1nf a₁
+  -- the counter cannot be at the sentinel, because it is zero
+  have hno : (entry var_leaf s₀)["_1"]!! ≠ UInt256.lnot 0 := by
+    rw [hac, hempty]
+    intro hcon
+    have := congrArg Fin.val hcon
+    rw [lnot_zero_val] at this
+    simp at this
+  have hs1v : s₁["split_expr_0"]!! = (entry var_leaf s₀)["_1"]!! + 1 :=
+    increment_uint256_val haok h1nf hno a₁
+  have hs1_1 : s₁["_1"]!! = (entry var_leaf s₀)["_1"]!! :=
+    increment_uint256_frame haok h1nf (by decide) a₁
+  have hs1e : ∀ q, Clear.EVMState.sload s₁.evm q
+      = Clear.EVMState.sload s₀.evm q := by
+    intro q; rw [increment_uint256_sload haok h1nf a₁, hae]
+  obtain ⟨hR1, hC1⟩ := increment_uint256_config haok h1nf (by rw [hae]; exact hR)
+    (by rw [hae]; exact hC) a₁
+  -- the write: slot 1 becomes the old count plus one
+  have hacc1 : Clear.EVMState.lookupAccount s₁.evm s₁.evm.execution_env.code_owner
+      = some act := by
+    rw [increment_uint256_env haok h1nf a₁, hae,
+      increment_uint256_account (addr := s₀.evm.execution_env.code_owner) haok h1nf a₁, hae]
+    exact hacc
+  have hstore : Clear.EVMState.sload
+      (Clear.EVMState.sstore s₁.evm 1 (s₁["split_expr_0"]!!)) 1 = s₁["split_expr_0"]!! :=
+    Clear.StorageFrame.sload_sstore_self hacc1
+  -- the post-write state, and the two guard flags it decides
+  set st := s₁🇪⟦Clear.EVMState.sstore s₁.evm 1 (s₁["split_expr_0"]!!)⟧ with hstdef
+  have hstok : isOk st := by rw [hstdef]; simpa only [isOk_setEvm] using hs1
+  have hste : st.evm = Clear.EVMState.sstore s₁.evm 1 (s₁["split_expr_0"]!!) := by
+    rw [hstdef]; exact Clear.evm_setEvm_of_isOk hs1
+  set lv := st⟦"_2" ↦ Clear.EVMState.sload st.evm 0⟧ with hlvdef
+  have hlvok : isOk lv := by rw [hlvdef]; exact isOk_insert.mpr hstok
+  set cap := Clear.State.multifill ["split_expr_1"] [Fin.shiftLeft 1 (lv["_2"]!!)] lv
+    with hcapdef
+  have hcapok : isOk cap := by rw [hcapdef]; exact isOk_multifill hlvok
+  have hcape : cap.evm = st.evm := by
+    rw [hcapdef, hlvdef, multifill_cons, multifill_nil, evm_insert, evm_insert]
+  -- `_1` is the OLD count, and it is zero, so both guards fall through
+  have hcap1 : cap["_1"]!! = 0 := by
+    rw [hcapdef, hlvdef, multifill_cons, multifill_nil, lookup_insert_of_ne (by decide),
+      lookup_insert_of_ne (by decide), hstdef, Clear.lookup_setEvm hs1, hs1_1, hac, hempty]
+  have hcap2 : cap["split_expr_1"]!! = Fin.shiftLeft 1 (Clear.EVMState.sload s₀.evm 0) := by
+    rw [hcapdef, multifill_cons, multifill_nil, lookup_insert' hlvok, hlvdef,
+      lookup_insert' hstok, hste,
+      Clear.KeccakDistinct.sload_sstore_of_ne _ (by decide), hs1e]
+  have hne1 : cap["_1"]!! ≠ cap["split_expr_1"]!! := by
+    rw [hcap1, hcap2]; exact fun hcon => hcap hcon.symm
+  have hs2 : s₂ = cap :=
+    L2InteropCommitmentTree.Common.if_2518866309321428816_id_of_ne hne1
+      (Spec_ok_unfold hcapok h2nf h₂)
+  set g2 := s₂⟦"split_expr_4" ↦ (decide (s₂["_1"]!! = 0)).toUInt256⟧ with hg2def
+  have hg2ok : isOk g2 := by rw [hg2def, hs2]; exact isOk_insert.mpr hcapok
+  have hne2 : g2["split_expr_4"]!! ≠ 0 := by
+    rw [hg2def, lookup_insert' (by rw [hs2]; exact hcapok), hs2, hcap1]
+    decide
+  have hs3 : s₃ = g2 :=
+    L2InteropCommitmentTree.Common.if_8492884752647891302_id_of_ne hne2
+      (Spec_ok_unfold hg2ok h3nf h₃)
+  -- the fold's own frame: `updateLeaf` writes only keccak images, so not slot 1
+  have hg2e : g2.evm = cap.evm := by rw [hg2def, evm_insert, hs2]
+  have he9 : s₉.evm = s₄.evm := by
+    rw [heq, evm_insert, evm_setStore,
+      Clear.evm_reviveJump_of_isOk (fun_updateLeaf_isOk h4nf
+        (Spec_ok_unfold (by rw [hs3]; exact hg2ok) h4nf h₄))]
+  have hidx : s₃["_1"]!! = 0 := by rw [hs3, hg2def, lookup_insert_of_ne (by decide), hs2, hcap1]
+  have hRst : Clear.KeccakLowSlot.RangeInWindow st.evm := by
+    rw [hste]; exact Clear.StorageFrame.rangeInWindow_sstore hR1
+  have hCst : Clear.KeccakLowSlot.CachedInWindow st.evm := by
+    rw [hste]; exact Clear.StorageFrame.cachedInWindow_sstore hC1
+  have hul := fun_updateLeaf_sload_of_low_of_clean (c := 1)
+    (by rw [hs3]; exact hg2ok) h4nf
+    (by rw [hs3, hg2e, hcape]; exact hRst) (by rw [hs3, hg2e, hcape]; exact hCst)
+    (by rw [← he9]; exact hclean)
+    (by rw [hidx]; exact zeroLtLowSlot) (by exact oneLtLowSlot)
+    (Spec_ok_unfold (by rw [hs3]; exact hg2ok) h4nf h₄)
+  rw [he9, hul, hs3, hg2e, hcape, hste, hstore, hs1v, hac, hempty]
 
 end
 

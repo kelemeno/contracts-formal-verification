@@ -191,6 +191,44 @@ lemma increment_uint256_clean {ret : Identifier} {value : Literal} {s₀ s₉ : 
     Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hssok), evm_insert,
     L2InteropCommitmentTree.Common.if_2896693009130145472_clean hgok hssnf hga, hge]
 
+/-- **ACCOUNT FRAME.**  The increment writes no storage, so the account map survives --
+which is what lets a caller carry an account witness across it and then write. -/
+lemma increment_uint256_account {ret : Identifier} {value : Literal} {addr : Address}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_increment_uint256 ret value s₀ s₉) :
+    Clear.EVMState.lookupAccount s₉.evm addr = Clear.EVMState.lookupAccount s₀.evm addr := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := incG_isOk (value := value) hok
+  have hge := incG_evm (value := value) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_isOk hgok hssnf hga
+  rw [heq, evm_insert, evm_setStore,
+    Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hssok), evm_insert,
+    L2InteropCommitmentTree.Common.if_2896693009130145472_account hgok hssnf hga, hge]
+
+/-- **EXECUTION ENVIRONMENT FRAME.**  Carried alongside `_account`: an account witness is
+stated at `code_owner`, so a caller needs both halves to move one across the increment. -/
+lemma increment_uint256_env {ret : Identifier} {value : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_increment_uint256 ret value s₀ s₉) :
+    s₉.evm.execution_env = s₀.evm.execution_env := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := incG_isOk (value := value) hok
+  have hge := incG_evm (value := value) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_2896693009130145472_isOk hgok hssnf hga
+  rw [heq, evm_insert, evm_setStore,
+    Clear.evm_reviveJump_of_isOk (isOk_insert.mpr hssok), evm_insert,
+    L2InteropCommitmentTree.Common.if_2896693009130145472_env hgok hssnf hga, hge]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

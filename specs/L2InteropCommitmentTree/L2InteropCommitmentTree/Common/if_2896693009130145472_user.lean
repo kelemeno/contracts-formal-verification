@@ -97,6 +97,27 @@ lemma if_2896693009130145472_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : 
     exact panic_error_0x11_clean hok (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
   · rw [hneg hc]
 
+/-- **ACCOUNT FRAME.**  Neither branch touches the account map. -/
+lemma if_2896693009130145472_account {s₀ s₉ : State} {addr : Address} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_2896693009130145472 s₀ s₉) :
+    Clear.EVMState.lookupAccount s₉.evm addr = Clear.EVMState.lookupAccount s₀.evm addr := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["value"]!! = s₀["split_expr_0"]!!
+  · rw [hpos hc]
+    exact panic_error_0x11_account hok
+      (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]
+
+/-- **EXECUTION ENVIRONMENT FRAME.** -/
+lemma if_2896693009130145472_env {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_2896693009130145472 s₀ s₉) :
+    s₉.evm.execution_env = s₀.evm.execution_env := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["value"]!! = s₀["split_expr_0"]!!
+  · rw [hpos hc]
+    exact panic_error_0x11_env hok (Spec_ok_unfold hok (by rw [hpos hc] at hnf; exact hnf) hs)
+  · rw [hneg hc]
+
 end
 
 end L2InteropCommitmentTree.Common
