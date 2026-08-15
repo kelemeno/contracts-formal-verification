@@ -953,6 +953,74 @@ theorem separated_accOut {σ : EVMState} {key base : UInt256}
   Clear.KeccakSlotSep.separated_keccakOut (Clear.StorageFrame.separated_mstore
     (Clear.StorageFrame.separated_mstore h))
 
+/-! ## R5 — the last bridge: a MINTED array slot misses a CACHED mapping slot
+
+`cached_off_ne_off_of_len_ne` takes two cache HITS, but the deployed code separates a slot it
+has just *minted* from one it looked up earlier — and a fresh result is not in the cache, which
+is exactly why the axiomatic `keccak_off_ne_off` was reached for at those sites.
+
+The clean flag closes the gap.  A collision-free `keccakOut` caches its own preimage, so in the
+POST-state the fresh slot is a hit too; the earlier hit rides along by cache monotonicity.  Both
+hits then live in one common state, where their preimage windows differ in byte length (32 for
+an array base, 64 for a mapping entry) and the derived separator applies. -/
+
+/-- **A FRESHLY MINTED ARRAY SLOT NEVER MEETS A CACHED MAPPING SLOT.**  The array base
+`(arrOut σ a).1` is minted at `σ`; `w` is any mapping slot already cached there.  No pair of
+low offsets brings them together. -/
+theorem arrSlot_ne_accSlot_of_clean
+    {σ σ₀ : EVMState} {a key base w j k : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated (arrOut σ a).2)
+    (hinj : Clear.KeccakFresh.CacheInj (arrOut σ a).2)
+    (hclean : (arrOut σ a).2.hash_collision = false)
+    (hacc : Finmap.lookup (accInterval σ₀ key base) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    (arrOut σ a).1 + j ≠ w + k := by
+  have hfresh : Finmap.lookup (mkInterval (σ.mstore 0 a).machine_state 0 32)
+      (arrOut σ a).2.keccak_map = some (arrOut σ a).1 :=
+    keccakOut_caches_of_clean (σ := σ.mstore 0 a) (p := 0) (n := 32) hclean
+  have hcarry : Finmap.lookup (accInterval σ₀ key base) (arrOut σ a).2.keccak_map = some w :=
+    keccakOut_lookup_mono (σ := σ.mstore 0 a) (p := 0) (n := 32)
+      (by rw [keccak_map_mstore]; exact hacc)
+  exact Clear.KeccakSlotSep.cached_off_ne_off_of_len_ne hsep hinj hfresh hcarry
+    (by decide) hj hk
+
+/-- Mirror of `arrSlot_ne_accSlot_of_clean` with the arguments in the caller's usual order:
+the cached mapping slot on the left. -/
+theorem accSlot_ne_arrSlot_of_clean
+    {σ σ₀ : EVMState} {a key base w j k : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated (arrOut σ a).2)
+    (hinj : Clear.KeccakFresh.CacheInj (arrOut σ a).2)
+    (hclean : (arrOut σ a).2.hash_collision = false)
+    (hacc : Finmap.lookup (accInterval σ₀ key base) σ.keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    w + k ≠ (arrOut σ a).1 + j :=
+  fun he => arrSlot_ne_accSlot_of_clean hsep hinj hclean hacc hj hk he.symm
+
+/-- The same bridge for a freshly minted MAPPING slot against a cached ARRAY base: the
+symmetric instance, with the 64-byte window fresh and the 32-byte one carried. -/
+theorem accSlot_ne_arrSlot_fresh_of_clean
+    {σ σ₀ : EVMState} {key base a w j k : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated (accOut σ key base).2)
+    (hinj : Clear.KeccakFresh.CacheInj (accOut σ key base).2)
+    (hclean : (accOut σ key base).2.hash_collision = false)
+    (harr : Finmap.lookup (mkInterval (σ₀.mstore 0 a).machine_state 0 32)
+      σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound) :
+    (accOut σ key base).1 + j ≠ w + k := by
+  have hfresh : Finmap.lookup
+      (mkInterval ((σ.mstore 0 key).mstore 32 base).machine_state 0 64)
+      (accOut σ key base).2.keccak_map = some (accOut σ key base).1 :=
+    keccakOut_caches_of_clean (σ := (σ.mstore 0 key).mstore 32 base) (p := 0) (n := 64) hclean
+  have hcarry : Finmap.lookup (mkInterval (σ₀.mstore 0 a).machine_state 0 32)
+      (accOut σ key base).2.keccak_map = some w :=
+    keccakOut_lookup_mono (σ := (σ.mstore 0 key).mstore 32 base) (p := 0) (n := 64)
+      (by rw [keccak_map_mstore, keccak_map_mstore]; exact harr)
+  exact Clear.KeccakSlotSep.cached_off_ne_off_of_len_ne hsep hinj hfresh hcarry
+    (by decide) hj hk
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
