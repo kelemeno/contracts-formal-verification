@@ -1322,33 +1322,35 @@ lemma vtiOld_anchorsVH {evm : EVMState} {V IX x u : UInt256} {k : ℕ}
       (cacheInj_retargetStageEvm husedG hinjG),
     lookup_mono_hashLeafOut (lookup_mono_retargetStageEvm hcuG)⟩
 
-/-! ### `vtiAt_wFinal_old` on the derived route — NOT YET, AND THE EARLIER DIAGNOSIS WAS WRONG
+/-! ### `vtiAt_wFinal_old` on the derived route — NOT LANDED, AND HERE IS WHAT IS MEASURED
 
 Every ingredient exists and is verified: the six base-4-vs-base-5 separations are
-`cached_ne_of_config` / `cached_off_ne_of_config` (both sides are cached 64-byte hits, with
+`cached_ne_of_config` / `cached_off_ne_of_config` (both sides cached 64-byte hits, with
 `base54_interval_neV` supplying the different-preimage input), the `u` hit reaches the
-`wE4`/`wF4` accessor threads through the `lookup_mono_*` family, and the frame steps have
-zero-offset forms above.  A full assembly was written and every site typechecked.
+`wE4`/`wF4` accessor threads through `lookup_mono_*`, the frame steps have zero-offset forms,
+and the anchors are `vtiOld_anchorsEF` / `vtiOld_anchorsVH` above.  A full assembly was
+written twice and every individual site typechecked.
 
-It does not FIT: the proof exhausts 16M heartbeats at the tactic block, with no inner site
-named.
+MEASURED, in order, each correcting the previous guess:
 
-An earlier version of this note blamed the defeq shortcuts (`hcuE4 := hcuG`,
-`hcuF4 := hcuS2`), reasoning that `wS2` contains a walk recursing on a symbolic level count.
-**That was measured and is false.**  Both typecheck in under 1M heartbeats, including the one
-crossing `wS2`.  Bisection at 800k also clears every other anchor group individually --
-`separated_insertUpdEvm`, the three-`sstore` chain to `wF5`, `separated_pushEH ∘
-separated_insertNewEvm`, and the `lookup_mono` composition to `wH1`.
+  * the defeq shortcuts (`hcuE4 := hcuG`, `hcuF4 := hcuS2`) are NOT the cause -- both
+    typecheck under 1M, including the one crossing `wS2`;
+  * no anchor group is pathological -- each clears at 800k individually;
+  * the E4/F4 half of the anchor block, as ONE declaration, clears at 4M;
+  * but factoring the anchors into their own lemmas MOVES the cost rather than removing it:
+    the twin still exceeds 4M with the anchors precomputed, because the two `obtain`s force
+    elaboration of two large weld-typed conjunctions.
 
-So no single step is pathological, which points back at plain accumulation over ~40 anchors
-whose types each mention a `@[reducible]` weld state.  The inference "a 4x budget increase
-changed nothing, therefore not accumulation" was too strong: 4M → 16M only rules out a total
-under 16M.  A 64M attempt was inconclusive (it exceeds the practical build time here), so the
-true cost is somewhere above 16M and unmeasured.
+So the cost is in the TYPES, not in where they are written: getting sixteen facts about
+`@[reducible]` weld states into scope costs about the same inline or destructured.  Runs at
+16M (both shapes) and 64M were inconclusive -- they exceed the practical build time here, so
+the true cost is above 16M and unmeasured.
 
-The fix to try is structural, not a bigger number: factor the anchor block into its own lemma
-returning the facts it establishes, so the weld terms are elaborated once in a small context.
-Do NOT do more tactic surgery on the twin -- that was six build cycles for nothing. -/
+What would actually help is a cheaper type for the anchors -- e.g. making the weld states
+irreducible, or bundling the pool facts into a single structure indexed by the state -- and
+that is a corpus-wide design change, not something to do inside this proof.  Left unproved
+deliberately; `vtiCoherent_preserved` and `insertGlue_evolution_closed` stay on the axiomatic
+route above it. -/
 
 
 end
