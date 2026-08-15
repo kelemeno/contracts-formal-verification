@@ -922,6 +922,245 @@ theorem insertGlue_leafSetOf_of_config
     _ = imtInsert (leafSetOf evm) (decodeLeaf evm IX) V := by
         rw [hsetG, hdIX]
 
+
+set_option maxHeartbeats 1600000 in
+/-- **THE EVOLUTION STEP, AXIOM-FREE.**  `insertGlue_evolution`'s only axiom source is its
+`insertGlue_leafSetOf` call; everything else in it is membership, window-order and freshness
+reasoning that never touches a slot.  So the twin forwards, and inherits the entry-state-only
+hypothesis shape. -/
+theorem insertGlue_evolution_of_config
+    {evm : EVMState} {V IX : UInt256} {k k2 k3 : ℕ}
+    -- the five pool/window facts, at the ENTRY state only
+    (hsepE : Clear.KeccakSlotSep.Separated evm)
+    (husedE : Clear.KeccakFresh.CacheInUsed evm)
+    (hinjE : Clear.KeccakFresh.CacheInj evm)
+    (hRwE : Clear.KeccakLowSlot.RangeInWindow evm)
+    (hCwE : Clear.KeccakLowSlot.CachedInWindow evm)
+    -- window guard + count arithmetic (entry state)
+    (hbound : IX < evm.sload 1)
+    (hnw : (evm.sload 1).val + 1 < 2 ^ 256)
+    -- WHAT THE GUARDS PIN: the value-order gate (strict lower edge) and
+    -- the search loop's break (weak upper edge) — `insertGlue_prefix`'s
+    -- `hvo`/`hwin`, definitionally (guardsEvm/guardsLM are reducible)
+    (hvo : (guardsEvm evm V IX).mload (guardsLM evm V IX) < V)
+    (hwin : (guardsEvm evm V IX).mload (guardsLM evm V IX + 64) = 0
+        ∨ ¬ ((guardsEvm evm V IX).mload (guardsLM evm V IX + 64) < V))
+    -- the abstract list invariants (see the section header)
+    (hclosed : NextClosed (leafSetOf evm))
+    (hfresh : V ∉ IMTAbstract.keys (leafSetOf evm))
+    -- guards-stage accessor cleanliness (vti read + leaves read)
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    -- allocator bounds (hpG/hpW/hpN as in `insertGlue_prefix`, plus floors)
+    (hpG : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hpW : ((guardsEvm evm V IX).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowW : 96 ≤ ((guardsEvm evm V IX).mload 64).val)
+    (hpN : ((wS2 evm V IX k).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowN : 96 ≤ ((wS2 evm V IX k).mload 64).val)
+    -- cleanliness of the write-stage keccak steps
+    (hclean4 : (accOut (wE4 evm V IX) IX 4).2.hash_collision = false)
+    (hcleanF : (accOut (wF4 evm V IX k) (evm.sload 1) 4).2.hash_collision = false)
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH1 : (wH1 evm V IX).hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanB1 : (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanB2 : (arrOut (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2
+        (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    -- account presence where `sstore` must not be a no-op
+    (haccEK : (((accOut (wE4 evm V IX) IX 4).2).lookupAccount
+        ((accOut (wE4 evm V IX) IX 4).2).execution_env.code_owner).isSome)
+    (haccFK : (((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).lookupAccount
+        ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).execution_env.code_owner).isSome)
+    (haccH3 : ((wH3 evm V IX k).lookupAccount
+        (wH3 evm V IX k).execution_env.code_owner).isSome)
+    -- the level-0 element indices are small
+    (hIXlow : IX.val < Clear.KeccakInjective.lowSlotBound)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    -- THE FIVE-ANCHOR CACHE PACK (entry / guards / E4 / F4 / H3)
+    (hcach : ∀ m : ℕ, m ≤ (evm.sload 1).val → ∃ wm,
+      Finmap.lookup (accInterval evm (m : UInt256) 4) evm.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (guardsEvm evm V IX) (m : UInt256) 4)
+          (guardsEvm evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wE4 evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wF4 evm V IX k) (m : UInt256) 4)
+          (wF4 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wH1 evm V IX).keccak_map = some wm)
+    -- decode injectivity below the count, at the entry state
+    (hinj : ∀ m : ℕ, m < (evm.sload 1).val → ∀ m' : ℕ, m' < (evm.sload 1).val →
+      decodeLeaf evm (m : UInt256) = decodeLeaf evm (m' : UInt256) → m = m')
+    -- the walks' low-slot packs (concrete walk states)
+    (hok₁ : ∀ j, j < k → StepLowOK 0 2
+        (updTreeW (wS1 evm V IX) ((guardsEvm evm V IX).mload 64) IX j))
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j)) :
+    decodeLeaf evm IX ∈ leafSetOf evm
+    ∧ (decodeLeaf evm IX).key < V
+    ∧ ((decodeLeaf evm IX).nextKey = 0 ∨ V < (decodeLeaf evm IX).nextKey)
+    ∧ leafSetOf (wFinal evm V IX k k2 k3)
+        = imtInsert (leafSetOf evm) (decodeLeaf evm IX) V := by
+  have hwlt : IX.val < (evm.sload 1).val := hbound
+  -- ===== MEMBERSHIP: the window leaf is in the abstract set =====
+  have hmem : decodeLeaf evm IX ∈ leafSetOf evm := by
+    unfold leafSetOf
+    exact Finset.mem_image.mpr
+      ⟨IX.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
+  -- ===== the guards-stage read-backs (as in the weld) =====
+  have hdIX : decodeLeaf (guardsEvm evm V IX) IX = decodeLeaf evm IX := by
+    obtain ⟨wm, h0, hG, _, _, _, _, _⟩ := hcach IX.val (le_of_lt hwlt)
+    rw [Fin.cast_val_eq_self IX] at h0 hG
+    unfold decodeLeaf
+    rw [(leafSlot_keccak hG).2, (leafSlot_keccak h0).2,
+        guards_sload hcleanG wm, guards_sload hcleanG (wm + 2)]
+  have hkeyG : (guardsEvm evm V IX).mload (guardsLM evm V IX)
+      = (decodeLeaf (guardsEvm evm V IX) IX).key := by
+    obtain ⟨wIX, hIX0, hIXG, _, _, _, _, _⟩ := hcach IX.val (le_of_lt hwlt)
+    rw [Fin.cast_val_eq_self IX] at hIX0 hIXG
+    have hw : wIX = (accOut (accOut evm V 5).2 IX 4).1 :=
+      guards_slot_pins hcleanG hIX0
+    have hslotG : leafSlot (guardsEvm evm V IX) IX
+        = (accOut (accOut evm V 5).2 IX 4).1 := by
+      rw [← hw]
+      exact (leafSlot_keccak hIXG).2
+    have hr : (guardsEvm evm V IX).mload (guardsLM evm V IX)
+        = ((accOut (accOut evm V 5).2 IX 4).2).sload
+            ((accOut (accOut evm V 5).2 IX 4).1) :=
+      leafRead_mload_key hpG
+    have hdk : (decodeLeaf (guardsEvm evm V IX) IX).key
+        = (guardsEvm evm V IX).sload (leafSlot (guardsEvm evm V IX) IX) := rfl
+    rw [hr, hdk, hslotG]
+    rfl
+  have hnvG : (guardsEvm evm V IX).mload (guardsLM evm V IX + 64)
+      = (decodeLeaf (guardsEvm evm V IX) IX).nextKey := by
+    obtain ⟨wIX, hIX0, hIXG, _, _, _, _, _⟩ := hcach IX.val (le_of_lt hwlt)
+    rw [Fin.cast_val_eq_self IX] at hIX0 hIXG
+    have hw : wIX = (accOut (accOut evm V 5).2 IX 4).1 :=
+      guards_slot_pins hcleanG hIX0
+    have hslotG : leafSlot (guardsEvm evm V IX) IX
+        = (accOut (accOut evm V 5).2 IX 4).1 := by
+      rw [← hw]
+      exact (leafSlot_keccak hIXG).2
+    have hr : (guardsEvm evm V IX).mload (guardsLM evm V IX + 64)
+        = ((accOut (accOut evm V 5).2 IX 4).2).sload
+            ((accOut (accOut evm V 5).2 IX 4).1 + 2) :=
+      leafRead_mload_nextKey hpG
+    have hdn : (decodeLeaf (guardsEvm evm V IX) IX).nextKey
+        = (guardsEvm evm V IX).sload (leafSlot (guardsEvm evm V IX) IX + 2) := rfl
+    rw [hr, hdn, hslotG]
+    rfl
+  -- ===== WINDOW FACT 1: the strict lower edge (value-order gate) =====
+  have hlow : (decodeLeaf evm IX).key < V := by
+    rw [← hdIX, ← hkeyG]
+    exact hvo
+  -- ===== WINDOW FACT 2: the weak upper edge (search-loop break) =====
+  have hweak : (decodeLeaf evm IX).nextKey = 0
+      ∨ V ≤ (decodeLeaf evm IX).nextKey := by
+    rw [← hdIX, ← hnvG]
+    rcases hwin with h0 | hge
+    · exact Or.inl h0
+    · exact Or.inr (not_lt.mp hge)
+  -- ===== STRICTNESS UPGRADE: freshness excludes `V = nextKey` =====
+  have hstrict : (decodeLeaf evm IX).nextKey = 0
+      ∨ V < (decodeLeaf evm IX).nextKey :=
+    window_strict_of_not_mem hclosed hmem hfresh hweak
+  -- ===== PACKAGE with the weld's set equation =====
+  exact ⟨hmem, hlow, hstrict,
+    insertGlue_leafSetOf_of_config hsepE husedE hinjE hRwE hCwE
+      hbound hnw hcleanG hpG hpW hplowW hpN hplowN
+      hclean4 hcleanF hcleanV hcleanH1 hcleanH3 hcleanB1 hcleanB2 hcleanA1
+      hcleanA2 haccEK haccFK haccH3 hIXlow hnidx hcach hinj hok₁ hokp hok₂⟩
+
+
+open Clear.KeccakDeterminism in
+set_option maxHeartbeats 1600000 in
+/-- **The Evolution insert disjunct, AXIOM-FREE** — `insertGlue_evolution_step` verbatim, on
+the derived route.  This is the top of the insert-fidelity chain: the shape
+`IMTAbstract.Evolution`'s insert disjunct consumes, now resting on nothing but the five
+pool/window facts at the dispatcher entry state. -/
+theorem insertGlue_evolution_step_of_config
+    {evm : EVMState} {V IX : UInt256} {k k2 k3 : ℕ}
+    -- the five pool/window facts, at the ENTRY state only
+    (hsepE : Clear.KeccakSlotSep.Separated evm)
+    (husedE : Clear.KeccakFresh.CacheInUsed evm)
+    (hinjE : Clear.KeccakFresh.CacheInj evm)
+    (hRwE : Clear.KeccakLowSlot.RangeInWindow evm)
+    (hCwE : Clear.KeccakLowSlot.CachedInWindow evm)
+    (hbound : IX < evm.sload 1)
+    (hnw : (evm.sload 1).val + 1 < 2 ^ 256)
+    (hvo : (guardsEvm evm V IX).mload (guardsLM evm V IX) < V)
+    (hwin : (guardsEvm evm V IX).mload (guardsLM evm V IX + 64) = 0
+        ∨ ¬ ((guardsEvm evm V IX).mload (guardsLM evm V IX + 64) < V))
+    (hclosed : NextClosed (leafSetOf evm))
+    (hfresh : V ∉ IMTAbstract.keys (leafSetOf evm))
+    (hcleanG : (accOut (accOut evm V 5).2 IX 4).2.hash_collision = false)
+    (hpG : (((accOut (accOut evm V 5).2 IX 4).2).mload 64).val + 96
+        ≤ 18446744073709551615)
+    (hpW : ((guardsEvm evm V IX).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowW : 96 ≤ ((guardsEvm evm V IX).mload 64).val)
+    (hpN : ((wS2 evm V IX k).mload 64).val + 96 ≤ 18446744073709551615)
+    (hplowN : 96 ≤ ((wS2 evm V IX k).mload 64).val)
+    (hclean4 : (accOut (wE4 evm V IX) IX 4).2.hash_collision = false)
+    (hcleanF : (accOut (wF4 evm V IX k) (evm.sload 1) 4).2.hash_collision = false)
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH1 : (wH1 evm V IX).hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanB1 : (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanB2 : (arrOut (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).2
+        (arrOut (wH1 evm V IX) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (haccEK : (((accOut (wE4 evm V IX) IX 4).2).lookupAccount
+        ((accOut (wE4 evm V IX) IX 4).2).execution_env.code_owner).isSome)
+    (haccFK : (((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).lookupAccount
+        ((accOut (wF4 evm V IX k) (evm.sload 1) 4).2).execution_env.code_owner).isSome)
+    (haccH3 : ((wH3 evm V IX k).lookupAccount
+        (wH3 evm V IX k).execution_env.code_owner).isSome)
+    (hIXlow : IX.val < Clear.KeccakInjective.lowSlotBound)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hcach : ∀ m : ℕ, m ≤ (evm.sload 1).val → ∃ wm,
+      Finmap.lookup (accInterval evm (m : UInt256) 4) evm.keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (guardsEvm evm V IX) (m : UInt256) 4)
+          (guardsEvm evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wE4 evm V IX).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wF4 evm V IX k) (m : UInt256) 4)
+          (wF4 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wH3 evm V IX k) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wH3 evm V IX k).keccak_map = some wm
+      ∧ Finmap.lookup (accInterval (wE4 evm V IX) (m : UInt256) 4)
+          (wH1 evm V IX).keccak_map = some wm)
+    (hinj : ∀ m : ℕ, m < (evm.sload 1).val → ∀ m' : ℕ, m' < (evm.sload 1).val →
+      decodeLeaf evm (m : UInt256) = decodeLeaf evm (m' : UInt256) → m = m')
+    (hok₁ : ∀ j, j < k → StepLowOK 0 2
+        (updTreeW (wS1 evm V IX) ((guardsEvm evm V IX).mload 64) IX j))
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j)) :
+    ∃ W₀ v', W₀ ∈ leafSetOf evm ∧ W₀.key < v'
+      ∧ (W₀.nextKey = 0 ∨ v' < W₀.nextKey)
+      ∧ leafSetOf (wFinal evm V IX k k2 k3)
+          = imtInsert (leafSetOf evm) W₀ v' := by
+  obtain ⟨hmem, hlow, hstrict, hset⟩ :=
+    insertGlue_evolution_of_config hsepE husedE hinjE hRwE hCwE hbound hnw hvo hwin
+    hclosed hfresh hcleanG hpG hpW hplowW hpN hplowN hclean4 hcleanF hcleanV
+    hcleanH1 hcleanH3 hcleanB1 hcleanB2 hcleanA1 hcleanA2 haccEK haccFK haccH3
+    hIXlow hnidx hcach hinj hok₁ hokp hok₂
+  exact ⟨decodeLeaf evm IX, V, hmem, hlow, hstrict, hset⟩
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
