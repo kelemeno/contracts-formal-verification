@@ -200,6 +200,23 @@ lemma if_3779316958150250372_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : 
     rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hok] at hclean
     exact Clear.KeccakClean.clean_of_keccakOut_mstore hclean
 
+/-- The truncation guard lands `Ok`: the fall-through is the caller's own state, and the
+zeroing loop reports `isOk` as one of its own conjuncts. -/
+lemma if_3779316958150250372_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_3779316958150250372 s₀ s₉) : isOk s₉ := by
+  obtain ⟨ss, hspec, hle, hgt⟩ := h
+  by_cases hg : s₀["oldLen_1"]!! ≤ 1
+  · rw [hle hg]; exact hok
+  · have hssnf : ¬ ❓ ss := by rw [hgt hg] at hnf; exact hnf
+    simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
+    have hkok : isOk ((s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧)🇪⟦
+        (Clear.KeccakDeterminism.keccakOut
+          (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
+      simp only [isOk_setEvm]; exact hok
+    obtain ⟨-, hok9, -⟩ :=
+      Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
+    rw [hgt hg]; exact hok9
+
 end
 
 end L2InteropCommitmentTree.Common

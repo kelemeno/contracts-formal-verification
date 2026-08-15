@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StateOk
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr_user
 
@@ -170,6 +173,72 @@ lemma arrArrPush_normal {array value0 : Literal} {s₀ s₉ : State} (hok : isOk
     rfl
   rw [hsteq, pushSt_array hok, pushSt_oldLen hok] at h₂
   exact ⟨s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, heq⟩
+
+/-- **CLEAN FLAG, BACKWARDS.**  The nested push, end to end.
+
+Six steps, and the flag walks back through all of them: the element-copy loop (an iff, it
+only moves words), `array_dataslot` (a hash), the truncation guard (a hash), the `sstore`
+that sets the new length, the offset guard (an iff), the address computation (a hash), and
+the length write.
+
+Three of the six hash, so the result is one-way -- as it must be, since a clean input
+cannot promise a hash will succeed. -/
+lemma arrArrPush_clean {array value0 : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+      array value0 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, s₆, h₆, heq⟩ := arrArrPush_normal hok hnf hfits h
+  -- fuel first, outermost in
+  have h6nf : ¬ ❓ s₆ := by
+    intro hoo; apply hnf; rw [heq]
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h5nf : ¬ ❓ s₅ := fun hoo => h6nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₆
+    (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h4nf : ¬ ❓ s₄ := fun hoo => h5nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅
+    (by simpa only [isOutOfFuel_insert'] using hoo))
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄
+    (by simpa only [isOutOfFuel_setEvm', isOutOfFuel_insert'] using hoo))
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  -- then `Ok`, innermost out
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  have hs3 : isOk s₃ := L2InteropCommitmentTree.Common.if_228369243124659344_isOk hs2
+    (Spec_ok_unfold hs2 h3nf h₃)
+  have honeok : isOk ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)🇪⟦
+      Clear.EVMState.sstore s₃.evm
+        ((s₃⟦"oldLen_1" ↦ Clear.EVMState.sload s₃.evm (s₃["slot"]!!)⟧)["slot"]!!) 1⟧) := by
+    simp only [isOk_setEvm, isOk_insert]; exact hs3
+  have a₄ := Spec_ok_unfold honeok h4nf h₄
+  have hs4 : isOk s₄ := L2InteropCommitmentTree.Common.if_3779316958150250372_isOk honeok
+    h4nf a₄
+  have hsrcok : isOk (s₄⟦"srcPtr" ↦ s₄["value0"]!!⟧) := isOk_insert.mpr hs4
+  have a₅ := Spec_ok_unfold hsrcok h5nf h₅
+  have hs5 : isOk s₅ := array_dataslot_array_bytes32_dyn_storage_ptr_isOk h5nf a₅
+  have a₆ := Spec_ok_unfold (isOk_insert.mpr hs5) h6nf h₆
+  -- now the flag, from the end back to the start
+  rw [heq, evm_setStore, Clear.evm_reviveJump_of_isOk a₆.2.1] at hclean
+  have c5 : Clear.KeccakClean.Clean s₅.evm := by
+    have := a₆.2.2.2.2.mp hclean
+    simpa only [evm_insert] using this
+  have c4 : Clear.KeccakClean.Clean s₄.evm := by
+    have := array_dataslot_array_bytes32_dyn_storage_ptr_clean hsrcok c5 a₅
+    simpa only [evm_insert] using this
+  have c3 : Clear.KeccakClean.Clean s₃.evm := by
+    have := L2InteropCommitmentTree.Common.if_3779316958150250372_clean honeok h4nf c4 a₄
+    rw [Clear.evm_setEvm_of_isOk (isOk_insert.mpr hs3),
+      Clear.KeccakClean.clean_sstore] at this
+    exact this
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (L2InteropCommitmentTree.Common.if_228369243124659344_clean hs2
+      (Spec_ok_unfold hs2 h3nf h₃)).mp c3
+  have cst := storage_array_index_access_bytes32_dyn_ptr_clean hstok h2nf c2
+    (Spec_ok_unfold hstok h2nf h₂)
+  rw [pushSt_evm hok, Clear.KeccakClean.clean_sstore] at cst
+  exact cst
 
 end
 
