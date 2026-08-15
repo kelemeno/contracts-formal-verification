@@ -296,6 +296,65 @@ lemma storage_array_index_access_bytes32_dyn_ptr_5303_slot_not_low
     zero_lt_lowSlotBound hcl
   simpa using this
 
+/-- **THE SAME RESULT, PAID FOR BY THE CLEAN FLAG RATHER THAN BY FUEL.**
+
+A hash that exhausts the pool does not leave the `Ok` world in this model -- it returns `0`
+and raises `hash_collision`.  So "the collision flag is clear in the final state" is an
+*observable* witness that the hash genuinely succeeded, and it does the same job as a fuel
+budget without anyone having to count steps.
+
+That matters for the fold: a step count is not something a caller can discharge, because
+the trip count is fixed by the tree and only revealed by the loop's own induction.  The
+clean flag is a property of the state in hand. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_slot_not_low_of_clean
+    {slot offset : Identifier} {array c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : s₉.evm.hash_collision = false)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := gState_isOk (array := array) hok
+  have hge := gState_evm (array := array) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      Clear.KeccakPrimOps.primCall_keccakOut, isOutOfFuel_multifill', isOutOfFuel_setEvm']
+    exact hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_isOk hgok hssnf hga
+  obtain ⟨hRss, hCss⟩ := L2InteropCommitmentTree.Common.if_6945705467323769142_config hgok hssnf
+    (by rw [hge]; exact hR) (by rw [hge]; exact hC) hga
+  have hrok : isOk ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧) := by
+    simp only [isOk_insert, Clear.KeccakPrimOps.primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hssok)
+  have hrev : isOk (🧟 ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧)) := by
+    rw [revive_of_ok hrok]; exact hrok
+  -- the final state's evm IS the hash's post-state, so the caller's clean flag is exactly
+  -- the hypothesis `keccakOut_some_of_clean` wants
+  have hcl2 : (Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).2.hash_collision = false := by
+    rw [heq] at hclean
+    simpa only [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hrok,
+      resultOf_evm hssok] using hclean
+  have hsome := Clear.KeccakDeterminism.keccakOut_some_of_clean hcl2
+  subst heq
+  rw [lookup_insert' (isOk_insert.mpr (isOk_setStore_of_isOk hrev)), slot_resultOf hssok]
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
+  have := Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config (j := 0) c hRm hCm hsome
+    zero_lt_lowSlotBound hcl
+  simpa using this
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
