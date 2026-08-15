@@ -1,4 +1,5 @@
 import specs.KeccakFresh
+import specs.KeccakClean
 import specs.KeccakInjective
 
 /-
@@ -248,5 +249,39 @@ theorem arr_write_frames_mapping {σ σ_w : EVMState} {ms₁ ms₂ : MachineStat
     (show ((0 : UInt256)).val < lowSlotBound by decide) ?_
   rw [add_zero]
   exact he.symm
+
+/-- **THE FRESH-RESULT BRIDGE.**
+
+`cached_off_ne_off` takes cache HITS, but code separates slots that were just MINTED --
+`keccak_off_ne_off`, the idealization, applies to hash-success witnesses directly.  That
+gap is real: `CacheInj` says nothing about a fresh result, because a fresh result is not
+in the cache.
+
+It is bridgeable when the two hashes happen in SEQUENCE, which is what deployed code
+actually does.  A clean successful hash caches its own preimage in its post-state
+(`keccakOut_caches_of_clean`), and an earlier hit survives a later hash
+(`keccakOut_lookup_mono`) -- so view BOTH slots as cached in the later state, separate them
+there, and read the `≠` back off: it is a fact about two values, not about a state.
+
+What this does NOT reach is the case `KeccakInjective`'s header names: two hashes in
+DISJOINT state threads, where neither post-state sees the other's cache.  That is why
+`root_pins_written_leaf` -- a challenger's fold against a builder's walk -- stays
+irreducible. -/
+theorem seq_off_ne_off_of_clean {σ : EVMState} {p₁ n₁ p₂ n₂ k₁ k₂ : UInt256}
+    (hsep : Separated (KeccakDeterminism.keccakOut
+      (KeccakDeterminism.keccakOut σ p₁ n₁).2 p₂ n₂).2)
+    (hinj : Clear.KeccakFresh.CacheInj (KeccakDeterminism.keccakOut
+      (KeccakDeterminism.keccakOut σ p₁ n₁).2 p₂ n₂).2)
+    (h1 : Clear.KeccakClean.Clean (KeccakDeterminism.keccakOut σ p₁ n₁).2)
+    (h2 : Clear.KeccakClean.Clean (KeccakDeterminism.keccakOut
+      (KeccakDeterminism.keccakOut σ p₁ n₁).2 p₂ n₂).2)
+    (hne : EVMState.mkInterval σ.machine_state p₁ n₁
+         ≠ EVMState.mkInterval (KeccakDeterminism.keccakOut σ p₁ n₁).2.machine_state p₂ n₂)
+    (hk₁ : k₁.val < lowSlotBound) (hk₂ : k₂.val < lowSlotBound) :
+    (KeccakDeterminism.keccakOut σ p₁ n₁).1 + k₁
+      ≠ (KeccakDeterminism.keccakOut (KeccakDeterminism.keccakOut σ p₁ n₁).2 p₂ n₂).1 + k₂ :=
+  cached_off_ne_off hsep hinj
+    (KeccakDeterminism.keccakOut_lookup_mono (KeccakDeterminism.keccakOut_caches_of_clean h1))
+    (KeccakDeterminism.keccakOut_caches_of_clean h2) hne hk₁ hk₂
 
 end Clear.KeccakSlotSep
