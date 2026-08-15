@@ -4515,6 +4515,48 @@ theorem glueSeq_leafSetOf'_of_config
   unfold imtInsert
   exact Finset.Insert.comm _ _ _
 
+
+/-! ## Cache monotonicity across the WELD CHAIN
+
+The `Finmap.lookup` analogue of the pool/window transport in `imt_insert_gate`: a hit at the
+dispatcher entry state is still a hit at every state the insert passes through.  The `mstore`
+and `sstore` legs do not touch the cache at all; the hash legs reuse the existing atom monos.
+
+`vtiAt_wFinal_old` needs these -- it separates base-4 leaf slots from the base-5 vti slot, and
+`cached_off_ne_off` wants BOTH hits in one state.  The dispatcher-level constructors are in
+`imt_weld`, which is where the rest of this family lives. -/
+
+lemma lookup_mono_leafReadEvm {σ : EVMState} {slot : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (leafReadEvm σ slot).keccak_map = some w := by
+  unfold leafReadEvm
+  simp only [keccak_map_mstore]
+  exact h
+
+lemma lookup_mono_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (leafScratchEvm σ leaf).keccak_map = some w := by
+  unfold leafScratchEvm
+  simp only [keccak_map_mstore]
+  exact h
+
+lemma lookup_mono_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I ((hashLeafOut σ leaf).2).keccak_map = some w := by
+  unfold hashLeafOut
+  exact keccakOut_lookup_mono (lookup_mono_leafScratchEvm h)
+
+lemma lookup_mono_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (leafWriteEvm σ ss idx leaf).keccak_map = some w := by
+  unfold leafWriteEvm
+  simp only [keccak_map_sstore']
+  exact arrOut_mono_f (arrOut_mono_f h)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

@@ -1161,6 +1161,73 @@ theorem insertGlue_evolution_step_of_config
     hIXlow hnidx hcach hinj hok₁ hokp hok₂
   exact ⟨decodeLeaf evm IX, V, hmem, hlow, hstrict, hset⟩
 
+
+/-! ## Cache monotonicity across the weld chain (dispatcher level)
+
+Continues the family in `imt_fidelity`, for the constructors defined in `imt_insert_gate`.
+A cache hit at the dispatcher ENTRY state is still a hit at every state the insert passes
+through, which is what `cached_off_ne_off` needs to compare two slots hashed at different
+points of the chain. -/
+
+private lemma keccak_map_sstoreW (σ : EVMState) (a v : UInt256) :
+    (σ.sstore a v).keccak_map = σ.keccak_map := by
+  unfold EVMState.sstore
+  cases σ.lookupAccount σ.execution_env.code_owner with
+  | none => rfl
+  | some _ => rfl
+
+lemma lookup_mono_pushEH {σ : EVMState} {PTR : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (pushEH σ PTR).keccak_map = some w :=
+  lookup_mono_hashLeafOut h
+
+lemma lookup_mono_guardsEvm {σ : EVMState} {V IX : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (guardsEvm σ V IX).keccak_map = some w :=
+  lookup_mono_leafReadEvm (accOut_lookup_mono (accOut_lookup_mono h))
+
+lemma lookup_mono_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (retargetStageEvm σ LM NI V IX).keccak_map = some w := by
+  unfold retargetStageEvm
+  simp only [keccak_map_sstoreW]
+  refine accOut_lookup_mono ?_
+  simp only [keccak_map_mstore]
+  exact h
+
+lemma lookup_mono_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (newLeafStageEvm σ V NI4 NV5 IX1).keccak_map = some w := by
+  unfold newLeafStageEvm
+  simp only [keccak_map_sstoreW]
+  refine accOut_lookup_mono ?_
+  simp only [keccak_map_sstoreW]
+  refine accOut_lookup_mono ?_
+  simp only [keccak_map_mstore]
+  exact h
+
+lemma lookup_mono_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I E.keccak_map = some w) :
+    Finmap.lookup I ((updTreeW E P IX j).1).keccak_map = some w :=
+  updateWalk_lookup_mono j (lookup_mono_leafWriteEvm (lookup_mono_hashLeafOut h))
+
+lemma lookup_mono_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (insertUpdEvm σ LM NI V IX k).keccak_map = some w :=
+  lookup_mono_updTreeW k (lookup_mono_retargetStageEvm h)
+
+lemma lookup_mono_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (h : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (insertNewEvm σ LM NI V IX k).keccak_map = some w :=
+  lookup_mono_newLeafStageEvm (lookup_mono_insertUpdEvm k h)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
