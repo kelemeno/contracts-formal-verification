@@ -1217,24 +1217,33 @@ Applying all three made the proof typecheck immediately. -/
 
 
 
-/-! ### `vtiAt_wFinal_old` on the derived route — NOT YET
+/-! ### `vtiAt_wFinal_old` on the derived route — NOT YET, AND THE EARLIER DIAGNOSIS WAS WRONG
 
 Every ingredient exists and is verified: the six base-4-vs-base-5 separations are
-`cached_ne_of_config` / `cached_off_ne_of_config` (both sides are cached 64-byte hits, and
-`base54_interval_neV` supplies the different-preimage input), the `u` hit reaches the
-`wE4`/`wF4` accessor threads through the `lookup_mono_*` family, and the three frame steps
-have zero-offset forms above.  A full assembly was written and every site typechecked.
+`cached_ne_of_config` / `cached_off_ne_of_config` (both sides are cached 64-byte hits, with
+`base54_interval_neV` supplying the different-preimage input), the `u` hit reaches the
+`wE4`/`wF4` accessor threads through the `lookup_mono_*` family, and the frame steps have
+zero-offset forms above.  A full assembly was written and every site typechecked.
 
-What it does not do is FIT.  The proof exceeds 16M heartbeats at the tactic block as a whole,
-with no inner site reported — and unlike `vtiAt_wFinal_V`, raising the budget does not help,
-so this is not accumulated cost but something pathological in elaborating ~40 anchor `have`s
-whose types each mention a `@[reducible]` weld state.  The likely culprits are the defeq
-shortcuts (`hcuE4 := hcuG`, `hcuF4 := hcuS2`), which force `isDefEq` across `wS2` — and `wS2`
-contains a walk recursing on a symbolic level count.
+It does not FIT: the proof exhausts 16M heartbeats at the tactic block, with no inner site
+named.
 
-Next thing to try is factoring the anchor block into its own lemma so the weld terms are
-elaborated once in a small context, rather than more tactic surgery.  Reverted rather than
-left half-built. -/
+An earlier version of this note blamed the defeq shortcuts (`hcuE4 := hcuG`,
+`hcuF4 := hcuS2`), reasoning that `wS2` contains a walk recursing on a symbolic level count.
+**That was measured and is false.**  Both typecheck in under 1M heartbeats, including the one
+crossing `wS2`.  Bisection at 800k also clears every other anchor group individually --
+`separated_insertUpdEvm`, the three-`sstore` chain to `wF5`, `separated_pushEH ∘
+separated_insertNewEvm`, and the `lookup_mono` composition to `wH1`.
+
+So no single step is pathological, which points back at plain accumulation over ~40 anchors
+whose types each mention a `@[reducible]` weld state.  The inference "a 4x budget increase
+changed nothing, therefore not accumulation" was too strong: 4M → 16M only rules out a total
+under 16M.  A 64M attempt was inconclusive (it exceeds the practical build time here), so the
+true cost is somewhere above 16M and unmeasured.
+
+The fix to try is structural, not a bigger number: factor the anchor block into its own lemma
+returning the facts it establishes, so the weld terms are elaborated once in a small context.
+Do NOT do more tactic surgery on the twin -- that was six build cycles for nothing. -/
 
 
 end
