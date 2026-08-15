@@ -393,3 +393,11 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_use
 #print axioms L2InteropCommitmentTree.Common.if_2518866309321428816_sload_of_ne
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrArrPush_sload_of_low
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_count_of_empty
+
+-- The capacity guard's full frame family, and updateLeaf's clean companion.  Together
+-- these are what let pushNewLeaf's counter theorem drop `hcap` and track the leaf count
+-- THROUGH a growth rather than excluding the growth path.
+#print axioms L2InteropCommitmentTree.Common.if_2518866309321428816_frame
+#print axioms L2InteropCommitmentTree.Common.if_2518866309321428816_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_clean
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrArrPush_clean_unconditional
