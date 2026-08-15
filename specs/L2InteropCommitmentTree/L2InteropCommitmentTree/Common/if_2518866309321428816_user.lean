@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_6359192996994294239
@@ -67,6 +70,86 @@ lemma if_2518866309321428816_id_of_ne {s₀ s₉ : State}
     (h : A_if_2518866309321428816 s₀ s₉) : s₉ = s₀ := by
   obtain ⟨_, _, _, _, _, _, _, hneg⟩ := h
   exact hneg hne
+
+/-! ### The capacity guard
+
+When the tree is full, grow it: raise the height (slot 0), push a new default (slot 3),
+push a new level array (slot 2).  Each block names the slot it deliberately writes, so the
+guard can say precisely what moves.
+
+The pieces had to be assembled in a particular order.  The window frames of blocks two and
+three want array-length bounds at `s₁` and `s₂`, which come from the storage frames of the
+blocks before them, which need the flag -- so the flag had to become free of size
+hypotheses first (`array_push_clean_unconditional` and its nested cousin) before any of
+this could be stated. -/
+
+private lemma cap_nf {s₀ s₉ : State} (hnf : ¬ ❓ s₉) {s₁ s₂ s₃ : State}
+    (h₂ : Spec A_block_3221258955042269759 s₁ s₂)
+    (h₃ : Spec A_block_5267003775473151689 s₂ s₃)
+    (hyes : s₀["_1"]!! = s₀["split_expr_1"]!! → s₉ = s₃)
+    (hg : s₀["_1"]!! = s₀["split_expr_1"]!!) : ¬ ❓ s₃ ∧ ¬ ❓ s₂ ∧ ¬ ❓ s₁ := by
+  have h3nf : ¬ ❓ s₃ := by rw [hyes hg] at hnf; exact hnf
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  exact ⟨h3nf, h2nf, fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)⟩
+
+set_option maxHeartbeats 1600000 in
+/-- **THE GROWTH PATH MOVES SLOTS 0, 2 AND 3 -- AND NOTHING ELSE.**
+
+Which is what the leaf counter needs: slot 1 is none of the three, so the count survives a
+capacity growth.
+
+`hfits`/`hlen` are the standing address-arithmetic assumptions of this path -- no array is
+near `2 ^ 64` entries, none reaches `2 ^ 32`.  As always they are about the element address
+`keccak(array) + index` wrapping onto a low slot, not about any bounds check. -/
+lemma if_2518866309321428816_sload_of_ne {c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hc0 : c ≠ 0) (hc2 : c ≠ 2) (hc3 : c ≠ 3)
+    (hclow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hfits : ∀ q : Literal, Clear.EVMState.sload s₀.evm q < 18446744073709551616)
+    (hlen : ∀ q : Literal,
+      (Clear.EVMState.sload s₀.evm q).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_if_2518866309321428816 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, hyes, hno⟩ := h
+  by_cases hg : s₀["_1"]!! = s₀["split_expr_1"]!!
+  · obtain ⟨h3nf, h2nf, h1nf⟩ := cap_nf hnf h₂ h₃ hyes hg
+    rw [hyes hg] at hclean ⊢
+    have a₁ := Spec_ok_unfold hok h1nf h₁
+    have hs1 : isOk s₁ := block_6359192996994294239_isOk hok h1nf a₁
+    obtain ⟨hR1, hC1⟩ := block_6359192996994294239_config hok h1nf hR hC a₁
+    have a₂ := Spec_ok_unfold hs1 h2nf h₂
+    have hs2 : isOk s₂ := block_3221258955042269759_isOk hs1 h2nf a₂
+    -- the height write moves slot 0 only, so slots 2 and 3 reach block two unchanged
+    have hsl1 : ∀ q : Literal, q ≠ 0 →
+        Clear.EVMState.sload s₁.evm q = Clear.EVMState.sload s₀.evm q :=
+      fun q hq => block_6359192996994294239_sload_of_ne hok h1nf hq a₁
+    -- the flag first: it costs nothing now, and the storage frames below need it
+    have c2 : Clear.KeccakClean.Clean s₂.evm :=
+      block_5267003775473151689_clean hs2 h3nf hclean (Spec_ok_unfold hs2 h3nf h₃)
+    have c1 : Clear.KeccakClean.Clean s₁.evm :=
+      block_3221258955042269759_clean hs1 h2nf c2 a₂
+    -- block two moves slot 3 only
+    have hsl2 : ∀ q : Literal, q ≠ 3 → q.val < Clear.KeccakInjective.lowSlotBound →
+        Clear.EVMState.sload s₂.evm q = Clear.EVMState.sload s₁.evm q := by
+      intro q hq hlow
+      exact block_3221258955042269759_sload_of_ne hs1 h2nf
+        (by rw [hsl1 3 (by decide)]; exact hfits 3) hq hlow
+        (by rw [hsl1 3 (by decide)]; exact hlen 3) hR1 hC1 c2 a₂
+    obtain ⟨hR2, hC2⟩ := block_3221258955042269759_config hs1 h2nf
+      (by rw [hsl1 3 (by decide)]; exact hfits 3) hR1 hC1 a₂
+    -- block three moves slot 2 only
+    rw [block_5267003775473151689_sload_of_ne hs2 h3nf
+        (by rw [hsl2 2 (by decide) (by show (2:ℕ) < 2^32; norm_num), hsl1 2 (by decide)]
+            exact hfits 2)
+        hc2 hclow
+        (by rw [hsl2 2 (by decide) (by show (2:ℕ) < 2^32; norm_num), hsl1 2 (by decide)]
+            exact hlen 2)
+        hR2 hC2 hclean (Spec_ok_unfold hs2 h3nf h₃),
+      hsl2 c hc3 hclow, hsl1 c hc0]
+  · rw [hno hg]
 
 end
 

@@ -113,9 +113,11 @@ lemma block_3221258955042269759_config {s₀ s₉ : State} (hok : isOk s₀) (hn
   subst heq
   simpa only [evm_insert] using ⟨hR3, hC3⟩
 
-/-- **CLEAN FLAG, BACKWARDS.**  Two hashes: the default node and the push's address. -/
+/-- **CLEAN FLAG, BACKWARDS.**  Two hashes: the default node and the push's address.
+
+No size hypothesis: a `_clean` that charges one deadlocks the caller, which needs the flag
+in order to prove the very storage frame such a bound would come from. -/
 lemma block_3221258955042269759_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
-    (hfits : Clear.EVMState.sload s₀.evm 3 < 18446744073709551616)
     (hclean : Clear.KeccakClean.Clean s₉.evm)
     (h : A_block_3221258955042269759 s₀ s₉) : Clear.KeccakClean.Clean s₀.evm := by
   obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
@@ -127,8 +129,7 @@ lemma block_3221258955042269759_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf
   have hs2 : isOk s₂ := fun_efficientHash_isOk hs1 a₂
   rw [heq, evm_insert, evm_insert] at hclean
   have c2 : Clear.KeccakClean.Clean s₂.evm :=
-    array_push_clean hs2 h3nf (by rw [fun_efficientHash_sload hs1 a₂, e1]; exact hfits)
-      hclean (Spec_ok_unfold hs2 h3nf h₃)
+    array_push_clean_unconditional hs2 h3nf hclean (Spec_ok_unfold hs2 h3nf h₃)
   rw [← e1]
   exact fun_efficientHash_clean hs1 c2 a₂
 
