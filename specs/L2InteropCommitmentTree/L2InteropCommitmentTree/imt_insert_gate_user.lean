@@ -2314,6 +2314,268 @@ theorem insertGlue_prefix
     hpN hpP hcmax hc0 hnp hcont hstop hpassP hsub0P hleP hne2P hbidxP hk2P
     hpass2 hssinv2 hfuelP hfuelP2]
 
+
+/-! ## The pool and window properties cross the WELD CHAIN
+
+The deployed insert runs `evm → guardsEvm → retargetStage → hashLeaf → updTree → newLeafStage
+→ hashLeaf` before it reaches the states `glueSeq` names `H1` and `H3`.  Every constructor on
+that path is a composition of atoms whose transport already exists (`mstore`, `sstore`,
+`arrOut`, `accOut`, `keccakOut`, `leafWriteEvm`, `updateWalk`), so all five properties the
+derived separation route consumes pass straight through.
+
+With these, a caller of the axiom-free `glueSeq_leafSetOf'_of_config` needs the five facts at
+the ENTRY state only -- the twin's hypotheses at `guardsEvm`, `H1` and `H3` all derive. -/
+
+lemma separated_leafReadEvm {σ : EVMState} {slot : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (leafReadEvm σ slot) :=
+  (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore h))))
+
+lemma separated_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (leafScratchEvm σ leaf) :=
+  (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore h)))))
+
+lemma separated_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated ((hashLeafOut σ leaf).2) :=
+  (Clear.KeccakSlotSep.separated_keccakOut (separated_leafScratchEvm h))
+
+lemma separated_pushEH {σ : EVMState} {PTR : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (pushEH σ PTR) :=
+  (separated_hashLeafOut h)
+
+lemma separated_guardsEvm {σ : EVMState} {V IX : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (guardsEvm σ V IX) :=
+  (separated_leafReadEvm (separated_accOut (separated_accOut h)))
+
+lemma separated_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (retargetStageEvm σ LM NI V IX) :=
+  (Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore (separated_accOut (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore h))))))))
+
+lemma separated_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (newLeafStageEvm σ V NI4 NV5 IX1) :=
+  (Clear.StorageFrame.separated_sstore (separated_accOut (Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore (separated_accOut (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore h))))))))))
+
+lemma separated_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    (h : Clear.KeccakSlotSep.Separated E) :
+    Clear.KeccakSlotSep.Separated ((updTreeW E P IX j).1) :=
+  (separated_updateWalk j (separated_leafWriteEvm (separated_hashLeafOut h)))
+
+lemma separated_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (insertUpdEvm σ LM NI V IX k) :=
+  (separated_updTreeW k (separated_retargetStageEvm h))
+
+lemma separated_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakSlotSep.Separated σ) :
+    Clear.KeccakSlotSep.Separated (insertNewEvm σ LM NI V IX k) :=
+  (separated_newLeafStageEvm (separated_insertUpdEvm k h))
+
+lemma cacheInUsed_leafReadEvm {σ : EVMState} {slot : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (leafReadEvm σ slot) :=
+  (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ h))))
+
+lemma cacheInUsed_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (leafScratchEvm σ leaf) :=
+  (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ h)))))
+
+lemma cacheInUsed_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed ((hashLeafOut σ leaf).2) :=
+  (Clear.KeccakFresh.cacheInUsed_keccakOut (cacheInUsed_leafScratchEvm h))
+
+lemma cacheInUsed_pushEH {σ : EVMState} {PTR : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (pushEH σ PTR) :=
+  (cacheInUsed_hashLeafOut h)
+
+lemma cacheInUsed_guardsEvm {σ : EVMState} {V IX : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (guardsEvm σ V IX) :=
+  (cacheInUsed_leafReadEvm (Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_accOut h)))
+
+lemma cacheInUsed_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (retargetStageEvm σ LM NI V IX) :=
+  (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ h))))))))
+
+lemma cacheInUsed_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (newLeafStageEvm σ V NI4 NV5 IX1) :=
+  (Clear.StorageFrame.cacheInUsed_sstore (Clear.KeccakFresh.cacheInUsed_accOut (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ h))))))))))
+
+lemma cacheInUsed_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed E) :
+    Clear.KeccakFresh.CacheInUsed ((updTreeW E P IX j).1) :=
+  (cacheInUsed_updateWalk j (cacheInUsed_leafWriteEvm (cacheInUsed_hashLeafOut h)))
+
+lemma cacheInUsed_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (insertUpdEvm σ LM NI V IX k) :=
+  (cacheInUsed_updTreeW k (cacheInUsed_retargetStageEvm h))
+
+lemma cacheInUsed_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakFresh.CacheInUsed σ) :
+    Clear.KeccakFresh.CacheInUsed (insertNewEvm σ LM NI V IX k) :=
+  (cacheInUsed_newLeafStageEvm (cacheInUsed_insertUpdEvm k h))
+
+lemma cacheInj_leafReadEvm {σ : EVMState} {slot : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (leafReadEvm σ slot) :=
+  (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ h))))
+
+lemma cacheInj_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (leafScratchEvm σ leaf) :=
+  (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ h)))))
+
+lemma cacheInj_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj ((hashLeafOut σ leaf).2) :=
+  (Clear.KeccakFresh.cacheInj_keccakOut (cacheInUsed_leafScratchEvm hu) (cacheInj_leafScratchEvm hu h))
+
+lemma cacheInj_pushEH {σ : EVMState} {PTR : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (pushEH σ PTR) :=
+  (cacheInj_hashLeafOut hu h)
+
+lemma cacheInj_guardsEvm {σ : EVMState} {V IX : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (guardsEvm σ V IX) :=
+  (cacheInj_leafReadEvm (Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_accOut hu)) (Clear.KeccakFresh.cacheInj_accOut (Clear.KeccakFresh.cacheInUsed_accOut hu) (Clear.KeccakFresh.cacheInj_accOut hu h)))
+
+lemma cacheInj_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (retargetStageEvm σ LM NI V IX) :=
+  (Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore (Clear.KeccakFresh.cacheInj_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ hu)))) (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ h))))))))
+
+lemma cacheInj_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (newLeafStageEvm σ V NI4 NV5 IX1) :=
+  (Clear.StorageFrame.cacheInj_sstore (Clear.KeccakFresh.cacheInj_accOut (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore (Clear.KeccakFresh.cacheInUsed_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ hu)))))))) (Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore (Clear.KeccakFresh.cacheInj_accOut (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _ hu)))) (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ h))))))))))
+
+lemma cacheInj_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed E) (h : Clear.KeccakFresh.CacheInj E) :
+    Clear.KeccakFresh.CacheInj ((updTreeW E P IX j).1) :=
+  (cacheInj_updateWalk j (cacheInUsed_leafWriteEvm (cacheInUsed_hashLeafOut hu)) (cacheInj_leafWriteEvm (cacheInUsed_hashLeafOut hu) (cacheInj_hashLeafOut hu h)))
+
+lemma cacheInj_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (insertUpdEvm σ LM NI V IX k) :=
+  (cacheInj_updTreeW k (cacheInUsed_retargetStageEvm hu) (cacheInj_retargetStageEvm hu h))
+
+lemma cacheInj_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakFresh.CacheInUsed σ) (h : Clear.KeccakFresh.CacheInj σ) :
+    Clear.KeccakFresh.CacheInj (insertNewEvm σ LM NI V IX k) :=
+  (cacheInj_newLeafStageEvm (cacheInUsed_insertUpdEvm k hu) (cacheInj_insertUpdEvm k hu h))
+
+lemma rangeInWindow_leafReadEvm {σ : EVMState} {slot : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (leafReadEvm σ slot) :=
+  (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore h))))
+
+lemma rangeInWindow_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (leafScratchEvm σ leaf) :=
+  (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore h)))))
+
+lemma rangeInWindow_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow ((hashLeafOut σ leaf).2) :=
+  (Clear.KeccakLowSlot.rangeInWindow_keccakOut (rangeInWindow_leafScratchEvm h))
+
+lemma rangeInWindow_pushEH {σ : EVMState} {PTR : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (pushEH σ PTR) :=
+  (rangeInWindow_hashLeafOut h)
+
+lemma rangeInWindow_guardsEvm {σ : EVMState} {V IX : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (guardsEvm σ V IX) :=
+  (rangeInWindow_leafReadEvm (rangeInWindow_accOut (rangeInWindow_accOut h)))
+
+lemma rangeInWindow_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (retargetStageEvm σ LM NI V IX) :=
+  (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_accOut (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore h))))))))
+
+lemma rangeInWindow_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (newLeafStageEvm σ V NI4 NV5 IX1) :=
+  (Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_accOut (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_accOut (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore h))))))))))
+
+lemma rangeInWindow_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow E) :
+    Clear.KeccakLowSlot.RangeInWindow ((updTreeW E P IX j).1) :=
+  (rangeInWindow_updateWalk j (rangeInWindow_leafWriteEvm (rangeInWindow_hashLeafOut h)))
+
+lemma rangeInWindow_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (insertUpdEvm σ LM NI V IX k) :=
+  (rangeInWindow_updTreeW k (rangeInWindow_retargetStageEvm h))
+
+lemma rangeInWindow_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (h : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (insertNewEvm σ LM NI V IX k) :=
+  (rangeInWindow_newLeafStageEvm (rangeInWindow_insertUpdEvm k h))
+
+lemma cachedInWindow_leafReadEvm {σ : EVMState} {slot : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (leafReadEvm σ slot) :=
+  (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore h))))
+
+lemma cachedInWindow_leafScratchEvm {σ : EVMState} {leaf : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (leafScratchEvm σ leaf) :=
+  (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore h)))))
+
+lemma cachedInWindow_hashLeafOut {σ : EVMState} {leaf : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow ((hashLeafOut σ leaf).2) :=
+  (Clear.KeccakLowSlot.cachedInWindow_keccakOut (rangeInWindow_leafScratchEvm hu) (cachedInWindow_leafScratchEvm hu h))
+
+lemma cachedInWindow_pushEH {σ : EVMState} {PTR : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (pushEH σ PTR) :=
+  (cachedInWindow_hashLeafOut hu h)
+
+lemma cachedInWindow_guardsEvm {σ : EVMState} {V IX : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (guardsEvm σ V IX) :=
+  (cachedInWindow_leafReadEvm (rangeInWindow_accOut (rangeInWindow_accOut hu)) (cachedInWindow_accOut (rangeInWindow_accOut hu) (cachedInWindow_accOut hu h)))
+
+lemma cachedInWindow_retargetStageEvm {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (retargetStageEvm σ LM NI V IX) :=
+  (Clear.StorageFrame.cachedInWindow_sstore (Clear.StorageFrame.cachedInWindow_sstore (Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_accOut (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore hu)))) (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore h))))))))
+
+lemma cachedInWindow_newLeafStageEvm {σ : EVMState} {V NI4 NV5 IX1 : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (newLeafStageEvm σ V NI4 NV5 IX1) :=
+  (Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_accOut (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_accOut (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore hu)))))))) (Clear.StorageFrame.cachedInWindow_sstore (Clear.StorageFrame.cachedInWindow_sstore (Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_accOut (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore (Clear.StorageFrame.rangeInWindow_mstore hu)))) (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore h))))))))))
+
+lemma cachedInWindow_updTreeW (j : ℕ) {E : EVMState} {P IX : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow E) (h : Clear.KeccakLowSlot.CachedInWindow E) :
+    Clear.KeccakLowSlot.CachedInWindow ((updTreeW E P IX j).1) :=
+  (cachedInWindow_updateWalk j (rangeInWindow_leafWriteEvm (rangeInWindow_hashLeafOut hu)) (cachedInWindow_leafWriteEvm (rangeInWindow_hashLeafOut hu) (cachedInWindow_hashLeafOut hu h)))
+
+lemma cachedInWindow_insertUpdEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (insertUpdEvm σ LM NI V IX k) :=
+  (cachedInWindow_updTreeW k (rangeInWindow_retargetStageEvm hu) (cachedInWindow_retargetStageEvm hu h))
+
+lemma cachedInWindow_insertNewEvm (k : ℕ) {σ : EVMState} {LM NI V IX : UInt256}
+    (hu : Clear.KeccakLowSlot.RangeInWindow σ) (h : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (insertNewEvm σ LM NI V IX k) :=
+  (cachedInWindow_newLeafStageEvm (rangeInWindow_insertUpdEvm k hu) (cachedInWindow_insertUpdEvm k hu h))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
