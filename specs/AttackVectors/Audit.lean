@@ -141,6 +141,7 @@ import specs.AttackVectors.BundleStatusMachine
 import specs.AttackVectors.AtomicSourceBinding
 import specs.AttackVectors.SelfCallAuthority
 import specs.AttackVectors.DestinationCapstone
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_user
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -374,3 +375,11 @@ import specs.AttackVectors.DestinationCapstone
 #print axioms AttackVectors.DestinationCapstone.atomic_delivered_once
 #print axioms AttackVectors.DestinationCapstone.public_delivered_once
 #print axioms AttackVectors.DestinationCapstone.no_inflation
+
+-- Deployed tree: an update cannot disturb the tree's own constant-numbered bookkeeping
+-- slots.  Everything updateLeaf writes is a keccak image, leaf and internal nodes alike.
+-- The keccak side condition is the collision flag on the result, NOT a step budget --
+-- which is what lets the statement survive the fold, whose trip count no caller can name.
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_sload_of_low_of_clean
+#print axioms L2InteropCommitmentTree.Common.ABody_for_5363593723278629209_preserves_low_of_clean
+#print axioms L2InteropCommitmentTree.Common.block_2668411367195639563_sload_of_low_of_clean
