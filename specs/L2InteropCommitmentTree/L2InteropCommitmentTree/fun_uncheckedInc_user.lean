@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -79,6 +82,33 @@ lemma fun_uncheckedInc_sload {var : Identifier} {var_number : Literal} {q : UInt
   rw [Clear.evm_reviveJump_of_isOk hfok]
   simp only [evm_insert]
   rw [Clear.evm_initcall hok]
+
+/-- **FRAME.**  Only `var` moves. -/
+lemma fun_uncheckedInc_frame {var : Identifier} {var_number : Literal} {v : Identifier}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ var)
+    (h : A_fun_uncheckedInc var var_number s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  unfold A_fun_uncheckedInc at h
+  subst h
+  have hrev : isOk (🧟 (s₀☎️⟦["var_number"],[var_number]⟧⟦"var" ↦ var_number + 1⟧)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
+/-- **THE EVM IS THE CALLER'S.**  An unchecked increment is pure arithmetic: no memory, no
+storage, no hashing.  One equation covers window, flag, accounts and storage at once. -/
+lemma fun_uncheckedInc_evm {var : Identifier} {var_number : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_fun_uncheckedInc var var_number s₀ s₉) : s₉.evm = s₀.evm := by
+  unfold A_fun_uncheckedInc at h
+  subst h
+  have hiok : isOk (s₀☎️⟦["var_number"],[var_number]⟧⟦"var" ↦ var_number + 1⟧) :=
+    isOk_insert.mpr (isOk_initcall_of_isOk hok)
+  have hrev : isOk (🧟 (s₀☎️⟦["var_number"],[var_number]⟧⟦"var" ↦ var_number + 1⟧)) := by
+    rw [revive_of_ok hiok]; exact hiok
+  rw [evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hiok, evm_insert]
+  exact Clear.evm_initcall hok
 
 end
 
