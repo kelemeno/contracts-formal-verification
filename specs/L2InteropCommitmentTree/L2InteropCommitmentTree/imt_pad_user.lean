@@ -1535,6 +1535,68 @@ lemma cacheInj_padWalk :
     simp only [padWalk]
     exact ih (cacheInUsed_padStep hu) (cacheInj_padStep hu h)
 
+/-! ## The low-slot window config crosses the padding walk
+
+Same shape as the pool invariants above, for the pair
+`keccak256_add_ne_lowSlot_of_config` consumes. -/
+
+lemma rangeInWindow_pushEvm {σ : EVMState} {arr v : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (pushEvm σ arr v) := by
+  unfold pushEvm
+  exact Clear.StorageFrame.rangeInWindow_sstore
+    (rangeInWindow_arrOut (Clear.StorageFrame.rangeInWindow_sstore hR))
+
+lemma cachedInWindow_pushEvm {σ : EVMState} {arr v : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (pushEvm σ arr v) := by
+  unfold pushEvm
+  exact Clear.StorageFrame.cachedInWindow_sstore
+    (cachedInWindow_arrOut (Clear.StorageFrame.rangeInWindow_sstore hR)
+      (Clear.StorageFrame.cachedInWindow_sstore hC))
+
+lemma rangeInWindow_padStep {σ : EVMState} {i : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (padStep σ i) := by
+  unfold padStep
+  exact rangeInWindow_pushEvm (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+
+lemma cachedInWindow_padStep {σ : EVMState} {i : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (padStep σ i) := by
+  unfold padStep
+  exact cachedInWindow_pushEvm (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+    (cachedInWindow_arrOut (rangeInWindow_arrOut hR)
+      (cachedInWindow_arrOut hR hC))
+
+/-- **The padding walk keeps the pool inside the window.** -/
+lemma rangeInWindow_padWalk :
+    ∀ (k : ℕ) {σ : EVMState} {i om m : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ →
+    Clear.KeccakLowSlot.RangeInWindow ((padWalk k σ i om m).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ i om m h
+    simp only [padWalk]
+    exact ih (rangeInWindow_padStep h)
+
+/-- **The padding walk keeps the cache inside the window.** -/
+lemma cachedInWindow_padWalk :
+    ∀ (k : ℕ) {σ : EVMState} {i om m : UInt256},
+    Clear.KeccakLowSlot.RangeInWindow σ → Clear.KeccakLowSlot.CachedInWindow σ →
+    Clear.KeccakLowSlot.CachedInWindow ((padWalk k σ i om m).1) := by
+  intro k
+  induction k with
+  | zero => intro σ _ _ _ _ h; exact h
+  | succ k ih =>
+    intro σ i om m hR hC
+    simp only [padWalk]
+    exact ih (rangeInWindow_padStep hR) (cachedInWindow_padStep hR hC)
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

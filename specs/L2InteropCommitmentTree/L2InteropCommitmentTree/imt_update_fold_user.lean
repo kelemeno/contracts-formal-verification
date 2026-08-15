@@ -1749,6 +1749,23 @@ lemma cacheInj_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
   exact Clear.StorageFrame.cacheInj_sstore
     (cacheInj_arrOut (cacheInUsed_arrOut hu) (cacheInj_arrOut hu h))
 
+/-! ## The low-slot window config crosses the leaf write -/
+
+lemma rangeInWindow_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (leafWriteEvm σ ss idx leaf) := by
+  unfold leafWriteEvm
+  exact Clear.StorageFrame.rangeInWindow_sstore
+    (rangeInWindow_arrOut (rangeInWindow_arrOut hR))
+
+lemma cachedInWindow_leafWriteEvm {σ : EVMState} {ss idx leaf : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (leafWriteEvm σ ss idx leaf) := by
+  unfold leafWriteEvm
+  exact Clear.StorageFrame.cachedInWindow_sstore
+    (cachedInWindow_arrOut (rangeInWindow_arrOut hR) (cachedInWindow_arrOut hR hC))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

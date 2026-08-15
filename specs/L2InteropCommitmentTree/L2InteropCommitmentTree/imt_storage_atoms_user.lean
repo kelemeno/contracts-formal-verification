@@ -1021,6 +1021,44 @@ theorem accSlot_ne_arrSlot_fresh_of_clean
   exact Clear.KeccakSlotSep.cached_off_ne_off_of_len_ne hsep hinj hfresh hcarry
     (by decide) hj hk
 
+/-! ## R6 — the low-slot window config crosses the hash atoms
+
+`RangeInWindow` / `CachedInWindow` are what `keccak256_add_ne_lowSlot_of_config` and
+`keccak256_ne_lowSlot_of_config` consume, so the walk-level low-slot frames need them
+transported the same way `Separated` and `CacheInj` are.  The two travel together: the
+cached-window step is proved from the range-window one. -/
+
+theorem rangeInWindow_arrOut {σ : EVMState} {a : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (arrOut σ a).2 :=
+  Clear.KeccakLowSlot.rangeInWindow_keccakOut
+    (Clear.KeccakLowSlot.rangeInWindow_mstore 0 a hR)
+
+theorem cachedInWindow_arrOut {σ : EVMState} {a : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (arrOut σ a).2 :=
+  Clear.KeccakLowSlot.cachedInWindow_keccakOut
+    (Clear.KeccakLowSlot.rangeInWindow_mstore 0 a hR)
+    (Clear.KeccakLowSlot.cachedInWindow_mstore 0 a hC)
+
+theorem rangeInWindow_accOut {σ : EVMState} {key base : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ) :
+    Clear.KeccakLowSlot.RangeInWindow (accOut σ key base).2 :=
+  Clear.KeccakLowSlot.rangeInWindow_keccakOut
+    (Clear.KeccakLowSlot.rangeInWindow_mstore 32 base
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 0 key hR))
+
+theorem cachedInWindow_accOut {σ : EVMState} {key base : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ) :
+    Clear.KeccakLowSlot.CachedInWindow (accOut σ key base).2 :=
+  Clear.KeccakLowSlot.cachedInWindow_keccakOut
+    (Clear.KeccakLowSlot.rangeInWindow_mstore 32 base
+      (Clear.KeccakLowSlot.rangeInWindow_mstore 0 key hR))
+    (Clear.KeccakLowSlot.cachedInWindow_mstore 32 base
+      (Clear.KeccakLowSlot.cachedInWindow_mstore 0 key hC))
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
