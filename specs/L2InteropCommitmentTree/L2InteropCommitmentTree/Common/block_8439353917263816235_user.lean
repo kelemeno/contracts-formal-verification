@@ -254,6 +254,31 @@ lemma block_8439353917263816235_slot_not_low {c : Literal} {s₀ s₉ : State}
   exact storage_array_index_access_bytes32_dyn_ptr_slot_not_low hs4 hnf hR4 hC4 hf4 hjb hcl
     (Spec_ok_unfold hs4 hnf h₅)
 
+/-- **FUEL FRAME.**  Two units: the parent-advance block makes two accessor calls, and the
+two divisions and the checked addition cost nothing. -/
+lemma block_8439353917263816235_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfu : Clear.KeccakFuel.Fuel s₀.evm (k + 2))
+    (h : A_block_8439353917263816235 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h4nf : ¬ ❓ s₄ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ := checked_div_uint256_isOk hok (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_div_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ := checked_add_uint256_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  have hs4 : isOk s₄ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h4nf (Spec_ok_unfold hs3 h4nf h₄)
+  have e1 : s₁.evm = s₀.evm := checked_div_uint256_evm hok (Spec_ok_unfold hok h1nf h₁)
+  have e2 : s₂.evm = s₁.evm := checked_div_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  have hfu3 : Clear.KeccakFuel.Fuel s₃.evm (k + 2) :=
+    checked_add_uint256_fuel hs2 h3nf (by rw [e2, e1]; exact hfu) (Spec_ok_unfold hs2 h3nf h₃)
+  have hfu4 : Clear.KeccakFuel.Fuel s₄.evm (k + 1) :=
+    storage_array_index_access_bytes32_dyn_ptr_fuel hs3 h4nf hfu3 (Spec_ok_unfold hs3 h4nf h₄)
+  exact storage_array_index_access_bytes32_dyn_ptr_fuel hs4 hnf hfu4
+    (Spec_ok_unfold hs4 hnf h₅)
+
 end
 
 end L2InteropCommitmentTree.Common
