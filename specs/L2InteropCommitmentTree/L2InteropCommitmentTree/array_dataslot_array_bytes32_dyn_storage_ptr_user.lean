@@ -199,6 +199,33 @@ lemma array_dataslot_array_bytes32_dyn_storage_ptr_frame {data : Identifier}
     simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
   rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
 
+/-- **THE DATASLOT HASH SUCCEEDED.**  Companion to `_clean`, which derives this and then
+discards it.  A caller separating a literal slot from the returned data slot needs the
+`some` form, since that is what the `keccak256_*_of_config` family consumes. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_keccak_ok {data : Identifier}
+    {ptr : Literal} {s₀ s₉ : State} (hok : isOk s₀)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    (Clear.EVMState.mstore s₀.evm 0 ptr).keccak256 0 32
+      = some (Clear.KeccakDeterminism.keccakOut (Clear.EVMState.mstore s₀.evm 0 ptr) 0 32) := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  have hfp : f["ptr"]!! = ptr := by rw [hfdef]; exact Clear.lookup_initcall_one hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  have hme : m.evm = Clear.EVMState.mstore s₀.evm 0 ptr := by
+    rw [hmdef, Clear.evm_setEvm_of_isOk hfok, hfdef, Clear.evm_initcall hok, ← hfdef, hfp]
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil,
+    evm_insert, evm_setStore] at hclean
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [Clear.evm_reviveJump_of_isOk hXok] at hclean
+  simp only [evm_insert] at hclean
+  rw [Clear.evm_setEvm_of_isOk hmok, hme] at hclean
+  exact Clear.KeccakClean.keccak256_some_of_clean hclean
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

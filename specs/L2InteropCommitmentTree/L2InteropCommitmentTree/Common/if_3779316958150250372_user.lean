@@ -217,6 +217,38 @@ lemma if_3779316958150250372_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
       Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
     rw [hgt hg]; exact hok9
 
+/-- **THE GUARD'S OWN HASH SUCCEEDED.**
+
+`_sload` states its separation against `keccakOut (mstore s₀.evm 0 slot) 0 32`, and a caller
+wanting to place a literal slot BELOW that interval needs `keccak256_lt_add_of_config`,
+which asks for the `some` form.  That fact lives inside `_clean`'s proof and was not
+exported; without it a caller can walk the flag back past this guard but cannot use it here.
+
+Only available on the branch that actually hashes -- if the array had one element or fewer
+the guard is the identity and there is no hash to talk about. -/
+lemma if_3779316958150250372_keccak_ok {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hgt : ¬ (s₀["oldLen_1"]!! ≤ 1))
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_if_3779316958150250372 s₀ s₉) :
+    (Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)).keccak256 0 32
+      = some (Clear.KeccakDeterminism.keccakOut
+          (Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)) 0 32) := by
+  obtain ⟨ss, hspec, hle, hgtb⟩ := h
+  have hssnf : ¬ ❓ ss := by rw [hgtb hgt] at hnf; exact hnf
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil] at hspec
+  have hmok : isOk (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hok
+  have hkok : isOk ((s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧)🇪⟦
+      (Clear.KeccakDeterminism.keccakOut
+        (s₀🇪⟦Clear.EVMState.mstore s₀.evm 0 (s₀["slot"]!!)⟧).evm 0 32).2⟧) := by
+    simp only [isOk_setEvm]; exact hok
+  obtain ⟨-, -, -, -, -, hcl⟩ :=
+    Spec_ok_unfold (isOk_insert.mpr (isOk_insert.mpr (isOk_insert.mpr hkok))) hssnf hspec
+  rw [hgtb hgt, hcl] at hclean
+  simp only [evm_insert] at hclean
+  rw [Clear.evm_setEvm_of_isOk hmok, Clear.evm_setEvm_of_isOk hok] at hclean
+  exact Clear.KeccakClean.keccak256_some_of_clean hclean
+
 end
 
 end L2InteropCommitmentTree.Common
