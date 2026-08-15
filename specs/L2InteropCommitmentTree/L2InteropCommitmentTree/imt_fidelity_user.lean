@@ -3429,23 +3429,21 @@ reached.
 Measured:
 
     glueSeq_leafSetOf'            inj, slot_sep, add_ne_lowSlot, ne_lowSlot
-    glueSeq_leafSetOf'_of_config       slot_sep,                 ne_lowSlot
+    glueSeq_leafSetOf'_of_config       slot_sep
 
 `keccak256_add_ne_lowSlot` went the same way as the walk low-slot frames it came from: the
 window pair (`RangeInWindow` / `CachedInWindow`) transported across both walks, then
 `keccak256_add_ne_lowSlot_of_config` at each of the eight sites -- three in the `E4` copy
 chain, three in the `F4` one, and one per leaf write.
 
-**What remains, and where.**  Neither survivor comes from this proof's body; every site here
-is derived.  They arrive through four helper lemmas it calls:
+**What remains, and where.**  One axiom, and it comes from no site in this proof's body --
+every site here is derived.  It arrives through three helper lemmas it calls:
 
     keccak256_slot_sep    updateWalk_sload_leaf, padWalk_sload_leaf, newLeafStage_decode
-    keccak256_ne_lowSlot  leafCount_vtiWrite
 
-The three `slot_sep` users are leaf-slot frames across the walks -- the same shape as the
-low-slot ones, but separating a hashed slot from another hashed slot rather than from a
-constant, so they need `Separated` and `CacheInj` (already transported) rather than the
-window pair.  They are the next tier, not a wall.
+All three are leaf-slot frames across the walks -- the same shape as the low-slot ones, but
+separating a hashed slot from another hashed slot rather than from a constant, so they want
+`Separated` and `CacheInj` (already transported) rather than the window pair.
 
 The added hypotheses are all things a concrete caller already tracks: the three pool
 properties at the three entry states, the low-slot window config at `evm`, and one more
@@ -3704,7 +3702,14 @@ theorem glueSeq_leafSetOf'_of_config
       (accOut_caches_of_clean hcleanV)
   have hcntS3 : S3.sload 1 = evm.sload 1 := by
     rw [hS3d]
-    have h := leafCount_vtiWrite (σ := (accOut F5 V 5).2) (v := V) (u := NI) hcvF'
+    have hRwF5 : Clear.KeccakLowSlot.RangeInWindow F5 :=
+      Clear.StorageFrame.rangeInWindow_sstore (Clear.StorageFrame.rangeInWindow_sstore
+        (Clear.StorageFrame.rangeInWindow_sstore (rangeInWindow_accOut hRwF4)))
+    have hCwF5 : Clear.KeccakLowSlot.CachedInWindow F5 :=
+      Clear.StorageFrame.cachedInWindow_sstore (Clear.StorageFrame.cachedInWindow_sstore
+        (Clear.StorageFrame.cachedInWindow_sstore (cachedInWindow_accOut hRwF4 hCwF4)))
+    have h := leafCount_vtiWrite_of_config (σ := (accOut F5 V 5).2) (v := V) (u := NI)
+      (rangeInWindow_accOut hRwF5) (cachedInWindow_accOut hRwF5 hCwF5) hcvF'
     rw [hvtiSlot] at h
     rw [h, sload_accOut_of_clean 1 hcleanV]
     exact hcntF5
