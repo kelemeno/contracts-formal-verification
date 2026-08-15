@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.FinBits
 import specs.StateOk
 
@@ -111,6 +112,14 @@ lemma block_7182708311549001418_shiftBits {s₀ s₉ : State} (hok : isOk s₀)
     exact Clear.FinBits.zero_shiftLeft 3
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
+
+/-- **FUEL FRAME.**  The mask block reads a slot and shifts; it neither hashes nor writes,
+so it costs nothing. -/
+lemma block_7182708311549001418_fuel {k : ℕ} {s₀ s₉ : State}
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_block_7182708311549001418 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  rw [block_7182708311549001418_evm h]
+  exact hf
 
 end
 

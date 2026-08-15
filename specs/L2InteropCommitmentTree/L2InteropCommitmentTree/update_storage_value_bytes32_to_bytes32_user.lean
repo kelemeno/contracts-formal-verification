@@ -1,5 +1,6 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
+import specs.KeccakFuel
 import specs.KeccakLowSlot
 import specs.KeccakDistinct
 import specs.StateOk
@@ -196,6 +197,32 @@ lemma update_storage_value_bytes32_to_bytes32_val {slot offset value : Literal}
   rw [hslot, hval] at hw
   rw [evm_setStore, revive_of_ok hs2]
   exact hw
+
+/-- **FUEL FRAME.**  One unit: the mask block is free and the write costs one. -/
+lemma update_storage_value_bytes32_to_bytes32_fuel {slot offset value : Literal} {k : ℕ}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_update_storage_value_bytes32_to_bytes32 slot offset value s₀ s₉) :
+    Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  subst heq
+  have hfok : isOk (s₀☎️⟦["slot", "offset", "value"],[slot, offset, value]⟧) :=
+    isOk_initcall_of_isOk hok
+  have h2nf : ¬ ❓ s₂ := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have ha₁ := Spec_ok_unfold hfok h1nf h₁
+  have hs1 : isOk s₁ := L2InteropCommitmentTree.Common.block_7182708311549001418_isOk hfok ha₁
+  have ha₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := L2InteropCommitmentTree.Common.block_8692170500034331446_isOk hs1 ha₂
+  have hf1 : Clear.KeccakFuel.Fuel s₁.evm (k + 1) := by
+    refine L2InteropCommitmentTree.Common.block_7182708311549001418_fuel ?_ ha₁
+    rw [Clear.evm_initcall hok]
+    exact hf
+  rw [evm_setStore, revive_of_ok hs2]
+  exact L2InteropCommitmentTree.Common.block_8692170500034331446_fuel hs1 hf1 ha₂
 
 end
 

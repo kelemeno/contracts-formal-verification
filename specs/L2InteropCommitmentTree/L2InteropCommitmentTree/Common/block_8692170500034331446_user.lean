@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.FinBits
 import specs.StorageFrame
 import specs.KeccakLowSlot
@@ -125,6 +126,21 @@ lemma block_8692170500034331446_val {s₀ s₉ : State} {act : Account} (hok : i
       [evm_insert, lookup_insert', lookup_insert_of_ne, isOk_insert, hok, hmask, hsb,
       Clear.FinBits.land_zero, Clear.FinBits.shiftLeft_zero, Clear.FinBits.zero_lor]
     exact Clear.StorageFrame.sload_sstore_self hacc
+  · exact absurd hok (by simp [isOk])
+  · exact absurd hok (by simp [isOk])
+
+/-- **FUEL FRAME.**  One `sstore`, so one unit -- a write can retire a pool entry by marking
+its slot used, which is why the fold's budget has to cover its WRITES and not only its
+hashes. -/
+lemma block_8692170500034331446_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_block_8692170500034331446 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  rcases s₀ with ⟨evm, store⟩ | _ | _
+  · unfold A_block_8692170500034331446 at h
+    subst h
+    simp only [multifill_cons, multifill_nil]
+    rw [Clear.evm_setEvm_of_isOk (by simp only [isOk_insert]; exact hok)]
+    exact Clear.KeccakFuel.Fuel.sstore _ _ hf
   · exact absurd hok (by simp [isOk])
   · exact absurd hok (by simp [isOk])
 

@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakFuel
 import specs.StateOk
 import specs.KeccakLowSlot
 import specs.StorageFrame
@@ -74,6 +75,14 @@ lemma block_7643149059429413085_config {s₀ s₉ : State} (hok : isOk s₀) (hn
   rw [heq] at hnf ⊢
   exact update_storage_value_bytes32_to_bytes32_config hok hnf hR hC
     (Spec_ok_unfold hok hnf hs)
+
+/-- **FUEL FRAME.**  The fold's write costs one unit. -/
+lemma block_7643149059429413085_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_block_7643149059429413085 s₀ s₉) : Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨s, hs, heq⟩ := h
+  rw [heq] at hnf ⊢
+  exact update_storage_value_bytes32_to_bytes32_fuel hok hnf hf (Spec_ok_unfold hok hnf hs)
 
 end
 
