@@ -963,6 +963,110 @@ theorem insertGlue_evolution_closed
     hcleanB2 hcleanA1 hcleanA2 haccEK haccFK haccH3 hIXlow hnidx hcach hinj
     hok₁ hokp hok₂ haccV hvtiV hvtiOld
 
+
+/-! ## The vti frames on the derived route
+
+`Sep32` quantifies over an ARBITRARY state's 32-byte hash, so no pool invariant reaches it --
+the other state need not share a pool at all.  Its only producer, `sep32_of_keccak64`, is
+therefore irreducibly `keccak256_slot_sep`.
+
+The cached-slot walk family (`imt_fidelity`) is the reachable form of the same fact: it
+separates a MINTED array base from a slot cached as a 64-byte hash IN THE SAME POOL.  Every
+use of `Sep32` under `vtiAt_wFinal_*` is of that shape -- the 32-byte hashes are the push
+tail's own `arrOut`s, downstream of the entry -- so each has a derived companion here. -/
+
+/-- `arrOut` preserves existing cache entries (local copy of `imt_fidelity`'s private one). -/
+private lemma arrOut_mono_V {σ : EVMState} {a : UInt256}
+    {I : List UInt256} {w : UInt256}
+    (hI : Finmap.lookup I σ.keccak_map = some w) :
+    Finmap.lookup I (arrOut σ a).2.keccak_map = some w := by
+  unfold arrOut
+  exact keccakOut_lookup_mono (by rw [keccak_map_mstore]; exact hI)
+
+/-- **DERIVED** companion to `pushOut_sload_sep`: the push tail leaves a cached 64-byte slot
+(plus a small offset) exactly where it found it. -/
+lemma pushOut_sload_cached_of_config
+    {E : EVMState} {ms : MachineState} {P q w k : UInt256} {kp kk : ℕ}
+    (hsepH : Clear.KeccakSlotSep.Separated (pushEH E P))
+    (husedH : Clear.KeccakFresh.CacheInUsed (pushEH E P))
+    (hinjH : Clear.KeccakFresh.CacheInj (pushEH E P))
+    (hcw : Finmap.lookup (mkInterval ms q 64) (pushEH E P).keccak_map = some w)
+    (hk : k.val < Clear.KeccakInjective.lowSlotBound)
+    (h1s : (1 : UInt256) ≠ w + k)
+    (hA1 : (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hA2 : (arrOut (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2
+        (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hnidx : ((pushEH E P).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hokp : ∀ j, j < kp → PadLowOK (pushPadW E P j))
+    (hok₂ : ∀ j, j < kk → StepLowOK 0 ((0 : UInt256) + 2) (pushOutW E P kp j)) :
+    (pushOutW E P kp kk).1.sload (w + k) = (pushEH E P).sload (w + k) := by
+  -- the pool triple along the push tail
+  have hsepB : Clear.KeccakSlotSep.Separated
+      ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)) :=
+    Clear.StorageFrame.separated_sstore hsepH
+  have husedB : Clear.KeccakFresh.CacheInUsed
+      ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)) :=
+    Clear.StorageFrame.cacheInUsed_sstore husedH
+  have hinjB : Clear.KeccakFresh.CacheInj
+      ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)) :=
+    Clear.StorageFrame.cacheInj_sstore hinjH
+  have hsepP : Clear.KeccakSlotSep.Separated (pushPadW E P kp).1 :=
+    separated_padWalk kp hsepB
+  have husedP : Clear.KeccakFresh.CacheInUsed (pushPadW E P kp).1 :=
+    cacheInUsed_padWalk kp husedB
+  have hinjP : Clear.KeccakFresh.CacheInj (pushPadW E P kp).1 :=
+    cacheInj_padWalk kp husedB hinjB
+  -- the cache hit along the same chain
+  have hcB : Finmap.lookup (mkInterval ms q 64)
+      ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)).keccak_map = some w := by
+    rw [keccak_map_sstoreV]; exact hcw
+  have hcP : Finmap.lookup (mkInterval ms q 64) ((pushPadW E P kp).1).keccak_map = some w :=
+    padWalk_lookup_mono kp hcB
+  have hcW : Finmap.lookup (mkInterval ms q 64)
+      (leafWriteEvm (pushPadW E P kp).1 0 ((pushEH E P).sload 1) (pushHL E P)).keccak_map
+        = some w := by
+    unfold leafWriteEvm
+    rw [keccak_map_sstoreV]
+    exact arrOut_mono_V (arrOut_mono_V hcP)
+  -- the four steps of the tail
+  have h1 : (pushOutW E P kp kk).1.sload (w + k)
+      = (leafWriteEvm (pushPadW E P kp).1 0 ((pushEH E P).sload 1) (pushHL E P)).sload
+          (w + k) :=
+    updateWalk_sload_cached_of_config kk
+      (separated_leafWriteEvm hsepP) (cacheInUsed_leafWriteEvm husedP)
+      (cacheInj_leafWriteEvm husedP hinjP) hcW hk hok₂
+  have h2 : (leafWriteEvm (pushPadW E P kp).1 0 ((pushEH E P).sload 1) (pushHL E P)).sload
+        (w + k)
+      = (pushPadW E P kp).1.sload (w + k) :=
+    leafWrite_sload_neV hA1 hA2
+      (arrSlot_ne_cached64_of_clean (ms := ms) (q := q)
+        (separated_arrOut (separated_arrOut hsepP))
+        (cacheInj_arrOut (cacheInUsed_arrOut husedP) (cacheInj_arrOut husedP hinjP))
+        hA2 (arrOut_mono_V hcP) hnidx hk)
+  have h3 : (pushPadW E P kp).1.sload (w + k)
+      = ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)).sload (w + k) :=
+    padWalk_sload_cached_of_config kp hsepB husedB hinjB hcB hk hokp
+  have h4 : ((pushEH E P).sstore 1 ((pushEH E P).sload 1 + 1)).sload (w + k)
+      = (pushEH E P).sload (w + k) := sload_sstore_ne h1s
+  rw [h1, h2, h3, h4]
+
+
+/-! ### `vtiAt_wFinal_V` on the derived route — BLOCKED ON ELABORATION, NOT ON MATH
+
+The pieces are all here: `pushOut_sload_cached_of_config` above replaces the `Sep32` push-tail
+frame, and `keccak256_add_ne_lowSlot_of_config` replaces the low-slot separation.  Assembling
+them into a `vtiAt_wFinal_V` twin does not typecheck within 4M heartbeats.
+
+The cost is not the proof.  Every weld state (`wF5`, `wH3`, `wFinal`, …) is `@[reducible]`,
+so any step that normalises or motive-abstracts over one unfolds the whole dispatcher chain.
+Three separate formulations timed out, each at whatever step touched such a term: `simpa`
+fixing a `w + 0`, then `rw [add_zero] at h`, then the statement elaboration itself.
+
+What should work is `set`-ing the weld states as opaque locals at the top of the proof so the
+big terms are never unfolded, paying the abstraction once.  That is the next attempt; it is
+engineering, not a gap in the argument. -/
+
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
