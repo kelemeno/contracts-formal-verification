@@ -1910,6 +1910,24 @@ theorem padWalk_sload_one
     ((padWalk kk σ i om m).1).sload 1 = σ.sload 1 :=
   padWalk_sload_low kk (s := 1) (by decide) hok
 
+/-- **DERIVED** companion to `updateWalk_sload_one`. -/
+theorem updateWalk_sload_one_of_config
+    (kk : ℕ) {σ : EVMState} {ss base i idx maxN cur : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hok : ∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) :
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload 1 = σ.sload 1 :=
+  updateWalk_sload_low_of_config kk (s := 1) hR hC (by decide) hok
+
+/-- **DERIVED** companion to `padWalk_sload_one`. -/
+theorem padWalk_sload_one_of_config
+    (kk : ℕ) {σ : EVMState} {i om m : UInt256}
+    (hR : Clear.KeccakLowSlot.RangeInWindow σ)
+    (hC : Clear.KeccakLowSlot.CachedInWindow σ)
+    (hok : ∀ j, j < kk → PadLowOK (padWalk j σ i om m)) :
+    ((padWalk kk σ i om m).1).sload 1 = σ.sload 1 :=
+  padWalk_sload_low_of_config kk (s := 1) hR hC (by decide) hok
+
 /-! ### THE SEQUENCE-LEVEL CAPSTONE: the real glue write order IS `imtInsert`
 
 `glueSeq_leafSetOf` composes the frame inventory above over the REAL insert
@@ -3406,21 +3424,28 @@ minted-vs-cached sites through `arrSlot_ne_accSlot_of_clean`, and extends the an
 pack with an `H1` component -- the first walk's entry state, which the quad pack never
 reached.
 
-**What that buys, exactly.**  `keccak256_inj` -- the strongest of the four idealizations, and
-the only one asserting global injectivity of the hash -- drops out entirely.  Measured:
+**What that buys, exactly.**  Two of the four idealizations drop out -- including
+`keccak256_inj`, the strongest, and the only one asserting global injectivity of the hash.
+Measured:
 
     glueSeq_leafSetOf'            inj, slot_sep, add_ne_lowSlot, ne_lowSlot
-    glueSeq_leafSetOf'_of_config       slot_sep, add_ne_lowSlot, ne_lowSlot
+    glueSeq_leafSetOf'_of_config       slot_sep,                 ne_lowSlot
 
-**What remains, and where.**  The three survivors do not come from this proof's body at all
--- every site here is derived.  They arrive through six helper lemmas it calls:
+`keccak256_add_ne_lowSlot` went the same way as the walk low-slot frames it came from: the
+window pair (`RangeInWindow` / `CachedInWindow`) transported across both walks, then
+`keccak256_add_ne_lowSlot_of_config` at each of the eight sites -- three in the `E4` copy
+chain, three in the `F4` one, and one per leaf write.
 
-    keccak256_slot_sep        updateWalk_sload_leaf, padWalk_sload_leaf, newLeafStage_decode
-    keccak256_add_ne_lowSlot  updateWalk_sload_one,  padWalk_sload_one
-    keccak256_ne_lowSlot      leafCount_vtiWrite
+**What remains, and where.**  Neither survivor comes from this proof's body; every site here
+is derived.  They arrive through four helper lemmas it calls:
 
-Each is a walk-level storage frame of the same shape as the ones already converted, and the
-transport they need across the walks now exists.  They are the next tier, not a wall.
+    keccak256_slot_sep    updateWalk_sload_leaf, padWalk_sload_leaf, newLeafStage_decode
+    keccak256_ne_lowSlot  leafCount_vtiWrite
+
+The three `slot_sep` users are leaf-slot frames across the walks -- the same shape as the
+low-slot ones, but separating a hashed slot from another hashed slot rather than from a
+constant, so they need `Separated` and `CacheInj` (already transported) rather than the
+window pair.  They are the next tier, not a wall.
 
 The added hypotheses are all things a concrete caller already tracks: the three pool
 properties at the three entry states, the low-slot window config at `evm`, and one more
@@ -3442,6 +3467,10 @@ theorem glueSeq_leafSetOf'_of_config
     (hsepH1 : Clear.KeccakSlotSep.Separated H1)
     (husedH1 : Clear.KeccakFresh.CacheInUsed H1)
     (hinjH1 : Clear.KeccakFresh.CacheInj H1)
+    (hRwH1 : Clear.KeccakLowSlot.RangeInWindow H1)
+    (hCwH1 : Clear.KeccakLowSlot.CachedInWindow H1)
+    (hRwH3 : Clear.KeccakLowSlot.RangeInWindow H3)
+    (hCwH3 : Clear.KeccakLowSlot.CachedInWindow H3)
     (hsepH3 : Clear.KeccakSlotSep.Separated H3)
     (husedH3 : Clear.KeccakFresh.CacheInUsed H3)
     (hinjH3 : Clear.KeccakFresh.CacheInj H3) :
@@ -3577,6 +3606,28 @@ theorem glueSeq_leafSetOf'_of_config
   have hinjSP : Clear.KeccakFresh.CacheInj SP :=
     cacheInj_padWalk kp (Clear.StorageFrame.cacheInUsed_sstore husedH3)
       (Clear.StorageFrame.cacheInj_sstore hinjH3)
+  -- the low-slot window pair along the two walk entries
+  have hRwL0 : Clear.KeccakLowSlot.RangeInWindow L0 := rangeInWindow_leafWriteEvm hRwH1
+  have hCwL0 : Clear.KeccakLowSlot.CachedInWindow L0 :=
+    cachedInWindow_leafWriteEvm hRwH1 hCwH1
+  have hRwSB : Clear.KeccakLowSlot.RangeInWindow SB :=
+    Clear.StorageFrame.rangeInWindow_sstore hRwH3
+  have hCwSB : Clear.KeccakLowSlot.CachedInWindow SB :=
+    Clear.StorageFrame.cachedInWindow_sstore hCwH3
+  have hRwSP : Clear.KeccakLowSlot.RangeInWindow SP := rangeInWindow_padWalk kp hRwSB
+  have hCwSP : Clear.KeccakLowSlot.CachedInWindow SP :=
+    cachedInWindow_padWalk kp hRwSB hCwSB
+  have hRwSW : Clear.KeccakLowSlot.RangeInWindow SW := rangeInWindow_leafWriteEvm hRwSP
+  have hCwSW : Clear.KeccakLowSlot.CachedInWindow SW :=
+    cachedInWindow_leafWriteEvm hRwSP hCwSP
+  have hRwS2 : Clear.KeccakLowSlot.RangeInWindow S2 := rangeInWindow_updateWalk kk₁ hRwL0
+  have hCwS2 : Clear.KeccakLowSlot.CachedInWindow S2 := cachedInWindow_updateWalk kk₁ hRwL0 hCwL0
+  have hRwF4 : Clear.KeccakLowSlot.RangeInWindow F4 :=
+    Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _
+      (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwS2)))
+  have hCwF4 : Clear.KeccakLowSlot.CachedInWindow F4 :=
+    Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _
+      (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwS2)))
   -- the anchor caches of the window index and the count
   obtain ⟨w, hw0, hw4, hwF, hwH, hwH1⟩ := hcach IX.val (le_of_lt hwlt)
   rw [hIXcast] at hw0 hw4 hwF hwH hwH1
@@ -3599,18 +3650,28 @@ theorem glueSeq_leafSetOf'_of_config
     rw [hS1d, hEKd, hSLd]
     refine (copyChain_sload_ne hclean4 ?_ ?_ ?_).trans (hE4s 1)
     · rw [haccw]
-      exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkw4 (by decide)
+      simpa using Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 0 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwE4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwE4))
+        hkw4 (by decide) (by decide)
     · rw [haccw]
-      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 1 1 hkw4
-        (by decide) (by decide)
+      exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 1 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwE4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwE4))
+        hkw4 (by decide) (by decide)
     · rw [haccw]
-      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 2 1 hkw4
-        (by decide) (by decide)
+      exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 2 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwE4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwE4))
+        hkw4 (by decide) (by decide)
   have hcntS2 : S2.sload 1 = evm.sload 1 := by
-    rw [hS2d, updateWalk_sload_one kk₁ hok₁, hL0d]
+    rw [hS2d, updateWalk_sload_one_of_config kk₁ hRwL0 hCwL0 hok₁, hL0d]
     have hne : (arrOut (arrOut H1 (ss₀ + 2)).2 (arrOut H1 (ss₀ + 2)).1).1 + idx₀
         ≠ (1 : UInt256) :=
-      Clear.KeccakInjective.keccak256_add_ne_lowSlot idx₀ 1 (arrOut_pair hcleanB2)
+      Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config idx₀ 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (rangeInWindow_arrOut hRwH1))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (cachedInWindow_arrOut hRwH1 hCwH1))
+        (arrOut_pair hcleanB2)
         hidx₀ (by decide)
     rw [leafWrite_sload_ne hcleanB1 hcleanB2 hne, hH1s 1]
     exact hcntS1
@@ -3618,13 +3679,20 @@ theorem glueSeq_leafSetOf'_of_config
     rw [hF5d, hFKd, hSL2d]
     refine (copyChain_sload_ne hcleanF ?_ ?_ ?_).trans ((hF4s 1).trans hcntS2)
     · rw [haccwc]
-      exact Clear.KeccakInjective.keccak256_ne_lowSlot 1 hkcF (by decide)
+      simpa using Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 0 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwF4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwF4))
+        hkcF (by decide) (by decide)
     · rw [haccwc]
-      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 1 1 hkcF
-        (by decide) (by decide)
+      exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 1 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwF4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwF4))
+        hkcF (by decide) (by decide)
     · rw [haccwc]
-      exact Clear.KeccakInjective.keccak256_add_ne_lowSlot 2 1 hkcF
-        (by decide) (by decide)
+      exact Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config 2 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwF4))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwF4))
+        hkcF (by decide) (by decide)
   -- the vti write slot, pinned to the accessor's own output
   have hcvF' : Finmap.lookup (accInterval (accOut F5 V 5).2 V 5)
       ((accOut F5 V 5).2).keccak_map = some ((accOut F5 V 5).1) := by
@@ -3643,18 +3711,21 @@ theorem glueSeq_leafSetOf'_of_config
   have hcntSB : SB.sload 1 = evm.sload 1 + 1 := by
     rw [hSBd, sload_sstore_self haccH3, hH3s 1, hcntS3]
   have hcntSP : SP.sload 1 = evm.sload 1 + 1 := by
-    rw [hSPd, padWalk_sload_one kp hokp]
+    rw [hSPd, padWalk_sload_one_of_config kp hRwSB hCwSB hokp]
     exact hcntSB
   have hcntSW : SW.sload 1 = evm.sload 1 + 1 := by
     rw [hSWd]
     have hne : (arrOut (arrOut SP (ssw + 2)).2 (arrOut SP (ssw + 2)).1).1 + nidx
         ≠ (1 : UInt256) :=
-      Clear.KeccakInjective.keccak256_add_ne_lowSlot nidx 1 (arrOut_pair hcleanA2)
+      Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config nidx 1
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ (rangeInWindow_arrOut hRwSP))
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ (cachedInWindow_arrOut hRwSP hCwSP))
+        (arrOut_pair hcleanA2)
         hnidx (by decide)
     rw [leafWrite_sload_ne hcleanA1 hcleanA2 hne]
     exact hcntSP
   have hcntSF : SF.sload 1 = evm.sload 1 + 1 := by
-    rw [hSFd, updateWalk_sload_one kk₂ hok₂]
+    rw [hSFd, updateWalk_sload_one_of_config kk₂ hRwSW hCwSW hok₂]
     exact hcntSW
   have hcval : (SF.sload 1).val = (evm.sload 1).val + 1 := by
     rw [hcntSF]
