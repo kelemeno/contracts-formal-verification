@@ -649,6 +649,91 @@ lemma array_push_clean {array value0 : Literal} {s₀ s₉ : State}
   rw [pushSt_evm hok, Clear.KeccakClean.clean_sstore] at cst
   exact cst
 
+/-- **THE PUSH LEAVES EVERY OTHER LOW SLOT ALONE** -- paid for by the clean flag.
+
+Cleaner than the budgeted `_of_low_slot`, and not only in its side conditions: that one
+goes through `push_element_ne_low_slot`, which names the element slot in closed form and so
+implicitly assumes the address computation took its non-panic branch.  This one asks the
+ACCESSOR for the separation instead, and the accessor's `_slot_not_low_of_clean` holds on
+BOTH branches of its bounds check -- so no case analysis is needed and no account witness
+or non-wrap hypothesis is required.  What is left is exactly what matters: `c` is a literal
+slot, it is not the length slot, and the length is not absurdly large. -/
+lemma array_push_sload_frame_of_low_slot_of_clean {array value0 : Literal} {c : Literal}
+    {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hqa : c ≠ array)
+    (hqlow : c.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm c = Clear.EVMState.sload s₀.evm c := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  subst heq
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk
+    (update_storage_value_bytes32_to_bytes32_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃))] at hclean ⊢
+  -- the flag reaches the address computation, which is where the element slot is minted
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (update_storage_value_bytes32_to_bytes32_clean hs2 h3nf
+      (Spec_ok_unfold hs2 h3nf h₃)).mp hclean
+  have hne : s₂["slot"]!! ≠ c :=
+    storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean hstok h2nf hRs hCs c2
+      hidx hqlow (Spec_ok_unfold hstok h2nf h₂)
+  rw [update_storage_value_bytes32_to_bytes32_sload_frame hs2 h3nf (Ne.symm hne)
+      (Spec_ok_unfold hs2 h3nf h₃),
+    storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf (Spec_ok_unfold hstok h2nf h₂),
+    pushSt_evm hok, Clear.KeccakDistinct.sload_sstore_of_ne _ hqa]
+
+/-- **THE LENGTH GOES UP BY ONE** -- paid for by the clean flag.
+
+Same shape as the frame above: the accessor supplies the separation on both branches, so
+the only extra hypotheses over that lemma are the ones the WRITE needs -- an account to
+store into, and the length not wrapping. -/
+lemma array_push_length_of_low_slot_of_clean {array value0 : Literal} {s₀ s₉ : State}
+    {act : Account}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hacc : Clear.EVMState.lookupAccount s₀.evm s₀.evm.execution_env.code_owner = some act)
+    (hfits : Clear.EVMState.sload s₀.evm array < 18446744073709551616)
+    (hlow : array.val < Clear.KeccakInjective.lowSlotBound)
+    (hidx : (Clear.EVMState.sload s₀.evm array).val < Clear.KeccakInjective.lowSlotBound)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm array = Clear.EVMState.sload s₀.evm array + 1 := by
+  obtain ⟨s₂, h₂, s₃, h₃, heq⟩ := array_push_normal hok hnf hfits h
+  subst heq
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have hstok : isOk (pushSt s₀ array value0) := isOk_pushSt hok
+  have hs2 : isOk s₂ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h2nf (Spec_ok_unfold hstok h2nf h₂)
+  obtain ⟨hRs, hCs⟩ := pushSt_config (array := array) (value0 := value0) hok hR hC
+  rw [evm_setStore, Clear.evm_reviveJump_of_isOk
+    (update_storage_value_bytes32_to_bytes32_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃))] at hclean ⊢
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (update_storage_value_bytes32_to_bytes32_clean hs2 h3nf
+      (Spec_ok_unfold hs2 h3nf h₃)).mp hclean
+  have hne : s₂["slot"]!! ≠ array :=
+    storage_array_index_access_bytes32_dyn_ptr_slot_not_low_of_clean hstok h2nf hRs hCs c2
+      hidx hlow (Spec_ok_unfold hstok h2nf h₂)
+  rw [update_storage_value_bytes32_to_bytes32_sload_frame hs2 h3nf (Ne.symm hne)
+      (Spec_ok_unfold hs2 h3nf h₃),
+    storage_array_index_access_bytes32_dyn_ptr_sload hstok h2nf (Spec_ok_unfold hstok h2nf h₂),
+    pushSt_evm hok, Clear.StorageFrame.sload_sstore_self hacc]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
