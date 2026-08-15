@@ -5,8 +5,6 @@ import specs.KeccakLowSlot
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
-import specs.StorageFrame
-import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_6945705467323769142
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x32
@@ -140,6 +138,163 @@ lemma storage_array_index_access_bytes32_dyn_ptr_5303_sload
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk hrok, resultOf_evm hssok,
     Clear.StorageFrame.sload_keccakOut, Clear.StorageFrame.sload_mstore, hse]
+
+/-- The guard's post-state, named once so the three lemmas below share a parse. -/
+private def gState (array : Literal) (s₀ : State) : State :=
+  let f := s₀☎️⟦["array"],[array]⟧
+  f⟦"split_expr_0" ↦ Clear.EVMState.sload f.evm (f["array"]!!)⟧
+
+private lemma gState_isOk {array : Literal} {s₀ : State} (hok : isOk s₀) :
+    isOk (gState array s₀) := isOk_insert.mpr (isOk_initcall_of_isOk hok)
+
+private lemma gState_evm {array : Literal} {s₀ : State} (hok : isOk s₀) :
+    (gState array s₀).evm = s₀.evm := by
+  simp only [gState, evm_insert]; exact Clear.evm_initcall hok
+
+/-- **KECCAK WINDOW.**  One `mstore` below the window and one hash: both preserved. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_config
+    {slot offset : Identifier} {array : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := gState_isOk (array := array) hok
+  have hge := gState_evm (array := array) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      Clear.KeccakPrimOps.primCall_keccakOut, isOutOfFuel_multifill', isOutOfFuel_setEvm']
+    exact hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_isOk hgok hssnf hga
+  obtain ⟨hRss, hCss⟩ := L2InteropCommitmentTree.Common.if_6945705467323769142_config hgok hssnf
+    (by rw [hge]; exact hR) (by rw [hge]; exact hC) hga
+  have hrok : isOk ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧) := by
+    simp only [isOk_insert, Clear.KeccakPrimOps.primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hssok)
+  subst heq
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hrok, resultOf_evm hssok]
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
+  exact ⟨Clear.KeccakLowSlot.rangeInWindow_keccakOut hRm,
+    Clear.KeccakLowSlot.cachedInWindow_keccakOut hRm hCm⟩
+
+/-- **FUEL.**  One hash: the accessor costs exactly one unit, on either branch of the guard. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_fuel
+    {slot offset : Identifier} {array : Literal} {k : ℕ} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm (k + 1))
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := gState_isOk (array := array) hok
+  have hge := gState_evm (array := array) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      Clear.KeccakPrimOps.primCall_keccakOut, isOutOfFuel_multifill', isOutOfFuel_setEvm']
+    exact hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_isOk hgok hssnf hga
+  have hfss : Clear.KeccakFuel.Fuel ss.evm (k + 1) :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_fuel hgok hssnf
+      (by rw [hge]; exact hf) hga
+  have hrok : isOk ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧) := by
+    simp only [isOk_insert, Clear.KeccakPrimOps.primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hssok)
+  subst heq
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hrok, resultOf_evm hssok]
+  exact Clear.KeccakFuel.Fuel.keccakOut (Clear.KeccakFuel.Fuel.mstore 0 _ hfss)
+
+/-- The returned slot, on EITHER branch of the guard: the hash itself, no offset. -/
+private lemma slot_resultOf {ss : State} (hok : isOk ss) :
+    (Clear.State.multifill ["slot"]
+        (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+        (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+          [0, 32]).1)⟦"offset" ↦ 0⟧["slot"]!!
+      = (Clear.KeccakDeterminism.keccakOut
+          (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32).1 := by
+  have hmok : isOk (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hok
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil]
+  rw [lookup_insert_of_ne (by decide),
+    lookup_insert' (by simp only [isOk_setEvm]; exact hok), Clear.evm_setEvm_of_isOk hok]
+
+private lemma zero_lt_lowSlotBound :
+    (0 : UInt256).val < Clear.KeccakInjective.lowSlotBound := by
+  show (0 : ℕ) < 2 ^ 32
+  norm_num
+
+/-- **THE ELEMENT-0 SLOT IS NEVER A LOW SLOT.**
+
+The index-zero variant returns `keccak(array)` with no `+ index`, so unlike its indexed
+sibling this owes nothing about an index bound -- the caller supplies only the keccak
+configuration and one unit of fuel.  As there, it holds on BOTH branches of the empty-array
+guard: the address computation runs either way, because a revert is a flag rather than a
+rollback in this model. -/
+lemma storage_array_index_access_bytes32_dyn_ptr_5303_slot_not_low
+    {slot offset : Identifier} {array c : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm 1)
+    (hcl : c.val < Clear.KeccakInjective.lowSlotBound)
+    (h : A_storage_array_index_access_bytes32_dyn_ptr_5303 slot offset array s₀ s₉) :
+    s₉[slot]!! ≠ c := by
+  obtain ⟨ss, hg, heq⟩ := h
+  have hgok := gState_isOk (array := array) hok
+  have hge := gState_evm (array := array) hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo; apply hnf; rw [heq]
+    simp only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump',
+      Clear.KeccakPrimOps.primCall_keccakOut, isOutOfFuel_multifill', isOutOfFuel_setEvm']
+    exact hoo
+  have hga := Spec_ok_unfold hgok hssnf hg
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_isOk hgok hssnf hga
+  obtain ⟨hRss, hCss⟩ := L2InteropCommitmentTree.Common.if_6945705467323769142_config hgok hssnf
+    (by rw [hge]; exact hR) (by rw [hge]; exact hC) hga
+  have hfss : Clear.KeccakFuel.Fuel ss.evm 1 :=
+    L2InteropCommitmentTree.Common.if_6945705467323769142_fuel hgok hssnf
+      (by rw [hge]; exact hf) hga
+  have hrok : isOk ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧) := by
+    simp only [isOk_insert, Clear.KeccakPrimOps.primCall_keccakOut]
+    exact isOk_multifill (by simp only [isOk_setEvm]; exact hssok)
+  have hrev : isOk (🧟 ((Clear.State.multifill ["slot"]
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (ss🇪⟦Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)⟧) .Keccak256
+        [0, 32]).1)⟦"offset" ↦ 0⟧)) := by
+    rw [revive_of_ok hrok]; exact hrok
+  subst heq
+  rw [lookup_insert' (isOk_insert.mpr (isOk_setStore_of_isOk hrev)), slot_resultOf hssok]
+  have hRm := Clear.StorageFrame.rangeInWindow_mstore (a := 0) (v := ss["array"]!!) hRss
+  have hCm := Clear.StorageFrame.cachedInWindow_mstore (a := 0) (v := ss["array"]!!) hCss
+  obtain ⟨r, σ', hsome⟩ := Clear.KeccakFuel.keccak256_some_of_fuel (p := 0) (q := 32)
+    (Clear.KeccakFuel.Fuel.mstore 0 (ss["array"]!!) hfss)
+  have hko : Clear.KeccakDeterminism.keccakOut
+      (Clear.EVMState.mstore ss.evm 0 (ss["array"]!!)) 0 32 = (r, σ') := by
+    unfold Clear.KeccakDeterminism.keccakOut; rw [hsome]
+  rw [hko]
+  -- the `+ 0` route: the window predicates are the ones the config frames carry, and the
+  -- indexed lemma specialises to no offset
+  have := Clear.KeccakLowSlot.keccak256_add_ne_lowSlot_of_config (j := 0) c hRm hCm hsome
+    zero_lt_lowSlotBound hcl
+  simpa using this
 
 end
 
