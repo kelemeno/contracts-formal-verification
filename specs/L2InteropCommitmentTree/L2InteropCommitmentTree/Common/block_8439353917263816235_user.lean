@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StateOk
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakInjective
@@ -278,6 +279,37 @@ lemma block_8439353917263816235_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s
     storage_array_index_access_bytes32_dyn_ptr_fuel hs3 h4nf hfu3 (Spec_ok_unfold hs3 h4nf h₄)
   exact storage_array_index_access_bytes32_dyn_ptr_fuel hs4 hnf hfu4
     (Spec_ok_unfold hs4 hnf h₅)
+
+/-- **CLEAN FLAG, BACKWARDS.**  Two divisions and an addition that never hash, then two
+accessor calls that do -- so this runs in the one direction the accessors give. -/
+lemma block_8439353917263816235_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_block_8439353917263816235 s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, s₄, h₄, s₅, h₅, heq⟩ := h
+  rw [heq] at hnf hclean
+  have h4nf : ¬ ❓ s₄ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₅ hoo)
+  have h3nf : ¬ ❓ s₃ := fun hoo => h4nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₄ hoo)
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have hs1 : isOk s₁ := checked_div_uint256_isOk hok (Spec_ok_unfold hok h1nf h₁)
+  have hs2 : isOk s₂ := checked_div_uint256_isOk hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  have hs3 : isOk s₃ := checked_add_uint256_isOk h3nf (Spec_ok_unfold hs2 h3nf h₃)
+  have hs4 : isOk s₄ :=
+    storage_array_index_access_bytes32_dyn_ptr_isOk h4nf (Spec_ok_unfold hs3 h4nf h₄)
+  have e1 : s₁.evm = s₀.evm := checked_div_uint256_evm hok (Spec_ok_unfold hok h1nf h₁)
+  have e2 : s₂.evm = s₁.evm := checked_div_uint256_evm hs1 (Spec_ok_unfold hs1 h2nf h₂)
+  -- walk the flag back through both hashes, then across the arithmetic
+  have c4 : Clear.KeccakClean.Clean s₄.evm :=
+    storage_array_index_access_bytes32_dyn_ptr_clean hs4 hnf hclean
+      (Spec_ok_unfold hs4 hnf h₅)
+  have c3 : Clear.KeccakClean.Clean s₃.evm :=
+    storage_array_index_access_bytes32_dyn_ptr_clean hs3 h4nf c4
+      (Spec_ok_unfold hs3 h4nf h₄)
+  have c2 : Clear.KeccakClean.Clean s₂.evm :=
+    (checked_add_uint256_clean hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃)).mp c3
+  rw [← e1, ← e2]
+  exact c2
 
 end
 

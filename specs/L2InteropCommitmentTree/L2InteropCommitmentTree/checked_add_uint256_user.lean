@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.StorageFrame
 import specs.KeccakFuel
 import specs.KeccakLowSlot
@@ -177,6 +178,29 @@ lemma checked_add_uint256_fuel {sum : Identifier} {x : Literal} {k : ℕ} {s₀ 
   simp only [evm_insert, evm_setStore]
   rw [Clear.evm_reviveJump_of_isOk hsok]
   exact hfss
+
+/-- **CLEAN FLAG.**  An addition and an overflow check: no hash on either branch. -/
+lemma checked_add_uint256_clean {sum : Identifier} {x : Literal} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_checked_add_uint256 sum x s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨ss, hif, heq⟩ := h
+  subst heq
+  have hs2ok : isOk ((s₀☎️⟦["x"],[x]⟧)⟦"sum" ↦ (s₀☎️⟦["x"],[x]⟧)["x"]!! + 1⟧) :=
+    isOk_insert.mpr (isOk_initcall_of_isOk hok)
+  have hs2e : ((s₀☎️⟦["x"],[x]⟧)⟦"sum" ↦ (s₀☎️⟦["x"],[x]⟧)["x"]!! + 1⟧).evm = s₀.evm := by
+    simp only [evm_insert]; exact Clear.evm_initcall hok
+  have hssnf : ¬ ❓ ss := by
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  have hssok : isOk ss :=
+    L2InteropCommitmentTree.Common.if_7624433659449274775_isOk hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hif)
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hssok,
+    L2InteropCommitmentTree.Common.if_7624433659449274775_clean hs2ok hssnf
+      (Spec_ok_unfold hs2ok hssnf hif), hs2e]
 
 end
 

@@ -1,4 +1,5 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
 import specs.KeccakFuel
 import specs.StateOk
 import specs.StorageFrame
@@ -91,6 +92,18 @@ lemma if_7624433659449274775_fuel {k : ℕ} {s₀ s₉ : State} (hok : isOk s₀
   · have hpnf : ¬ ❓ sp := by rw [hfire hg] at hnf; exact hnf
     rw [hfire hg]
     exact panic_error_0x11_fuel hok hf (Spec_ok_unfold hok hpnf hsp)
+
+/-- **CLEAN FLAG.**  Either branch: the overflow panic never hashes, and the other branch
+is the caller's own state. -/
+lemma if_7624433659449274775_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_7624433659449274775 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : s₀["x"]!! ≤ s₀["sum"]!!
+  · rw [hpos hc]
+  · have hse : s₉ = s := hneg hc
+    subst hse
+    exact panic_error_0x11_clean hok (Spec_ok_unfold hok hnf hs)
 
 end
 
