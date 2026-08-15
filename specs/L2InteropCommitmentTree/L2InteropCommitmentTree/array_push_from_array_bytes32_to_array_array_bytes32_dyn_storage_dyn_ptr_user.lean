@@ -524,6 +524,20 @@ lemma arrArrPush_clean_unconditional {array value0 : Literal} {s₀ s₉ : State
     (by simp only [isOk_insert]; exact hgcok) h1nf a₁).mp cst
   simpa only [evm_insert, Clear.evm_initcall hok] using cgc
 
+/-- **FRAME.**  As for the simple push: the call restores the caller's varstore wholesale. -/
+lemma arrArrPush_frame {array value0 : Literal} {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_array_push_from_array_bytes32_to_array_array_bytes32_dyn_storage_dyn_ptr
+      array value0 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, _, s₂, _, s₃, _, s₄, _, s₅, _, s₆, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 s₆) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  exact Clear.lookup_setStore hrev hok
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

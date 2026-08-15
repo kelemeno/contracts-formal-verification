@@ -169,6 +169,32 @@ lemma block_6359192996994294239_sload_of_ne {c : Literal} {s₀ s₉ : State}
     checked_sub_uint256_sload hstok h2nf a₂, Clear.evm_setEvm_of_isOk hs1,
     Clear.KeccakDistinct.sload_sstore_of_ne _ hc0, h1e]
 
+/-- **FRAME.**  The height bump moves `expr`, the subtraction's `split_expr_2`, the
+accessor's `_3`/`_4`, and the loaded `split_expr_3`.  Everything else crosses. -/
+lemma block_6359192996994294239_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hve : v ≠ "expr") (hv2 : v ≠ "split_expr_2") (hv3 : v ≠ "_3") (hv4 : v ≠ "_4")
+    (hv5 : v ≠ "split_expr_3")
+    (h : A_block_6359192996994294239 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h3nf : ¬ ❓ s₃ := by
+    intro hoo; apply hnf; simpa only [isOutOfFuel_insert'] using hoo
+  have h2nf : ¬ ❓ s₂ := fun hoo => h3nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₃ hoo)
+  have h1nf : ¬ ❓ s₁ := fun hoo => h2nf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂
+    (by simpa only [isOutOfFuel_setEvm'] using hoo))
+  have a₁ := Spec_ok_unfold hok h1nf h₁
+  have hs1 : isOk s₁ := fun_uncheckedInc_isOk h1nf a₁
+  have hstok : isOk (s₁🇪⟦Clear.EVMState.sstore s₁.evm 0 (s₁["expr"]!!)⟧) := by
+    simp only [isOk_setEvm]; exact hs1
+  have a₂ := Spec_ok_unfold hstok h2nf h₂
+  have hs2 : isOk s₂ := checked_sub_uint256_isOk hstok h2nf a₂
+  rw [lookup_insert_of_ne hv5,
+    storage_array_index_access_bytes32_dyn_ptr_frame hs2 h3nf hv3 hv4
+      (Spec_ok_unfold hs2 h3nf h₃),
+    checked_sub_uint256_frame hstok h2nf hv2 a₂, Clear.lookup_setEvm hs1,
+    fun_uncheckedInc_frame hok h1nf hve a₁]
+
 end
 
 end L2InteropCommitmentTree.Common

@@ -164,6 +164,23 @@ lemma block_3221258955042269759_sload_of_ne {c : Literal} {s₀ s₉ : State}
   rw [array_push_sload_frame_of_low_slot_of_clean hs2 h3nf (by rw [e2]; exact hfits)
       hc3 hclow (by rw [e2]; exact hidx) hR2 hC2 hclean (Spec_ok_unfold hs2 h3nf h₃), e2]
 
+/-- **FRAME.**  The default-node push moves `_5`, `expr_1`, `size` and `_6`.  The push
+itself moves nothing: it restores the caller's varstore. -/
+lemma block_3221258955042269759_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv5 : v ≠ "_5") (hve : v ≠ "expr_1") (hvs : v ≠ "size") (hv6 : v ≠ "_6")
+    (h : A_block_3221258955042269759 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, h₁, s₂, h₂, s₃, h₃, heq⟩ := h
+  obtain ⟨h3nf, h2nf, h1nf⟩ := b3221_nf hnf h₂ h₃ heq
+  have a₁ := Spec_ok_unfold hok h1nf h₁
+  have hs1 : isOk s₁ := extract_from_storage_value_dynamict_bytes32_isOk h1nf a₁
+  have a₂ := Spec_ok_unfold hs1 h2nf h₂
+  have hs2 : isOk s₂ := fun_efficientHash_isOk hs1 a₂
+  rw [heq, lookup_insert_of_ne hv6, lookup_insert_of_ne hvs,
+    array_push_frame hs2 h3nf (Spec_ok_unfold hs2 h3nf h₃),
+    fun_efficientHash_frame hs1 h2nf hve a₂,
+    extract_from_storage_value_dynamict_bytes32_frame hok h1nf hv5 a₁]
+
 end
 
 end L2InteropCommitmentTree.Common

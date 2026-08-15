@@ -181,6 +181,21 @@ lemma block_5267003775473151689_sload_of_ne {c : Literal} {s₀ s₉ : State}
       hclean (Spec_ok_unfold hmok hnf h₂),
     hme, Clear.StorageFrame.sload_mstore, hsl1]
 
+/-- **FRAME.**  The levels push moves `_6`, `size` and the allocator's `expr_mpos`.  The
+push restores everything else. -/
+lemma block_5267003775473151689_frame {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv6 : v ≠ "_6") (hvs : v ≠ "size") (hvm : v ≠ "expr_mpos")
+    (h : A_block_5267003775473151689 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  obtain ⟨h1nf, hin, hs1⟩ := b5267_parts hok hnf h₁ h₂ heq
+  rw [heq] at hnf ⊢
+  have hmok : isOk (s₁🇪⟦Clear.EVMState.mstore s₁.evm (s₁["expr_mpos"]!!) (s₁["expr_1"]!!)⟧) := by
+    simpa only [isOk_setEvm] using hs1
+  rw [arrArrPush_frame hmok hnf (Spec_ok_unfold hmok hnf h₂), Clear.lookup_setEvm hs1,
+    allocate_memory_frame hin h1nf hvm (Spec_ok_unfold hin h1nf h₁),
+    lookup_insert_of_ne hvs, lookup_insert_of_ne hv6]
+
 end
 
 end L2InteropCommitmentTree.Common

@@ -783,6 +783,21 @@ lemma array_push_clean_unconditional {array value0 : Literal} {s₀ s₉ : State
     (by simp only [isOk_insert]; exact hgcok) h1nf a₁).mp cst
   simpa only [evm_insert, Clear.evm_initcall hok] using cgc
 
+/-- **FRAME.**  A push is a function call: it ends with a `setStore` back to the caller's
+own varstore, so EVERY binding survives it -- there is no exception list. -/
+lemma array_push_frame {array value0 : Literal} {v : Identifier} {s₀ s₉ : State}
+    (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_array_push_from_bytes32_to_array_bytes32_dyn_storage_ptr array value0 s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s₁, _, s₂, _, s₃, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 s₃) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  exact Clear.lookup_setStore hrev hok
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

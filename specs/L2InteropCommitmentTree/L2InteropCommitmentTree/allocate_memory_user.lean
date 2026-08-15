@@ -118,6 +118,19 @@ lemma allocate_memory_clean {memPtr : Identifier} {size : Literal} {s₀ s₉ : 
   rw [heq, evm_insert, evm_setStore, Clear.evm_reviveJump_of_isOk hsok,
     finalize_allocation_clean hin hsnf (Spec_ok_unfold hin hsnf hs), hine]
 
+/-- **FRAME.**  Only `memPtr` moves; the call restores everything else. -/
+lemma allocate_memory_frame {memPtr : Identifier} {size : Literal} {v : Identifier}
+    {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉) (hv : v ≠ memPtr)
+    (h : A_allocate_memory memPtr size s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  obtain ⟨s, _, heq⟩ := h
+  subst heq
+  have hrev : isOk (🧟 s) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
