@@ -301,11 +301,25 @@ So exhibit a witness.  The empty pool satisfies all five, trivially but genuinel
 clean-flag and cache-pack hypotheses the twins ALSO carry fail there.  Joint satisfiability of
 a twin's FULL hypothesis set is a strictly stronger claim and is not proved here.
 
-**The gap this exposes.**  Nothing in the corpus establishes the pool configuration for a
-concrete execution state.  The transport families (`imt_insert_gate`, `imt_update_fold`, …)
-are the PRESERVATION half of an invariant argument whose INITIALIZATION half does not exist:
-we prove "if the pool is well-formed at entry, then X", never "this state's pool is
-well-formed".  That is the work that would ground the derived route rather than extend it. -/
+**The gap this exposes, and why it cannot be closed here.**  Nothing in the corpus establishes
+the pool configuration for a concrete execution state.  The transport families
+(`imt_insert_gate`, `imt_update_fold`, …) are the PRESERVATION half of an invariant argument
+whose INITIALIZATION half does not exist: we prove "if the pool is well-formed at entry, then
+X", never "this state's pool is well-formed".
+
+That half cannot be supplied without a change of scope.  This corpus has no genesis state, no
+reachability predicate, and no constructed `EVMState` anywhere — every theorem is universally
+quantified over `σ` with its preconditions as hypotheses.  There is no "entry state" object to
+prove anything about.  Grounding the configuration would mean modelling state reachability
+(genesis plus execution steps) and showing the configuration is established at genesis and
+preserved by every step; the preservation lemmas exist, the rest of that argument has no home
+here yet.
+
+So the pool configuration sits in exactly the same structural position as the four keccak
+axioms: an assumption about the MODEL that the corpus takes as given and cannot discharge
+internally.  The difference is what each constrains — the axioms idealize the keccak FUNCTION,
+the configuration constrains the model's freshness-pool BOOKKEEPING.  That is the whole of the
+trade the `_of_config` twins make. -/
 theorem pool_config_satisfiable : ∃ σ : EVMState,
     Separated σ
     ∧ Clear.KeccakFresh.CacheInUsed σ
