@@ -145,6 +145,7 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_updateLeaf_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_2518866309321428816_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_vti_user
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -438,3 +439,23 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_leafSetOf_of_config
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_evolution_of_config
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.insertGlue_evolution_step_of_config
+
+-- The vti layer on the derived route (2026-08-15).  `Sep32` is NOT derivable: it quantifies
+-- over an ARBITRARY state's 32-byte hash, and no pool invariant reaches a state that need not
+-- share a pool, so `sep32_of_keccak64` is irreducibly `keccak256_slot_sep`.  The cached-slot
+-- family is the reachable restatement -- a minted array base against a slot cached as a
+-- 64-byte hash IN THE SAME POOL -- which is the shape every actual use has.
+--
+-- `vtiAt_wFinal_old_of_config` is NOT here.  Its mathematics is complete and every site
+-- typechecks, but the assembly exhausts 16M heartbeats; see the note in imt_vti_user for the
+-- measured diagnosis.  `vtiCoherent_preserved` and `insertGlue_evolution_closed` sit above it
+-- and stay on the axiomatic route until it lands.
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.pushOut_sload_cached_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.pushOut_sload_cached0_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.vtiAt_wFinal_V_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.cached_ne_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.cached_off_ne_of_config
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrSlot_ne_cached64_of_clean
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrSlot_ne_cached64_0_of_clean
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.lookup_mono_guardsEvm
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.lookup_mono_insertNewEvm
