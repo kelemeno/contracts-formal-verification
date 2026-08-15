@@ -1051,6 +1051,86 @@ lemma pushOut_sload_cached_of_config
   rw [h1, h2, h3, h4]
 
 
+/-- The `k = 0` corollary of `pushOut_sload_cached_of_config`.  The `+ 0` is discharged HERE,
+where `w` is an abstract variable, rather than at a call site where it is a weld state and the
+motive abstraction unfolds the whole dispatcher chain. -/
+lemma pushOut_sload_cached0_of_config
+    {E : EVMState} {ms : MachineState} {P q w : UInt256} {kp kk : ℕ}
+    (hsepH : Clear.KeccakSlotSep.Separated (pushEH E P))
+    (husedH : Clear.KeccakFresh.CacheInUsed (pushEH E P))
+    (hinjH : Clear.KeccakFresh.CacheInj (pushEH E P))
+    (hcw : Finmap.lookup (mkInterval ms q 64) (pushEH E P).keccak_map = some w)
+    (h1s : (1 : UInt256) ≠ w)
+    (hA1 : (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hA2 : (arrOut (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).2
+        (arrOut (pushPadW E P kp).1 ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hnidx : ((pushEH E P).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (hokp : ∀ j, j < kp → PadLowOK (pushPadW E P j))
+    (hok₂ : ∀ j, j < kk → StepLowOK 0 ((0 : UInt256) + 2) (pushOutW E P kp j)) :
+    (pushOutW E P kp kk).1.sload w = (pushEH E P).sload w := by
+  have h1s' : (1 : UInt256) ≠ w + 0 := by rw [add_zero]; exact h1s
+  have h := pushOut_sload_cached_of_config (k := 0) hsepH husedH hinjH hcw
+    (by decide) h1s' hA1 hA2 hnidx hokp hok₂
+  rw [add_zero] at h
+  exact h
+
+/-- **DERIVED** companion to `vtiAt_wFinal_V`: the new key's `valueToIndex` entry reads back
+as the old count, with no appeal to `Sep32`.
+
+Written to touch no weld state with a normalising or backward-rewriting step.  The keccak
+witness is taken at the `H3` anchor, so the whole calc runs over the abstract `wv`; the
+connection to `(accOut (wF5 …) V 5).1` happens once, at the end, substituting a variable INTO
+a big term rather than abstracting one out of it. -/
+theorem vtiAt_wFinal_V_of_config
+    {evm : EVMState} {V IX wv : UInt256} {k k2 k3 : ℕ}
+    (hsepH : Clear.KeccakSlotSep.Separated (wH3 evm V IX k))
+    (husedH : Clear.KeccakFresh.CacheInUsed (wH3 evm V IX k))
+    (hinjH : Clear.KeccakFresh.CacheInj (wH3 evm V IX k))
+    (hRwH : Clear.KeccakLowSlot.RangeInWindow (wH3 evm V IX k))
+    (hCwH : Clear.KeccakLowSlot.CachedInWindow (wH3 evm V IX k))
+    (hcleanV : (accOut (wF5 evm V IX k) V 5).2.hash_collision = false)
+    (hcleanH3 : (wH3 evm V IX k).hash_collision = false)
+    (hcleanA1 : (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2.hash_collision = false)
+    (hcleanA2 : (arrOut (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).2
+        (arrOut (wSP evm V IX k k2) ((0 : UInt256) + 2)).1).2.hash_collision = false)
+    (hnidx : ((wH3 evm V IX k).sload 1).val < Clear.KeccakInjective.lowSlotBound)
+    (haccV : (((accOut (wF5 evm V IX k) V 5).2).lookupAccount
+        ((accOut (wF5 evm V IX k) V 5).2).execution_env.code_owner).isSome)
+    (hokp : ∀ j, j < k2 → PadLowOK
+        (pushPadW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) j))
+    (hok₂ : ∀ j, j < k3 → StepLowOK 0 ((0 : UInt256) + 2)
+        (pushOutW (wS3 evm V IX k) ((wS2 evm V IX k).mload 64) k2 j))
+    (hcvF : Finmap.lookup (accInterval (wF5 evm V IX k) V 5)
+        (wF5 evm V IX k).keccak_map = some wv)
+    (hcvH : Finmap.lookup (accInterval (wH3 evm V IX k) V 5)
+        (wH3 evm V IX k).keccak_map = some wv) :
+    vtiAt (wFinal evm V IX k k2 k3) V = evm.sload 1 := by
+  -- the pack word IS the write slot (functionality at the F5 anchor)
+  have hwv : wv = (accOut (wF5 evm V IX k) V 5).1 :=
+    Option.some.inj ((accOut_lookup_mono hcvF).symm.trans (accOut_caches_of_clean hcleanV))
+  -- the H3-anchored keccak witness: gives `wv ≠ 1` with no rewriting at all
+  have hkH := (vtiSlot_keccakV hcvH).1
+  have h1V : (1 : UInt256) ≠ wv :=
+    Ne.symm (Clear.KeccakLowSlot.keccak256_ne_lowSlot_of_config 1
+      (Clear.KeccakLowSlot.noLowInRange_of_window (Clear.KeccakLowSlot.rangeInWindow_mstore _ _
+        (Clear.KeccakLowSlot.rangeInWindow_mstore _ _ hRwH)))
+      (Clear.KeccakLowSlot.noLowCached_of_window (Clear.KeccakLowSlot.cachedInWindow_mstore _ _
+        (Clear.KeccakLowSlot.cachedInWindow_mstore _ _ hCwH)))
+      hkH (by decide))
+  -- the final-state slot pin, kept at `wv`
+  have hslotF : vtiSlot (wFinal evm V IX k k2 k3) V = wv :=
+    vtiSlot_pushOut (E := wS3 evm V IX k) (P := (wS2 evm V IX k).mload 64)
+      (kp := k2) (kk := k3) hcvH
+  show (wFinal evm V IX k k2 k3).sload (vtiSlot (wFinal evm V IX k k2 k3) V)
+      = evm.sload 1
+  rw [hslotF]
+  calc (wFinal evm V IX k k2 k3).sload wv
+      = (wH3 evm V IX k).sload wv :=
+        pushOut_sload_cached0_of_config hsepH husedH hinjH hcvH h1V
+          hcleanA1 hcleanA2 hnidx hokp hok₂
+    _ = (wS3 evm V IX k).sload wv := sload_hashLeafOut_of_clean _ hcleanH3
+    _ = evm.sload 1 := by rw [hwv]; exact sload_sstore_self haccV
+
 /-! ### `vtiAt_wFinal_V` on the derived route — BLOCKED ON ELABORATION, NOT ON MATH
 
 The pieces are all here: `pushOut_sload_cached_of_config` above replaces the `Sep32` push-tail
