@@ -3202,6 +3202,195 @@ theorem leafSetOf_evolution_step_of_config {σ : EVMState} {widx v ni w wc : UIn
   exact Finset.mem_image.mpr
     ⟨widx.val, Finset.mem_range.mpr hwlt, by rw [Fin.cast_val_eq_self]⟩
 
+theorem decodeLeaf_stage_outside_of_config
+    {evm : EVMState} {V NI4 NV5 IX1 m wm : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated evm)
+    (hused : Clear.KeccakFresh.CacheInUsed evm)
+    (hinjc : Clear.KeccakFresh.CacheInj evm) :
+    let P := evm.mload 64
+    let E4 := (((evm.mstore 64 (P + 96)).mstore P V).mstore
+        (P + 32) NI4).mstore (P + 64) NV5
+    let EK := (accOut E4 IX1 4).2
+    let SL := (accOut E4 IX1 4).1
+    let E5 := ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64))
+    (accOut E4 IX1 4).2.hash_collision = false →
+    (accOut E5 V 5).2.hash_collision = false →
+    Finmap.lookup (accInterval E4 m 4) E4.keccak_map = some wm →
+    (accOut E4 m 4).2.hash_collision = false →
+    m ≠ IX1 →
+    decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) m
+      = decodeLeaf E4 m := by
+  intro P E4 EK SL E5 hclean4 hcleanV hcm hcleanm hmne
+  -- the two pool properties travel to `EK`: four memory writes then one hash step,
+  -- and every step can only SHRINK the slots the state may produce
+  have hsepE4 : Clear.KeccakSlotSep.Separated E4 :=
+    Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore (Clear.StorageFrame.separated_mstore hsep)))
+  have hinjE4 : Clear.KeccakFresh.CacheInj E4 :=
+    Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _
+      (Clear.KeccakFresh.cacheInj_mstore _ _ (Clear.KeccakFresh.cacheInj_mstore _ _ hinjc)))
+  have husedE4 : Clear.KeccakFresh.CacheInUsed E4 :=
+    Clear.KeccakFresh.cacheInUsed_mstore _ _ (Clear.KeccakFresh.cacheInUsed_mstore _ _
+      (Clear.KeccakFresh.cacheInUsed_mstore _ _
+        (Clear.KeccakFresh.cacheInUsed_mstore _ _ hused)))
+  -- `accOut` is two memory writes then a hash, so both go through the same way
+  have hsepEK : Clear.KeccakSlotSep.Separated EK :=
+    Clear.KeccakSlotSep.separated_keccakOut (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore hsepE4))
+  have hinjEK : Clear.KeccakFresh.CacheInj EK :=
+    Clear.KeccakFresh.cacheInj_accOut husedE4 hinjE4
+  -- and on to the `(accOut E5 V 5).2` state: three struct writes, then one more hash
+  have husedEK : Clear.KeccakFresh.CacheInUsed EK :=
+    Clear.KeccakFresh.cacheInUsed_accOut husedE4
+  have hsepE5 : Clear.KeccakSlotSep.Separated E5 :=
+    Clear.StorageFrame.separated_sstore (Clear.StorageFrame.separated_sstore
+      (Clear.StorageFrame.separated_sstore hsepEK))
+  have hinjE5 : Clear.KeccakFresh.CacheInj E5 :=
+    Clear.StorageFrame.cacheInj_sstore (Clear.StorageFrame.cacheInj_sstore
+      (Clear.StorageFrame.cacheInj_sstore hinjEK))
+  have husedE5 : Clear.KeccakFresh.CacheInUsed E5 :=
+    Clear.StorageFrame.cacheInUsed_sstore (Clear.StorageFrame.cacheInUsed_sstore
+      (Clear.StorageFrame.cacheInUsed_sstore husedEK))
+  have hsepF : Clear.KeccakSlotSep.Separated (accOut E5 V 5).2 :=
+    Clear.KeccakSlotSep.separated_keccakOut (Clear.StorageFrame.separated_mstore
+      (Clear.StorageFrame.separated_mstore hsepE5))
+  have hinjF : Clear.KeccakFresh.CacheInj (accOut E5 V 5).2 :=
+    Clear.KeccakFresh.cacheInj_accOut husedE5 hinjE5
+  have hEK : EK = (accOut E4 IX1 4).2 := rfl
+  have hSL : SL = (accOut E4 IX1 4).1 := rfl
+  have hE5 : E5 = ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))).sstore (SL + 2) (EK.mload (P + 64)) := rfl
+  -- the two caches at the copy-threaded state EK
+  have hcIX : Finmap.lookup (accInterval EK IX1 4) EK.keccak_map = some SL := by
+    rw [hEK, hSL]
+    exact cached_accThread hclean4
+  have hcmEK : Finmap.lookup (accInterval EK m 4) EK.keccak_map = some wm := by
+    rw [hEK, accInterval_accOut_frame]
+    exact cached_after_accOut hcm
+  have hsl : leafSlot EK IX1 = SL := by
+    rw [hEK, hSL]
+    exact leafSlot_accThread hclean4
+  -- slot separations at EK (keccak injectivity, IX1 ≠ m)
+  have hne : IX1 ≠ m := fun h => hmne h.symm
+  have h00 : SL ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_inj_of_config hinjEK hcIX hcmEK hne
+  have h02 : SL ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    have h := leafSlot_off_ne_off_of_config (k₁ := 0) (k₂ := 2) hsepEK hinjEK hcIX hcmEK hne
+      (by decide) (by decide)
+    simpa using h
+  have h10 : SL + 1 ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_add_ne_of_config hsepEK hinjEK hcIX hcmEK hne (by decide)
+  have h12 : SL + 1 ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    exact leafSlot_off_ne_off_of_config (k₁ := 1) (k₂ := 2) hsepEK hinjEK hcIX hcmEK hne
+      (by decide) (by decide)
+  have h20 : SL + 2 ≠ leafSlot EK m := by
+    rw [← hsl]
+    exact leafSlot_add_ne_of_config hsepEK hinjEK hcIX hcmEK hne (by decide)
+  have h22 : SL + 2 ≠ leafSlot EK m + 2 := by
+    rw [← hsl]
+    exact leafSlot_off_ne_off_of_config (k₁ := 2) (k₂ := 2) hsepEK hinjEK hcIX hcmEK hne
+      (by decide) (by decide)
+  -- cache and slot transport through the three copy sstores
+  have hcm1 : Finmap.lookup (accInterval (EK.sstore SL (EK.mload P)) m 4)
+      (EK.sstore SL (EK.mload P)).keccak_map = some wm :=
+    cache_sstore hcmEK
+  have hcm2 : Finmap.lookup (accInterval ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))) m 4)
+      ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))).keccak_map = some wm :=
+    cache_sstore hcm1
+  have hslm1 : leafSlot (EK.sstore SL (EK.mload P)) m = leafSlot EK m :=
+    leafSlot_sstore hcmEK
+  have hslm2 : leafSlot ((EK.sstore SL (EK.mload P)).sstore
+      (SL + 1) (EK.mload (P + 32))) m = leafSlot EK m := by
+    rw [leafSlot_sstore hcm1, hslm1]
+  -- the decode survives the copy writes
+  have hstep3 : decodeLeaf E5 m = decodeLeaf EK m := by
+    have e3 : SL + 2 ≠ leafSlot ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))) m := by
+      rw [hslm2]
+      exact h20
+    have e3' : SL + 2 ≠ leafSlot ((EK.sstore SL (EK.mload P)).sstore
+        (SL + 1) (EK.mload (P + 32))) m + 2 := by
+      rw [hslm2]
+      exact h22
+    have e2 : SL + 1 ≠ leafSlot (EK.sstore SL (EK.mload P)) m := by
+      rw [hslm1]
+      exact h10
+    have e2' : SL + 1 ≠ leafSlot (EK.sstore SL (EK.mload P)) m + 2 := by
+      rw [hslm1]
+      exact h12
+    rw [hE5, decodeLeaf_sstore_outside hcm2 e3 e3',
+        decodeLeaf_sstore_outside hcm1 e2 e2',
+        decodeLeaf_sstore_outside hcmEK h00 h02]
+  -- E5-level cache and cleanliness for the vti thread
+  have hcmE5 : Finmap.lookup (accInterval E5 m 4) E5.keccak_map = some wm := by
+    rw [hE5]
+    exact cache_sstore hcm2
+  have hcollE5 : E5.hash_collision = false := by
+    rw [hE5, hash_collision_sstore', hash_collision_sstore',
+        hash_collision_sstore', hEK]
+    exact hclean4
+  have hcleanE5m : (accOut E5 m 4).2.hash_collision = false := by
+    rw [accOut_of_cached hcmE5]
+    show ((E5.mstore 0 m).mstore 32 4).hash_collision = false
+    rw [hash_collision_mstore, hash_collision_mstore]
+    exact hcollE5
+  have hstep2 : decodeLeaf (accOut E5 V 5).2 m = decodeLeaf E5 m :=
+    decodeLeaf_accOut_frame hcmE5 hcleanE5m hcleanV
+  -- the m-cache and the vti cache at the vti-threaded state
+  have hcmF : Finmap.lookup (accInterval (accOut E5 V 5).2 m 4)
+      ((accOut E5 V 5).2).keccak_map = some wm := by
+    rw [accInterval_accOut_frame]
+    exact cached_after_accOut hcmE5
+  have hcvF : Finmap.lookup (accInterval (accOut E5 V 5).2 V 5)
+      ((accOut E5 V 5).2).keccak_map = some ((accOut E5 V 5).1) := by
+    rw [show accInterval (accOut E5 V 5).2 V 5 = accInterval E5 V 5 from
+      accInterval_eq (fun _ hx1 _ => accOut_junk_window hx1)]
+    exact accOut_caches_of_clean hcleanV
+  -- the vti write misses leaf m's fields
+  have hvti : vtiSlot (accOut E5 V 5).2 V = (accOut E5 V 5).1 := by
+    show (accOut (accOut E5 V 5).2 V 5).1 = (accOut E5 V 5).1
+    exact accOut_agree_value (fun _ hx1 _ => (accOut_junk_window hx1).symm)
+      (accOut_caches_of_clean hcleanV)
+  have hv0 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 m := by
+    have h := vtiSlot_ne_leafSlot_add_of_config (k := 0) hsepF hinjF hcvF hcmF (by decide)
+    rw [hvti] at h
+    simpa using h
+  have hv2 : (accOut E5 V 5).1 ≠ leafSlot (accOut E5 V 5).2 m + 2 := by
+    have h := vtiSlot_ne_leafSlot_add_of_config (k := 2) hsepF hinjF hcvF hcmF (by decide)
+    rw [hvti] at h
+    exact h
+  have hstep1 : decodeLeaf ((accOut E5 V 5).2.sstore ((accOut E5 V 5).1) IX1) m
+      = decodeLeaf (accOut E5 V 5).2 m :=
+    decodeLeaf_sstore_outside hcmF hv0 hv2
+  -- back across the copy accessor thread to the staged anchor E4
+  have hstep4 : decodeLeaf EK m = decodeLeaf E4 m := by
+    rw [hEK]
+    exact decodeLeaf_accOut_frame hcm hcleanm hclean4
+  rw [hstep1, hstep2, hstep3, hstep4]
+
+/-! ### Walk and pad frames at the leaf-slot family (`decodeLeaf` invariance)
+
+The Merkle walk (`updateWalk`) and the padding walk (`padWalk`) write storage
+ONLY at node-array element slots — `arrOut`-derived hashes of 32-byte
+preimages plus small offsets — while the leaf struct fields live at
+`leafSlot σᵣ i + k`, hashes of 64-byte accessor preimages.  The two families
+are disjoint (`keccak_off_ne_off`, 32 ≠ 64), so `decodeLeaf` is invariant
+across both walks.  DESIGN: the leaf slots are pinned against a FIXED
+reference state `σᵣ` whose accessor hash is cached (`keccak_off_ne_off`
+happily compares keccak witnesses across unrelated states), so the per-step
+hypotheses are exactly the existing low-slot discharge packs
+(`StepLowOK`/`PadLowOK`) — the reference cache never needs re-transporting
+along the walk. -/
+
+set_option maxHeartbeats 4000000
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree
