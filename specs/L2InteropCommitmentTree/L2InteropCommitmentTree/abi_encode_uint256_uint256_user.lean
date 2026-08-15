@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.StorageFrame
+import specs.KeccakFuel
+import specs.KeccakLowSlot
+import specs.StateOk
 import specs.StateOk
 
 
@@ -45,6 +49,60 @@ lemma abi_encode_uint256_uint256_isOk {tail : Identifier} {value0 value1 : Liter
 lemma abi_encode_uint256_uint256_not_break {tail : Identifier} {value0 value1 : Literal} {s₀ s₉ : State}
     (hnf : ¬ ❓ s₉) (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (abi_encode_uint256_uint256_isOk hnf h)
+
+/-- The encoder's evm: two `mstore`s over the caller's, and nothing else. -/
+private lemma abi_encode_evm_shape {tail : Identifier} {value0 value1 : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    ∃ a b c d : UInt256, s₉.evm = Clear.EVMState.mstore
+      (Clear.EVMState.mstore s₀.evm a b) c d := by
+  subst h
+  set f := s₀☎️⟦["value0", "value1"],[value0, value1]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set t := f⟦"tail" ↦ (68 : UInt256)⟧ with htdef
+  have htok : isOk t := by rw [htdef]; exact isOk_insert.mpr hfok
+  set m1 := t🇪⟦Clear.EVMState.mstore t.evm 4 (t["value0"]!!)⟧ with hm1def
+  have hm1ok : isOk m1 := by rw [hm1def]; simpa only [isOk_setEvm] using htok
+  set m2 := m1🇪⟦Clear.EVMState.mstore m1.evm 36 (m1["value1"]!!)⟧ with hm2def
+  have hm2ok : isOk m2 := by rw [hm2def]; simpa only [isOk_setEvm] using hm1ok
+  refine ⟨4, t["value0"]!!, 36, m1["value1"]!!, ?_⟩
+  simp only [evm_insert, evm_setStore]
+  rw [Clear.evm_reviveJump_of_isOk hm2ok, hm2def, Clear.evm_setEvm_of_isOk hm1ok, hm1def,
+    Clear.evm_setEvm_of_isOk htok, htdef]
+  simp only [evm_insert]
+  rw [hfdef, Clear.evm_initcall hok]
+
+/-- **STORAGE FRAME.**  The encoder writes memory only. -/
+lemma abi_encode_uint256_uint256_sload {tail : Identifier} {value0 value1 : Literal}
+    {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨a, b, c, d, he⟩ := abi_encode_evm_shape hok h
+  rw [he, Clear.StorageFrame.sload_mstore, Clear.StorageFrame.sload_mstore]
+
+/-- **CONFIG FRAME.**  Memory writes leave the keccak window intact. -/
+lemma abi_encode_uint256_uint256_config {tail : Identifier} {value0 value1 : Literal}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧
+      Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨a, b, c, d, he⟩ := abi_encode_evm_shape hok h
+  rw [he]
+  exact ⟨Clear.StorageFrame.rangeInWindow_mstore
+      (Clear.StorageFrame.rangeInWindow_mstore hR),
+    Clear.StorageFrame.cachedInWindow_mstore (Clear.StorageFrame.cachedInWindow_mstore hC)⟩
+
+/-- **FUEL FRAME.**  And it spends no pool. -/
+lemma abi_encode_uint256_uint256_fuel {tail : Identifier} {value0 value1 : Literal} {k : ℕ}
+    {s₀ s₉ : State} (hok : isOk s₀)
+    (hf : Clear.KeccakFuel.Fuel s₀.evm k)
+    (h : A_abi_encode_uint256_uint256 tail value0 value1 s₀ s₉) :
+    Clear.KeccakFuel.Fuel s₉.evm k := by
+  obtain ⟨a, b, c, d, he⟩ := abi_encode_evm_shape hok h
+  rw [he]
+  exact Clear.KeccakFuel.Fuel.mstore c d (Clear.KeccakFuel.Fuel.mstore a b hf)
 
 end
 
