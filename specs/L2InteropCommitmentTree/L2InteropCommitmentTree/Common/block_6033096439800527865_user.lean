@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 
@@ -32,6 +35,18 @@ lemma block_6033096439800527865_isOk {s₀ s₉ : State} (hok : isOk s₀) (h : 
 
 lemma block_6033096439800527865_not_break {s₀ s₉ : State} (hok : isOk s₀) (h : A_block_6033096439800527865 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_6033096439800527865_isOk hok h)
+
+/-- **THE EVM IS THE CALLER'S.**  This block only records the overflow comparison in a
+variable -- one equation settles storage, window, flag and accounts together. -/
+lemma block_6033096439800527865_evm {s₀ s₉ : State}
+    (h : A_block_6033096439800527865 s₀ s₉) : s₉.evm = s₀.evm := by
+  subst h; simp only [evm_insert]
+
+/-- **FRAME.**  Only `split_expr_4` moves. -/
+lemma block_6033096439800527865_frame {v : Identifier} {s₀ s₉ : State}
+    (hv : v ≠ "split_expr_4") (h : A_block_6033096439800527865 s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  subst h; rw [lookup_insert_of_ne hv]
 
 end
 

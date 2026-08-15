@@ -1,6 +1,7 @@
 import Clear.ReasoningPrinciple
 import specs.StorageFrame
 import specs.KeccakLowSlot
+import specs.KeccakClean
 import specs.KeccakPrimOps
 import specs.KeccakDeterminism
 import specs.StateOk
@@ -154,6 +155,49 @@ lemma array_dataslot_array_bytes32_dyn_storage_ptr_config {data : Identifier}
     rw [hme]; exact Clear.StorageFrame.cachedInWindow_mstore hC
   exact ⟨Clear.KeccakLowSlot.rangeInWindow_keccakOut hRm,
     Clear.KeccakLowSlot.cachedInWindow_keccakOut hRm hCm⟩
+
+/-- **CLEAN FLAG, BACKWARDS.**  One hash -- this is the `keccak(slot)` that turns an array
+slot into its data region, so it is the same shape as the accessors: a clean result proves
+the pool was non-empty when it ran. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_clean {data : Identifier}
+    {ptr : Literal} {s₀ s₉ : State} (hok : isOk s₀)
+    (hclean : Clear.KeccakClean.Clean s₉.evm)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    Clear.KeccakClean.Clean s₀.evm := by
+  subst h
+  set f := s₀☎️⟦["ptr"],[ptr]⟧ with hfdef
+  have hfok : isOk f := by rw [hfdef]; exact isOk_initcall_of_isOk hok
+  set m := f🇪⟦Clear.EVMState.mstore f.evm 0 (f["ptr"]!!)⟧ with hmdef
+  have hmok : isOk m := by rw [hmdef]; simp only [isOk_setEvm]; exact hfok
+  have hme : m.evm = Clear.EVMState.mstore s₀.evm 0 (f["ptr"]!!) := by
+    rw [hmdef, Clear.evm_setEvm_of_isOk hfok, hfdef, Clear.evm_initcall hok]
+  simp only [Clear.KeccakPrimOps.primCall_keccakOut, multifill_cons, multifill_nil,
+    evm_insert, evm_setStore] at hclean
+  have hXok : isOk (m🇪⟦(Clear.KeccakDeterminism.keccakOut m.evm 0 32).2⟧⟦"data" ↦
+      (Clear.KeccakDeterminism.keccakOut m.evm 0 32).1⟧) :=
+    isOk_insert.mpr (by simp only [isOk_setEvm]; exact hmok)
+  rw [Clear.evm_reviveJump_of_isOk hXok] at hclean
+  simp only [evm_insert] at hclean
+  rw [Clear.evm_setEvm_of_isOk hmok, hme] at hclean
+  exact Clear.KeccakClean.clean_of_keccakOut_mstore hclean
+
+/-- **FRAME.**  Only `data` moves. -/
+lemma array_dataslot_array_bytes32_dyn_storage_ptr_frame {data : Identifier}
+    {ptr : Literal} {v : Identifier} {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hv : v ≠ data)
+    (h : A_array_dataslot_array_bytes32_dyn_storage_ptr data ptr s₀ s₉) :
+    s₉[v]!! = s₀[v]!! := by
+  subst h
+  have hrev : isOk (🧟 (Clear.State.multifill ["data"]
+      (primCall (s₀☎️⟦["ptr"],[ptr]⟧🇪⟦Clear.EVMState.mstore (s₀☎️⟦["ptr"],[ptr]⟧).evm 0
+        ((s₀☎️⟦["ptr"],[ptr]⟧)["ptr"]!!)⟧) .Keccak256 [0, 32]).2
+      (primCall (s₀☎️⟦["ptr"],[ptr]⟧🇪⟦Clear.EVMState.mstore (s₀☎️⟦["ptr"],[ptr]⟧).evm 0
+        ((s₀☎️⟦["ptr"],[ptr]⟧)["ptr"]!!)⟧) .Keccak256 [0, 32]).1)) := by
+    apply Clear.isOk_reviveJump_of_not_isOutOfFuel
+    intro hoo
+    apply hnf
+    simpa only [isOutOfFuel_insert', isOutOfFuel_setStore', isOutOfFuel_reviveJump'] using hoo
+  rw [lookup_insert_of_ne hv, Clear.lookup_setStore hrev hok]
 
 end
 

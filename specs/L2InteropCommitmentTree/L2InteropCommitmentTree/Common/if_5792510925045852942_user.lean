@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
+import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.panic_error_0x41
 
@@ -49,6 +53,40 @@ lemma if_5792510925045852942_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf : �
 lemma if_5792510925045852942_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_if_5792510925045852942 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (if_5792510925045852942_isOk hok hnf h)
+
+/-- **STORAGE FRAME.**  The allocation-overflow check either passes or panics, and the
+panic writes only memory. -/
+lemma if_5792510925045852942_sload {q : UInt256} {s₀ s₉ : State} (hok : isOk s₀)
+    (hnf : ¬ ❓ s₉) (h : A_if_5792510925045852942 s₀ s₉) :
+    Clear.EVMState.sload s₉.evm q = Clear.EVMState.sload s₀.evm q := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : Fin.lor (s₀["split_expr_3"]!!) (s₀["split_expr_4"]!!) = 0
+  · rw [hpos hc]
+  · rw [hneg hc]
+    exact panic_error_0x41_sload hok (Spec_ok_unfold hok (by rw [hneg hc] at hnf; exact hnf) hs)
+
+/-- **KECCAK WINDOW.** -/
+lemma if_5792510925045852942_config {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (hR : Clear.KeccakLowSlot.RangeInWindow s₀.evm)
+    (hC : Clear.KeccakLowSlot.CachedInWindow s₀.evm)
+    (h : A_if_5792510925045852942 s₀ s₉) :
+    Clear.KeccakLowSlot.RangeInWindow s₉.evm ∧ Clear.KeccakLowSlot.CachedInWindow s₉.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : Fin.lor (s₀["split_expr_3"]!!) (s₀["split_expr_4"]!!) = 0
+  · rw [hpos hc]; exact ⟨hR, hC⟩
+  · rw [hneg hc]
+    exact panic_error_0x41_config hok hR hC
+      (Spec_ok_unfold hok (by rw [hneg hc] at hnf; exact hnf) hs)
+
+/-- **CLEAN FLAG.**  Neither branch hashes. -/
+lemma if_5792510925045852942_clean {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_if_5792510925045852942 s₀ s₉) :
+    Clear.KeccakClean.Clean s₉.evm ↔ Clear.KeccakClean.Clean s₀.evm := by
+  obtain ⟨s, hs, hpos, hneg⟩ := h
+  by_cases hc : Fin.lor (s₀["split_expr_3"]!!) (s₀["split_expr_4"]!!) = 0
+  · rw [hpos hc]
+  · rw [hneg hc]
+    exact panic_error_0x41_clean hok (Spec_ok_unfold hok (by rw [hneg hc] at hnf; exact hnf) hs)
 
 end
 
