@@ -1,6 +1,7 @@
 import specs.KeccakFresh
 import specs.KeccakClean
 import specs.KeccakInjective
+import specs.KeccakLowSlot
 
 /-
   SLOT SEPARATION — DERIVED FROM THE POOL, NOT AXIOMATIZED.
@@ -283,5 +284,47 @@ theorem seq_off_ne_off_of_clean {σ : EVMState} {p₁ n₁ p₂ n₂ k₁ k₂ :
   cached_off_ne_off hsep hinj
     (KeccakDeterminism.keccakOut_lookup_mono (KeccakDeterminism.keccakOut_caches_of_clean h1))
     (KeccakDeterminism.keccakOut_caches_of_clean h2) hne hk₁ hk₂
+
+/-! ## Is this configuration satisfiable at all?
+
+Every `_of_config` twin in the corpus assumes the pool configuration -- `Separated`,
+`CacheInUsed`, `CacheInj`, `RangeInWindow`, `CachedInWindow` -- all at once.  If that
+conjunction were CONTRADICTORY, every one of those results would be vacuously true: they would
+compile, print clean under `#print axioms`, and mean nothing.  Nothing else in the checker set
+notices, since a vacuous theorem is not a stub, not an alias, and its postcondition is not
+`True` (`scripts/vacuity-check.sh` targets a different shape -- unbounded separation
+quantifiers).
+
+So exhibit a witness.  The empty pool satisfies all five, trivially but genuinely.
+
+**What this does NOT establish.**  In the empty-pool state `keccak256` never succeeds, so the
+clean-flag and cache-pack hypotheses the twins ALSO carry fail there.  Joint satisfiability of
+a twin's FULL hypothesis set is a strictly stronger claim and is not proved here.
+
+**The gap this exposes.**  Nothing in the corpus establishes the pool configuration for a
+concrete execution state.  The transport families (`imt_insert_gate`, `imt_update_fold`, …)
+are the PRESERVATION half of an invariant argument whose INITIALIZATION half does not exist:
+we prove "if the pool is well-formed at entry, then X", never "this state's pool is
+well-formed".  That is the work that would ground the derived route rather than extend it. -/
+theorem pool_config_satisfiable : ∃ σ : EVMState,
+    Separated σ
+    ∧ Clear.KeccakFresh.CacheInUsed σ
+    ∧ Clear.KeccakFresh.CacheInj σ
+    ∧ Clear.KeccakLowSlot.RangeInWindow σ
+    ∧ Clear.KeccakLowSlot.CachedInWindow σ := by
+  have hmap : (default : EVMState).keccak_map = ∅ := rfl
+  have hrange : (default : EVMState).keccak_range = [] := rfl
+  have hno : ∀ (I : List UInt256) (v : UInt256),
+      Finmap.lookup I (default : EVMState).keccak_map ≠ some v := by
+    intro I v h; rw [hmap, Finmap.lookup_empty] at h; exact Option.noConfusion h
+  refine ⟨default, ?_, ?_, ?_, ?_, ?_⟩
+  · intro x y hx _ _ i _
+    rcases hx with ⟨I, hI⟩ | hx
+    · exact absurd hI (hno I x)
+    · rw [hrange] at hx; exact absurd hx (List.not_mem_nil x)
+  · intro I v hv; exact absurd hv (hno I v)
+  · intro I J r hI _; exact absurd hI (hno I r)
+  · intro x hx; rw [hrange] at hx; exact absurd hx (List.not_mem_nil x)
+  · intro I v hv; exact absurd hv (hno I v)
 
 end Clear.KeccakSlotSep
