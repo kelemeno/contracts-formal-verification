@@ -1131,6 +1131,49 @@ theorem vtiAt_wFinal_V_of_config
     _ = (wS3 evm V IX k).sload wv := sload_hashLeafOut_of_clean _ hcleanH3
     _ = evm.sload 1 := by rw [hwv]; exact sload_sstore_self haccV
 
+/-! ### Zero-offset forms
+
+Each is its general lemma with `k₂ = 0` discharged HERE, where every state is an abstract
+variable.  At a call site the same `add_zero` would abstract over a `@[reducible]` weld state
+and cost millions of heartbeats -- see the note below. -/
+
+/-- `cached_off_ne_off` with the right-hand offset at zero. -/
+lemma cached_off_ne_of_config {σ : EVMState} {I₁ I₂ : List UInt256} {r₁ r₂ k₁ : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hc₁ : Finmap.lookup I₁ σ.keccak_map = some r₁)
+    (hc₂ : Finmap.lookup I₂ σ.keccak_map = some r₂)
+    (hne : I₁ ≠ I₂) (hk₁ : k₁.val < Clear.KeccakInjective.lowSlotBound) :
+    r₁ + k₁ ≠ r₂ := by
+  have h := Clear.KeccakSlotSep.cached_off_ne_off (k₂ := (0 : UInt256)) hsep hinj hc₁ hc₂ hne hk₁ (by decide)
+  rw [add_zero] at h
+  exact h
+
+/-- `arrSlot_ne_cached64_of_clean` with the cached-side offset at zero. -/
+lemma arrSlot_ne_cached64_0_of_clean
+    {σ : EVMState} {ms : MachineState} {a q w j : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated (arrOut σ a).2)
+    (hinj : Clear.KeccakFresh.CacheInj (arrOut σ a).2)
+    (hclean : (arrOut σ a).2.hash_collision = false)
+    (hcache : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
+    (hj : j.val < Clear.KeccakInjective.lowSlotBound) :
+    (arrOut σ a).1 + j ≠ w := by
+  have h := arrSlot_ne_cached64_of_clean (k := (0 : UInt256)) hsep hinj hclean hcache hj
+    (by decide)
+  rw [add_zero] at h
+  exact h
+
+/-- `updateWalk_sload_cached_of_config` at offset zero. -/
+lemma updateWalk_sload_cached0_of_config
+    (kk : ℕ) {σ : EVMState} {ms : MachineState} {ss base i idx maxN cur q w : UInt256}
+    (hsep : Clear.KeccakSlotSep.Separated σ) (hused : Clear.KeccakFresh.CacheInUsed σ) (hinj : Clear.KeccakFresh.CacheInj σ)
+    (hcσ : Finmap.lookup (mkInterval ms q 64) σ.keccak_map = some w)
+    (hok : ∀ j, j < kk → StepLowOK ss base (updateWalk ss base j σ i idx maxN cur)) :
+    ((updateWalk ss base kk σ i idx maxN cur).1).sload w = σ.sload w := by
+  have h := updateWalk_sload_cached_of_config kk (k := (0 : UInt256)) hsep hused hinj hcσ
+    (by decide) hok
+  rw [add_zero] at h
+  exact h
+
 /-! ### Why the twin above is written the way it is
 
 `vtiAt_wFinal_V_of_config` took four formulations.  The first three timed out at 4M
