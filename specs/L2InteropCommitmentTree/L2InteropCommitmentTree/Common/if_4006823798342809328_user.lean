@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_4006823798342809328_gen
@@ -42,6 +46,22 @@ no unconditional `isOk` here -- the breaking branch is a `Break` checkpoint by d
 lemma if_4006823798342809328_isOk_of_not_taken {s₀ s₉ : State} (hok : isOk s₀) (hg : s₀["split_expr_6"]!! ≠ 0)
     (h : A_if_4006823798342809328 s₀ s₉) : isOk s₉ := by
   rw [h.2 hg]; exact hok
+
+/-- **AN `Ok` RESULT MEANS THE GUARD FELL THROUGH** -- and then it changed nothing at all.
+
+Note the shape.  The tempting statement, "the evm is the caller's on either branch", is
+FALSE here: `.evm` of a non-`Ok` state is `default`, so the break arm does not preserve it.
+Conditioning on the RESULT being `Ok` rules that arm out and yields the stronger equation
+on states, which settles storage, window, flag and variables at once.
+
+This is exactly how the fold's body frames treat their own break guard, so the loop
+induction can reuse the pattern. -/
+lemma if_4006823798342809328_id_of_isOk {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : A_if_4006823798342809328 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨hpos, hneg⟩ := h
+  by_cases hc : s₀["split_expr_6"]!! = 0
+  · exact absurd hok9 (not_isOk_of_isBreak (by rw [hpos hc]; exact Clear.isBreak_setBreak hok))
+  · exact hneg hc
 
 end
 

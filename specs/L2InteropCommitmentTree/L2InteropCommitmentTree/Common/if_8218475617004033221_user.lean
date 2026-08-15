@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_8218475617004033221_gen
@@ -41,6 +45,15 @@ no unconditional `isOk` here -- the breaking branch is a `Break` checkpoint by d
 lemma if_8218475617004033221_isOk_of_not_taken {s₀ s₉ : State} (hok : isOk s₀) (hg : s₀["var_oldMaxNodeNumber"]!! ≠ s₀["var_maxNodeNumber"]!!)
     (h : A_if_8218475617004033221 s₀ s₉) : isOk s₉ := by
   rw [h.2 hg]; exact hok
+
+/-- **AN `Ok` RESULT MEANS THE GUARD FELL THROUGH.**  As for the level-bound guard: the
+break arm cannot end `Ok`, so an `Ok` result pins the state exactly. -/
+lemma if_8218475617004033221_id_of_isOk {s₀ s₉ : State} (hok : isOk s₀) (hok9 : isOk s₉)
+    (h : A_if_8218475617004033221 s₀ s₉) : s₉ = s₀ := by
+  obtain ⟨hpos, hneg⟩ := h
+  by_cases hc : s₀["var_oldMaxNodeNumber"]!! = s₀["var_maxNodeNumber"]!!
+  · exact absurd hok9 (not_isOk_of_isBreak (by rw [hpos hc]; exact Clear.isBreak_setBreak hok))
+  · exact hneg hc
 
 end
 

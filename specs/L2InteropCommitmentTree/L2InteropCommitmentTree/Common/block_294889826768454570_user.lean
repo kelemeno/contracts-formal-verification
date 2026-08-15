@@ -1,4 +1,7 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
 import specs.StateOk
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.checked_div_uint256
@@ -54,6 +57,17 @@ lemma block_294889826768454570_isOk {s₀ s₉ : State} (hok : isOk s₀) (hnf :
 lemma block_294889826768454570_not_break {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
     (h : A_block_294889826768454570 s₀ s₉) : ¬ isBreak s₉ :=
   fun hb => not_isOk_of_isBreak hb (block_294889826768454570_isOk hok hnf h)
+
+/-- **THE EVM IS THE CALLER'S.**  Halving the two node counts is arithmetic on variables. -/
+lemma block_294889826768454570_evm {s₀ s₉ : State} (hok : isOk s₀) (hnf : ¬ ❓ s₉)
+    (h : A_block_294889826768454570 s₀ s₉) : s₉.evm = s₀.evm := by
+  obtain ⟨s₁, h₁, s₂, h₂, heq⟩ := h
+  rw [heq] at hnf ⊢
+  have h1nf : ¬ ❓ s₁ := fun hoo => hnf (Clear.isOutOfFuel_of_Spec_of_isOutOfFuel h₂ hoo)
+  have a₁ := Spec_ok_unfold hok h1nf h₁
+  have hs1 : isOk s₁ := checked_div_uint256_isOk hok a₁
+  rw [checked_div_uint256_evm hs1 (Spec_ok_unfold hs1 hnf h₂),
+    checked_div_uint256_evm hok a₁]
 
 end
 
