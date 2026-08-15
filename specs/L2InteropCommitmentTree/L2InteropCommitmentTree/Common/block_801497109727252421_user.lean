@@ -1,4 +1,8 @@
 import Clear.ReasoningPrinciple
+import specs.KeccakClean
+import specs.KeccakLowSlot
+import specs.StorageFrame
+import specs.StateOk
 
 
 import generated.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.block_801497109727252421_gen
@@ -56,6 +60,27 @@ lemma block_801497109727252421_evm {s₀ s₉ : State}
   unfold A_block_801497109727252421 at h
   subst h
   simp only [evm_insert, evm_multifill]
+
+lemma block_801497109727252421_isOk {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_block_801497109727252421 s₀ s₉) : isOk s₉ := by
+  unfold A_block_801497109727252421 at h
+  subst h
+  simp only [isOk_insert]
+  exact isOk_multifill (by simp only [isOk_insert]; exact hok)
+
+lemma block_801497109727252421_not_break {s₀ s₉ : State} (hok : isOk s₀)
+    (h : A_block_801497109727252421 s₀ s₉) : ¬ isBreak s₉ :=
+  fun hb => not_isOk_of_isBreak hb (block_801497109727252421_isOk hok h)
+
+/-- **FRAME.**  The rounding writes five scratch variables and nothing else. -/
+lemma block_801497109727252421_frame {v : Identifier} {s₀ s₉ : State}
+    (hv0 : v ≠ "split_expr_0") (hv1 : v ≠ "split_expr_1") (hv2 : v ≠ "split_expr_2")
+    (hv3 : v ≠ "split_expr_3") (hvn : v ≠ "newFreePtr")
+    (h : A_block_801497109727252421 s₀ s₉) : s₉[v]!! = s₀[v]!! := by
+  unfold A_block_801497109727252421 at h
+  subst h
+  rw [lookup_insert_of_ne hv3, lookup_insert_of_ne hvn, multifill_cons, multifill_nil,
+    lookup_insert_of_ne hv2, lookup_insert_of_ne hv1, lookup_insert_of_ne hv0]
 
 end
 
