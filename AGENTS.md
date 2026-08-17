@@ -405,6 +405,50 @@ Three instances in one session, all of which produced confident wrong output:
 Prefer a parser to a regex, and **self-test any checker in the FAILING direction** before trusting it
 (`CONTRACTS_DIR=<copy>` exists on the invariant script for exactly this).
 
+## Regenerating `generated/` — read this first
+
+`generated/` is a hand-assembled UNION of more than one generator run. A clean
+`scripts/generate-vc.sh` from the exact pinned commit produces FEWER modules than the working
+tree has, and leaves tracked spec imports dangling. It is gitignored, so there is no git
+recovery.
+
+* **Back it up before regenerating**: `cp -R generated/<Contract> /tmp/backup-<Contract>`.
+* Regeneration also writes into **`Clear/`** (tracked submodule) and may delete files there.
+  Recover with `cd Clear && git checkout -- . && git clean -fd`.
+* If you roll a regeneration back, also clear `.lake/build/lib/{generated,specs}/<Contract>`.
+  Otherwise you get `unknown identifier` cascades in `Common/for_*` that look like source
+  corruption but are stale oleans masking the real state.
+
+### Literal-condition loops need a hand-written `_cond_abs_of_code`
+
+For `for { } 1 { … }` the generator emits a reference to `for_X_cond_abs_of_code` but does not
+define it: `reasoning_principle_3` wants an EVALUATION fact, not the `_concrete_of_code`
+composition it builds for post/body. Supplying it is the spec author's job, in the `_user`
+file:
+
+```lean
+lemma for_X_cond_abs_of_code {s₀ fuel} :
+    eval fuel for_X_cond (s₀) = (s₀, ACond_for_X (s₀)) := by
+  unfold eval ACond_for_X
+  simp [for_X_cond, Lit']
+```
+
+This is a convention, not a bug — most loops in `L2InteropCommitmentTree/Common` already do it.
+Put it in `specs/`, never in generated output, or it is lost on the next regeneration.
+
+### Bumping the era-contracts pin is a project, not a version bump
+
+Numbered helpers (`fun_updateLeaf_5205` → `_5614`) can be re-pointed mechanically once you
+confirm the bodies are identical modulo the suffix. Two things defeat automation:
+
+* solc SPECIALISES some helpers, changing their arity (`array_push_…_5175(value0)` →
+  `_5584()`). Re-pointing one of those compiles and silently asserts something about a
+  different function. Check arity, not just the name.
+* `block_`/`if_`/`switch_`/`for_` module ids are CONTENT HASHES. Adding lines anywhere in the
+  `.sol` shifts `@src` byte offsets, which changes the hashes, which orphans ~68 modules.
+  Content hashing cannot pair them — normalising enough to absorb the churn maps distinct old
+  blocks onto the same new one. A sound port needs source-range provenance matching.
+
 ## The derived route: getting off the keccak axioms
 
 Four `Clear.KeccakInjective` axioms idealize keccak: `keccak256_inj`, `keccak256_slot_sep`,
