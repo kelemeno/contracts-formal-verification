@@ -1083,6 +1083,115 @@ theorem stepOdd_hit_sload {σ : EVMState} {A : NodeAtlas} {H : ℕ}
               Clear.KeccakDeterminism.keccak_map_mstore]) hAh) hl1]
   simp only [sstore_mstore_comm, sload_mstore]
 
+/-! ### R3, even branch — the `stepEven` twins
+
+The even (non-edge) arm mirrors the odd one with two changes, and only the
+second of them is more than a renaming:
+
+* the sibling is read at `idx + 1` rather than `idx - 1`;
+* the pair hash is `H(cur ‖ sib)` rather than `H(sib ‖ cur)`, so `accOut` is
+  applied as `accOut _ cur sib`.  Since `accOut σ key base` writes `key` at
+  word 0 and `base` at word 32, **the word-32 anchor of the post-hash regime
+  is the SIBLING here, not the accumulator.**  Every `AtlasCachedAtH`
+  hypothesis below is therefore keyed at `σ.sload (A.wl l + (idx + 1))`
+  where the odd twins key at `cur`.  Getting this backwards is the one way
+  to mis-state the even case: the statement still typechecks against a
+  `cur`-keyed pack, but the pack it then demands is not the one the history
+  produces.
+
+The explicit `(Y := …) (y := …) (b := …)` instantiation of
+`atlasH_at_hash_state` is kept for the reason recorded in the file header —
+left implicit it is a whnf search through the mstore tower, not a hard fact. -/
+
+/-- **The even-branch (non-edge) walk level under the atlas + a pair-hash
+HIT** (WalkAtlasOK, even case): the sibling read at `idx + 1` is the atlas
+`sload`, the pair hash `H(cur ‖ sib)` returns the cached `r` with memory
+effect `mstore 0/32` only, and the level output is `r` stored at the parent
+slot of the hash-regime scratch state. -/
+theorem stepEven_hit {σ : EVMState} {A : NodeAtlas} {H : ℕ}
+    (hA : AtlasCachedAt σ A H) {l : ℕ} (hl : l ≤ H)
+    {idx cur r : UInt256}
+    (hpair : CachedPair σ cur (σ.sload (A.wl l + (idx + 1))) r) :
+    stepEven σ 2 (l : UInt256) idx cur
+      = (r, nodeStore
+          ((((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).mstore 0 cur).mstore 32
+              (σ.sload (A.wl l + (idx + 1))))
+          2 ((l : UInt256) + 1) (Fin.shiftRight idx 1) r) := by
+  have hsib := sibRead_cached hA hl (idx + 1)
+  have hsibf : (sibRead σ 2 (l : UInt256) (idx + 1)).1
+      = σ.sload (A.wl l + (idx + 1)) := by rw [hsib]
+  have hsibs : (sibRead σ 2 (l : UInt256) (idx + 1)).2
+      = (σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)) := by rw [hsib]
+  have hjunk : ∀ i : UInt256, 64 ≤ i.val → i.val ≤ 94 →
+      Finmap.lookup i σ.machine_state.memory
+        = Finmap.lookup i
+            ((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).machine_state.memory := by
+    intro i hi _
+    rw [lookup_mstore0_high (by omega), lookup_mstore0_high (by omega)]
+  have hacc : accOut ((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+        cur (σ.sload (A.wl l + (idx + 1)))
+      = (r, (((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).mstore 0 cur).mstore 32
+              (σ.sload (A.wl l + (idx + 1)))) :=
+    accOut_of_cached_frame hjunk hpair
+  have haccf : (accOut ((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+        cur (σ.sload (A.wl l + (idx + 1)))).1 = r := by rw [hacc]
+  have haccs : (accOut ((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+        cur (σ.sload (A.wl l + (idx + 1)))).2
+      = (((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).mstore 0 cur).mstore 32
+          (σ.sload (A.wl l + (idx + 1))) := by rw [hacc]
+  unfold stepEven
+  rw [hsibs, hsibf, haccf, haccs]
+
+/-- Value projection of the even hit level: the accumulator becomes the
+cached pair hash. -/
+theorem stepEven_hit_fst {σ : EVMState} {A : NodeAtlas} {H : ℕ}
+    (hA : AtlasCachedAt σ A H) {l : ℕ} (hl : l ≤ H)
+    {idx cur r : UInt256}
+    (hpair : CachedPair σ cur (σ.sload (A.wl l + (idx + 1))) r) :
+    (stepEven σ 2 (l : UInt256) idx cur).1 = r := by
+  rw [stepEven_hit hA hl hpair]
+
+/-- **WalkAtlasOK (even case)**: given the level-entry atlas, the pair-hash
+hit, and the SIBLING-regime pack, the atlas holds again at the level exit. -/
+theorem stepEven_hit_atlas {σ : EVMState} {A : NodeAtlas} {H : ℕ}
+    (hA : AtlasCachedAt σ A H) {l : ℕ} (hl : l ≤ H)
+    {idx cur r : UInt256}
+    (hpair : CachedPair σ cur (σ.sload (A.wl l + (idx + 1))) r)
+    (hAh : AtlasCachedAtH σ A H (σ.sload (A.wl l + (idx + 1)))) :
+    AtlasCachedAt (stepEven σ 2 (l : UInt256) idx cur).2 A H := by
+  rw [stepEven_hit hA hl hpair]
+  exact atlas_nodeStore _ _ _ _
+    (atlasH_at_hash_state
+      (Y := (σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+      (y := cur) (b := σ.sload (A.wl l + (idx + 1)))
+      (by rw [Clear.KeccakDeterminism.keccak_map_mstore,
+              Clear.KeccakDeterminism.keccak_map_mstore]) hAh)
+
+/-- Storage projection of the even hit level: exactly one `sstore` of the
+cached hash at the parent element slot. -/
+theorem stepEven_hit_sload {σ : EVMState} {A : NodeAtlas} {H : ℕ}
+    (hA : AtlasCachedAt σ A H) {l : ℕ} (hl1 : l + 1 ≤ H)
+    {idx cur r : UInt256}
+    (hpair : CachedPair σ cur (σ.sload (A.wl l + (idx + 1))) r)
+    (hAh : AtlasCachedAtH σ A H (σ.sload (A.wl l + (idx + 1)))) (s : UInt256) :
+    (stepEven σ 2 (l : UInt256) idx cur).2.sload s
+      = (σ.sstore (A.wl (l + 1) + Fin.shiftRight idx 1) r).sload s := by
+  have hl : l ≤ H := le_trans (Nat.le_succ l) hl1
+  rw [stepEven_hit hA hl hpair]
+  show (nodeStore
+      ((((σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256))).mstore 0 cur).mstore 32
+          (σ.sload (A.wl l + (idx + 1))))
+      2 ((l : UInt256) + 1) (Fin.shiftRight idx 1) r).sload s
+    = (σ.sstore (A.wl (l + 1) + Fin.shiftRight idx 1) r).sload s
+  rw [← Nat.cast_add_one]
+  rw [nodeStore_cached_sload
+    (atlasH_at_hash_state
+      (Y := (σ.mstore 0 2).mstore 0 (A.w2 + (l : UInt256)))
+      (y := cur) (b := σ.sload (A.wl l + (idx + 1)))
+      (by rw [Clear.KeccakDeterminism.keccak_map_mstore,
+              Clear.KeccakDeterminism.keccak_map_mstore]) hAh) hl1]
+  simp only [sstore_mstore_comm, sload_mstore]
+
 end
 
 end generated.L2InteropCommitmentTree.L2InteropCommitmentTree

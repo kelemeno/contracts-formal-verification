@@ -146,6 +146,11 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.Common.if_251886630
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.fun_pushNewLeaf_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_fidelity_user
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_vti_user
+-- Imported for its own sake as much as for the entries below.  Until 2026-08-17 NOTHING in the
+-- corpus imported `imt_root_atlas_user`, so it sat broken (a dangling reference) for an unknown
+-- stretch with all ~76 of its results unverified, and no sweep could see it.  A file the ledger
+-- imports cannot fail silently: it has to elaborate for the audit to run at all.
+import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user
 
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
@@ -459,3 +464,19 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_vti_user
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.arrSlot_ne_cached64_0_of_clean
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.lookup_mono_guardsEvm
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.lookup_mono_insertNewEvm
+
+-- ROOT TRACK, stage R3 — the walk-level step lemmas (2026-08-17).  Both index parities of the
+-- update walk now have the full quartet: the closed form under a pair-hash cache hit, its value
+-- and storage projections, and the atlas-preservation step that lets the NEXT level hit the cache.
+-- The two parities are not symmetric in one respect worth stating: the odd arm hashes H(sib ‖ cur)
+-- and the even arm H(cur ‖ sib), so the word-32 anchor of the post-hash junk regime is `cur` on the
+-- odd side and the SIBLING on the even side.  The `AtlasCachedAtH` hypotheses differ accordingly.
+-- These are the R3 pieces; R4 (padWalk) through R8 (rootFidelity_insert) remain open.
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepOdd_hit
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepOdd_hit_fst
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepOdd_hit_atlas
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepOdd_hit_sload
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_fst
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_atlas
+#print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_sload
