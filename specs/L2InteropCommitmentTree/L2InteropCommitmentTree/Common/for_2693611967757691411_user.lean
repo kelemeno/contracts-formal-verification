@@ -73,6 +73,14 @@ lemma levelGuardState_flag_iff {s : State} (hok : isOk s) :
   · simp [hlt]
   · simp [hlt]
 
+/-- Loop-condition evaluation, in the shape `reasoning_principle_3` consumes.
+The generated module references this but does not emit it; supplying it here is the
+house convention (seven sibling loops in this directory do the same). -/
+lemma for_2693611967757691411_cond_abs_of_code {s₀ fuel} :
+    eval fuel for_2693611967757691411_cond (s₀) = (s₀, ACond_for_2693611967757691411 (s₀)) := by
+  unfold eval ACond_for_2693611967757691411
+  simp [for_2693611967757691411_cond, Lit']
+
 lemma for_2693611967757691411_concrete_of_post_abs {s₀ s₉ : State} :
   Spec for_2693611967757691411_post_concrete_of_code s₀ s₉ →
   Spec APost_for_2693611967757691411 s₀ s₉ := by
