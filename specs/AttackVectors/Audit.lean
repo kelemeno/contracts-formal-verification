@@ -152,6 +152,24 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_vti_user
 -- imports cannot fail silently: it has to elaborate for the audit to run at all.
 import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user
 
+-- ORPHAN RECOVERY (2026-08-17).  `scripts/orphan-specs.sh` found 11 more tracked spec files in
+-- the same position as the atlas: reachable from NEITHER Specs.lean NOR this ledger, so nothing
+-- in the corpus built them or printed their axioms.  All 11 do in fact compile and every result
+-- probed is axiom-clean -- but that was luck, not a check.  Importing them here makes it a check.
+-- The four helper-layer files carry only plumbing lemmas (abi encode/decode calls, mcopy, slice)
+-- and get no `#print axioms` line below; they are imported so that they must still ELABORATE.
+import specs.AttackVectors.FoldDivergence
+import specs.ArrWindow
+import specs.TreeLayout
+import specs.L2AssetRouter.L2AssetRouter.recover_gate_user
+import specs.L2AssetRouter.L2AssetRouter.mcopy
+import specs.L2InteropHandler.L2InteropHandler.verify_bundle_gate_user
+import specs.L2InteropHandler.L2InteropHandler.verify_mark_user
+import specs.L2InteropHandler.L2InteropHandler.exec_calls_gate_user
+import specs.L2InteropHandler.L2InteropHandler.enc_bytes_arms_user
+import specs.L2InteropHandler.L2InteropHandler.format_evmv1_user
+import specs.L2InteropHandler.L2InteropHandler.mem_helpers_user
+
 #print axioms AttackVectors.NoTheft.no_theft
 #print axioms AttackVectors.NoTheft.no_theft_of_sound_start
 #print axioms AttackVectors.ConcreteBridge.imt_no_theft
@@ -480,3 +498,43 @@ import specs.L2InteropCommitmentTree.L2InteropCommitmentTree.imt_root_atlas_user
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_fst
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_atlas
 #print axioms generated.L2InteropCommitmentTree.L2InteropCommitmentTree.stepEven_hit_sload
+
+-- ORPHAN RECOVERY (2026-08-17) — results that existed but no check could see.  See the import
+-- block above.  Nothing below is new mathematics; these are pre-existing proofs being brought
+-- under the ledger for the first time, so the clean count jumps without any new proving.
+
+-- Fold determinism / non-divergence (specs/AttackVectors/FoldDivergence.lean).
+#print axioms AttackVectors.FoldDivergence.fold_deterministic
+#print axioms AttackVectors.FoldDivergence.fold_deterministic_phases
+#print axioms AttackVectors.FoldDivergence.no_fold_divergence
+#print axioms AttackVectors.FoldDivergence.no_fold_divergence₂
+#print axioms AttackVectors.FoldDivergence.accValFold_state_of_cached
+#print axioms AttackVectors.FoldDivergence.accValFold_junk_agree
+
+-- The array-accessor memory window (specs/ArrWindow.lean) and the tree-layout bounds
+-- (specs/TreeLayout.lean) — supporting layers the atlas reasoning rests on.
+#print axioms Clear.ArrWindow.arrWindowOf_keccakOut
+#print axioms Clear.ArrWindow.arrWindowOf_after_inner_accessor
+#print axioms Clear.ArrWindow.arrWindow_double_mstore_zero
+#print axioms Clear.TreeLayout.hlt_of_levelsSized
+#print axioms Clear.TreeLayout.idxAt_le_maxAt
+
+-- AUTHORIZATION GATES, both directions (pass AND revert).  ~6,000 lines of access-control
+-- proof that had been sitting outside every check in the corpus.  The revert halves are the
+-- security-bearing ones: they say the gate actually stops an unauthorized caller, rather than
+-- merely that an authorized one gets through.
+#print axioms generated.L2AssetRouter.L2AssetRouter.require_unauth_pass
+#print axioms generated.L2AssetRouter.L2AssetRouter.require_unauth_reverts
+#print axioms generated.L2AssetRouter.L2AssetRouter.only_afm_recovers
+#print axioms generated.L2InteropHandler.L2InteropHandler.verify_sender_pass
+#print axioms generated.L2InteropHandler.L2InteropHandler.verify_sender_reverts
+#print axioms generated.L2InteropHandler.L2InteropHandler.inclusion_verified_pass
+#print axioms generated.L2InteropHandler.L2InteropHandler.inclusion_unverified_reverts
+#print axioms generated.L2InteropHandler.L2InteropHandler.call_failure_forwards
+#print axioms generated.L2InteropHandler.L2InteropHandler.verified_status_reads_one
+#print axioms generated.L2InteropHandler.L2InteropHandler.read_after_verify_one
+#print axioms generated.L2InteropHandler.L2InteropHandler.call_version_pass
+#print axioms generated.L2InteropHandler.L2InteropHandler.call_version_reverts
+#print axioms generated.L2InteropHandler.L2InteropHandler.holder_code_pass
+#print axioms generated.L2InteropHandler.L2InteropHandler.holder_code_reverts
+#print axioms generated.L2InteropHandler.L2InteropHandler.fail_forward_reverts
