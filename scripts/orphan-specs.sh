@@ -13,6 +13,18 @@
 # stretch and was found by accident.  Fixed 2026-08-17 by importing it into the
 # ledger; this script is so the next one is found on purpose.
 #
+# RELATIONSHIP TO scripts/unbuilt-check.sh — read this before using either.
+# That script was written for the same incident and they are easy to confuse.
+# It asks "does this file have an .olean?", which is a fact about THIS WORKSPACE:
+# on a fresh clone it flags everything, and after a full build it flags nothing,
+# so it cannot answer "does anything import this file?".  It is the right tool
+# for "did my last build actually cover X".
+# This script asks the STRUCTURAL question instead — is the file reachable from
+# the roots — which gives the same answer on every machine regardless of build
+# state, and additionally checks reachability from the LEDGER, which
+# unbuilt-check.sh does not model at all.  Use this one to find orphans; use
+# that one to check a build's coverage.
+#
 # Two reachability roots, because they catch different failures:
 #   Specs.lean  — the build aggregate.  Reachable => it COMPILES.  Catches
 #                 dangling references, type errors, `sorry` via the linter.

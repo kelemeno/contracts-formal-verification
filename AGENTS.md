@@ -263,7 +263,7 @@ discharged, because no hypothesis there mentions a chain id.
 
 ## The checkers, and what each catches
 
-This corpus has six ways to look verified without being verified. Each has a script, because
+This corpus has seven ways to look verified without being verified. Each has a script, because
 each was found the hard way and none is visible to the others.
 
 | script | catches |
@@ -273,7 +273,8 @@ each was found the hard way and none is visible to the others.
 | `check-source-invariants.sh` | whole-program facts no compiler enforces (single call sites, unreachable paths, self-call sites preceded by their check) — an edit breaks them silently while the corpus keeps building |
 | `loop-mcopy-reach.sh` | work that cannot be finished here at all, because its dependency closure reaches the unmodelled `mcopy` builtin |
 | `spec-binds-check.sh` | specs the proof does NOT bind to — appends `∧ False` and expects the build to FAIL. Covers `def A_<name>` and loop `AFor_<name>` |
-| `unbuilt-check.sh` | spec files with no `.olean` — never compiled, so never checked |
+| `unbuilt-check.sh` | spec files with no `.olean` — never compiled, so never checked. Answers "did my last build cover X", a fact about the workspace |
+| `orphan-specs.sh` | spec files nothing imports — reachable from neither `Specs.lean` (build) nor `Audit.lean` (ledger), so outside the reach of *every* check. Structural, so the answer is build-independent. Found 11 tracked files besides the atlas on 2026-08-17 |
 
 **The pattern worth internalising: every one of these failures reads as success.** A false
 "nothing left to do", a green build over a vacuous spec, a search whose regex was too narrow.
